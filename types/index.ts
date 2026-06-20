@@ -57,3 +57,43 @@ export interface ParsedPacket {
   role: string | null;
   raw: RawMeshtasticPacket;
 }
+
+// ---------------------------------------------------------------------------
+// Frontend carte (Phase 3) — formes exposées par l'API publique.
+// ---------------------------------------------------------------------------
+
+// Node affiché sur la carte publique (sortie de getPublicNodes, API /api/nodes).
+// Ne contient QUE des nodes opt-in et non-mobiles : la barrière privacy est
+// appliquée en SQL (cf. getPublicNodes) et centralisée dans isPubliclyVisible.
+// lat/lon non nullables : la requête filtre les nodes sans position.
+export interface PublicNode {
+  nodeId: string;
+  longName: string | null;
+  shortName: string | null;
+  hwModel: string | null;
+  role: string | null;
+  lat: number;
+  lon: number;
+  batteryPct: number | null;
+  lastSeen: string | null; // ISO 8601
+}
+
+// Payload poussé en temps réel (pg_notify 'node_update' -> SSE /api/stream).
+// Sous-ensemble de PublicNode : juste ce qu'il faut pour bouger un marker.
+export interface NodeUpdate {
+  nodeId: string;
+  longName: string | null;
+  shortName: string | null;
+  lat: number;
+  lon: number;
+  batteryPct: number | null;
+  lastSeen: string | null; // ISO 8601
+}
+
+// Statistiques agrégées (API /api/stats + barre de stats SSR de la page).
+export interface Stats {
+  nodesTotal: number;
+  nodesOnline: number;
+  packets24h: number;
+  lastPacketAt: string | null; // ISO 8601
+}
