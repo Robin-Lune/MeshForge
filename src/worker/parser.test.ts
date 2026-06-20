@@ -113,23 +113,30 @@ describe("parseMessage — métriques & métadonnées", () => {
 });
 
 describe("parseMessage — champs nodeinfo", () => {
-  it("renseigne long_name/short_name uniquement sur type=nodeinfo", () => {
+  it("extrait longname/shortname et mappe hardware/role vers leur nom (type=nodeinfo)", () => {
+    // Format réel du payload nodeinfo MQTT : longname/shortname, hardware & role
+    // en NOMBRES (enums). hardware 110 = HELTEC_V4, role 0 = CLIENT.
     const parsed = parseMessage(
       topic("Fr_Balise"),
-      raw({ type: "nodeinfo", payload: { long_name: "Piton", short_name: "PIT", hw_model: "HELTEC_V3" } }),
+      raw({
+        type: "nodeinfo",
+        payload: { longname: "Piton", shortname: "PIT", hardware: 110, role: 0 },
+      }),
       CHANNELS,
     );
     expect(parsed?.longName).toBe("Piton");
     expect(parsed?.shortName).toBe("PIT");
-    expect(parsed?.hwModel).toBe("HELTEC_V3");
+    expect(parsed?.hwModel).toBe("HELTEC_V4");
+    expect(parsed?.role).toBe("CLIENT");
   });
 
-  it("ignore long_name si le type n'est pas nodeinfo", () => {
+  it("ignore les champs nodeinfo si le type n'est pas nodeinfo", () => {
     const parsed = parseMessage(
       topic("Fr_Balise"),
-      raw({ type: "position", payload: { long_name: "Piton" } }),
+      raw({ type: "position", payload: { longname: "Piton", hardware: 110 } }),
       CHANNELS,
     );
     expect(parsed?.longName).toBeNull();
+    expect(parsed?.hwModel).toBeNull();
   });
 });

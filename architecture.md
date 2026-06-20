@@ -39,6 +39,7 @@ mosquitto/config/            Config broker (uplink only)
 src/worker/
   mqtt-subscriber.ts         Entrée worker : connecte MQTT, route les messages
   parser.ts                  Normalise un message brut → ParsedPacket (défensif)
+  meshtastic-enums.ts        HardwareModel/DeviceRole : enum numérique → nom (nodeinfo)
   env.ts                     Charge .env.local puis .env avant lib/db
 
 lib/

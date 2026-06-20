@@ -1,4 +1,5 @@
 import type { RawMeshtasticPacket, ParsedPacket } from "../../types";
+import { hardwareModelName, deviceRoleName } from "./meshtastic-enums";
 
 // NodeNum entier -> NodeID hex Meshtastic. Ex: 4134129428 -> "!f669cf14".
 // `>>> 0` force l'interprétation non signée (NodeNum va jusqu'à 0xFFFFFFFF).
@@ -48,11 +49,14 @@ export function parseMessage(
     voltage: numOrNull(payload.voltage),
     channelUtil: numOrNull(payload.channel_utilization),
     airUtilTx: numOrNull(payload.air_util_tx),
-    longName: isNodeInfo ? strOrNull(payload.long_name) : null,
-    shortName: isNodeInfo ? strOrNull(payload.short_name) : null,
-    hwModel: isNodeInfo ? strOrNull(payload.hw_model) : null,
-    firmware: isNodeInfo ? strOrNull(payload.firmware) : null,
-    role: isNodeInfo ? strOrNull(payload.role) : null,
+    // Vrais noms de clés du payload nodeinfo MQTT : longname/shortname, et
+    // hardware/role en NOMBRES (enums) -> libellés via meshtastic-enums.
+    // firmware n'est PAS dans ce payload (cf. dump réel) -> toujours null.
+    longName: isNodeInfo ? strOrNull(payload.longname) : null,
+    shortName: isNodeInfo ? strOrNull(payload.shortname) : null,
+    hwModel: isNodeInfo ? hardwareModelName(payload.hardware) : null,
+    firmware: null,
+    role: isNodeInfo ? deviceRoleName(payload.role) : null,
     raw,
   };
 }

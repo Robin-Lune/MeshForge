@@ -23,11 +23,11 @@ export interface RawMeshtasticPacket {
     voltage?: number;
     channel_utilization?: number;
     air_util_tx?: number;
-    long_name?: string;
-    short_name?: string;
-    hw_model?: string;
-    firmware?: string;
-    role?: string;
+    // nodeinfo : noms réels du payload MQTT ; hardware/role sont des enums (nombres).
+    longname?: string;
+    shortname?: string;
+    hardware?: number;
+    role?: number;
     [key: string]: unknown;
   };
   [key: string]: unknown;
