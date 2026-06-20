@@ -29,9 +29,14 @@ SQL centralisé dans `lib/queries/` (jamais inline), testé en TDD (Red-Green-Re
 | Route | Réponse |
 | ----- | ------- |
 | `GET /api/coverage?since=...` | GeoJSON : agrégat SNR par bucket géo (alimente la heatmap) |
-| `GET /api/stats?since=...` | KPI + répartitions catégorielles (sur **tout le réseau capté**) |
 | `GET /api/nodes/[id]/history?since=...` | Séries 30j d'un node (SNR, batterie, paquets/jour) |
 | `GET /api/links?since=...` | Arêtes du graphe (node → voisin + SNR), privacy-aware |
+
+**Page Statistiques** : ✅ implémentée. Pas de route API — la page `/stats` (Server
+Component) appelle `getNetworkStats()` **directement** (pattern Phase 3 : un Server
+Component lit la DB sans passer par `/api`). `/api/stats` reste l'endpoint de la barre
+carte (`getStats`, opt-in only). Le firmware n'est **pas** dans le payload nodeinfo MQTT
+→ pas de répartition firmware.
 
 ## Stats = tout le réseau capté (≠ carte)
 
@@ -50,9 +55,10 @@ canal moyenne**, **air util TX moyen** — tous dérivables de `packets` (`chann
 
 ## Visualisations — barres, pas camemberts
 
-Les répartitions catégorielles (type de carte, firmware, rôle, type de paquet, hops) sont
-rendues en **barres horizontales triées** (Recharts), pas en camemberts (illisibles dès
-qu'il y a une longue traîne, cf. Gaulix). Recharts aussi pour les courbes historiques.
+Les répartitions catégorielles (type de carte, rôle, type de paquet, hops) sont rendues en
+**barres horizontales triées** (Recharts), pas en camemberts (illisibles dès qu'il y a une
+longue traîne, cf. Gaulix). `StatsCharts.tsx` replie la traîne au-delà du top 10 en
+« autres ». Recharts aussi pour les courbes historiques.
 
 ## Heatmap couverture SNR
 

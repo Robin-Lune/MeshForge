@@ -48,10 +48,11 @@ lib/
   queries/
     packets.ts               insertPacket
     nodes.ts                 upsertNode (+ pg_notify public), getPublicNodes
-    stats.ts                 getStats (agrégats dashboard)
+    stats.ts                 getStats (barre carte) + getNetworkStats (page stats, tout le réseau)
 
 app/
   page.tsx                   Server Component : stats + <MapView/>
+  stats/page.tsx             Server Component : page Statistiques (getNetworkStats)
   layout.tsx                 Layout racine, metadata
   api/nodes/route.ts         GET PublicNode[]
   api/stats/route.ts         GET Stats
@@ -59,6 +60,8 @@ app/
 
 components/
   MapView.tsx                Carte MapLibre (client) : markers + EventSource
+  Nav.tsx                    Nav partagée Carte/Statistiques (server)
+  StatsCharts.tsx            Barres Recharts (client) : répartitions
 
 types/index.ts               Types partagés (RawMeshtasticPacket, ParsedPacket,
                              PublicNode, NodeUpdate, Stats)

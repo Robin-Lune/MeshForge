@@ -97,3 +97,30 @@ export interface Stats {
   packets24h: number;
   lastPacketAt: string | null; // ISO 8601
 }
+
+// ---------------------------------------------------------------------------
+// Statistiques réseau (Phase 4) — page /stats. CONTRAIREMENT à Stats/PublicNode,
+// agrégats sur TOUT le réseau capté (aucun filtre privacy : un agrégat n'expose
+// aucun individu). La barrière privacy reste sur la carte + temps réel.
+// Cf. docs/analytics.md.
+// ---------------------------------------------------------------------------
+
+// Une barre d'une répartition (rendu en barres horizontales, pas camembert).
+export interface StatBucket {
+  label: string;
+  count: number;
+}
+
+export interface NetworkStats {
+  nodesTotal: number; // tous les nodes connus
+  nodesActive24h: number; // vus dans les 24h
+  packets24h: number;
+  packetsPerMin: number; // moyenne sur 24h
+  avgChannelUtil: number | null; // % moyen, null si aucun paquet
+  avgAirUtilTx: number | null;
+  lastPacketAt: string | null; // ISO 8601
+  byPacketType: StatBucket[]; // activité 24h (packets)
+  byHopCount: StatBucket[]; // activité 24h (packets)
+  byHwModel: StatBucket[]; // parc (table nodes)
+  byRole: StatBucket[];
+}

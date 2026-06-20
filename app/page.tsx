@@ -1,4 +1,5 @@
 import MapView from "@/components/MapView";
+import Nav from "@/components/Nav";
 import { getStats } from "@/lib/queries/stats";
 
 // Rendu au request-time : getStats() interroge la DB (pas de prérendu build).
@@ -20,7 +21,8 @@ export default async function Home() {
     <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-8 border-b border-black/10 px-6 py-3 dark:border-white/15">
         <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-        <div className="flex gap-8">
+        <Nav active="/" />
+        <div className="ml-auto flex gap-8">
           <Stat label="Nodes sur la carte" value={stats.nodesTotal} />
           <Stat label="En ligne (15 min)" value={stats.nodesOnline} />
           <Stat label="Paquets / 24 h" value={stats.packets24h} />
