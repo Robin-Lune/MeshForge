@@ -124,6 +124,34 @@ export interface NodeGatewayLink {
   packets: number;
 }
 
+// ---------------------------------------------------------------------------
+// Vues listes nodes (Phase 5) — page /nodes. Dérivé de `nodes` (+ packets 24h).
+// ---------------------------------------------------------------------------
+
+// Raison pour laquelle un node est considéré « mal configuré » (un node peut
+// en cumuler plusieurs). Critères dérivés des seules données disponibles.
+export type MisconfigReason =
+  | "no-nodeinfo" // long_name NULL : n'a jamais émis son nodeinfo
+  | "no-position" // last_lat/last_lon NULL : GPS off ou position non partagée
+  | "low-battery" // last_battery < seuil : alim sous-dimensionnée
+  | "too-chatty"; // trop de transmissions / 24h : sature le mesh
+
+// Une ligne des vues listes (actifs / batterie faible / mal configurés).
+export interface NodeListItem {
+  nodeId: string;
+  longName: string | null;
+  shortName: string | null;
+  hwModel: string | null;
+  role: string | null;
+  batteryPct: number | null;
+  lastSeen: string | null; // ISO 8601
+  isMobile: boolean;
+  isGateway: boolean;
+  active: boolean; // vu dans les dernières 24h
+  packets24h: number; // transmissions DISTINCTES sur 24h (pas les réceptions)
+  misconfig: MisconfigReason[];
+}
+
 // Payload poussé en temps réel (pg_notify 'node_update' -> SSE /api/stream).
 // Sous-ensemble de PublicNode : juste ce qu'il faut pour bouger un marker.
 export interface NodeUpdate {
