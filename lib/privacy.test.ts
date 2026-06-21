@@ -18,7 +18,7 @@ describe("isPubliclyVisible", () => {
   });
 });
 
-// Flou CONSTANT ~1,5 km pour les mobiles (cf. .claude/docs/privacy-rgpd.md) :
+// Flou CONSTANT ~500 m pour les mobiles (cf. .claude/docs/privacy-rgpd.md) :
 // deux positions dans la même cellule → même sortie (impossible à moyenner).
 describe("snapToGrid", () => {
   it("est déterministe : deux positions proches → même cellule", () => {
@@ -29,9 +29,9 @@ describe("snapToGrid", () => {
     expect(snapToGrid(-21.1, 55.5).lat).not.toBe(-21.1);
   });
 
-  it("reste à moins d'une cellule (~1,5 km) de l'exact", () => {
+  it("reste à moins d'une cellule (~500 m) de l'exact", () => {
     const s = snapToGrid(-21.1, 55.5);
-    expect(Math.abs(s.lat - -21.1)).toBeLessThan(0.0135);
-    expect(Math.abs(s.lon - 55.5)).toBeLessThan(0.0135);
+    expect(Math.abs(s.lat - -21.1)).toBeLessThan(0.0045);
+    expect(Math.abs(s.lon - 55.5)).toBeLessThan(0.0045);
   });
 });
