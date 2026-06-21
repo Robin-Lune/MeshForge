@@ -16,6 +16,14 @@ describe("isPubliclyVisible", () => {
     expect(isPubliclyVisible({ lat: null, lon: 55.5 })).toBe(false);
     expect(isPubliclyVisible({ lat: -21.1, lon: null })).toBe(false);
   });
+
+  it("masque un node en opt-out RGPD (excluded), même localisé", () => {
+    expect(isPubliclyVisible({ lat: -21.1, lon: 55.5, excluded: true })).toBe(false);
+  });
+
+  it("affiche un node non exclu (excluded false/absent)", () => {
+    expect(isPubliclyVisible({ lat: -21.1, lon: 55.5, excluded: false })).toBe(true);
+  });
 });
 
 // Flou CONSTANT ~500 m pour les mobiles (cf. .claude/docs/privacy-rgpd.md) :

@@ -58,8 +58,12 @@ CREATE TABLE IF NOT EXISTS nodes (
     last_battery  SMALLINT,
     last_seen     TIMESTAMPTZ,
     first_seen    TIMESTAMPTZ DEFAULT NOW(),
-    share_on_map  BOOLEAN DEFAULT FALSE       -- opt-in explicite pour la carte publique
+    share_on_map  BOOLEAN DEFAULT FALSE,      -- (héritage : plus utilisé comme barrière)
+    excluded      BOOLEAN NOT NULL DEFAULT FALSE  -- opt-out RGPD (droit de retrait)
 );
+
+-- Idempotent pour les bases existantes (RGPD, Phase 5).
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- ---------------------------------------------------------------------------
 -- contributors — comptes (Phase 5). Auth MQTT (mosquitto-go-auth) ET auth web.

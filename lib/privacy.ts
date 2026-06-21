@@ -7,10 +7,12 @@
 export interface VisibilityInput {
   lat: number | null;
   lon: number | null;
+  excluded?: boolean; // opt-out RGPD (droit de retrait) : retiré de l'affichage
 }
 
+// Caché si : pas de position OU retrait RGPD demandé (excluded). Sinon visible.
 export function isPubliclyVisible(node: VisibilityInput): boolean {
-  return node.lat !== null && node.lon !== null;
+  return !node.excluded && node.lat !== null && node.lon !== null;
 }
 
 // Flou CONSTANT pour les mobiles : snap sur le centre d'une cellule ~500 m.

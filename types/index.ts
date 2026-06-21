@@ -96,6 +96,7 @@ export interface NodeDetail {
   isMobile: boolean;
   isGateway: boolean;
   lastSnr: number | null;
+  excluded: boolean; // opt-out RGPD (droit de retrait)
 }
 
 // Arête de la toile mesh (API /api/observations) : un gateway a entendu un node.

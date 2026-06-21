@@ -1,7 +1,14 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import Nav from "@/components/Nav";
 import NodeCharts from "@/components/NodeCharts";
-import { getNodeById } from "@/lib/queries/nodes";
+import { isAdmin } from "@/lib/admin";
+import {
+  getNodeById,
+  setNodeExcluded,
+  anonymizeNode,
+  deleteNode,
+} from "@/lib/queries/nodes";
 import { getNodeHistory, getNodeGateways } from "@/lib/queries/node-detail";
 
 // Request-time : interroge la DB.
@@ -25,17 +32,47 @@ const hopLabel = (h: number | null): string =>
 
 export default async function NodePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ confirm?: string }>;
 }) {
   const { id } = await params;
   const nodeId = decodeURIComponent(id);
-  const [node, history, gateways] = await Promise.all([
+  const [node, history, gateways, admin] = await Promise.all([
     getNodeById(nodeId),
     getNodeHistory(nodeId),
     getNodeGateways(nodeId),
+    isAdmin(),
   ]);
   if (!node) notFound();
+  // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
+  // pour le gérer/réintégrer).
+  if (node.excluded && !admin) notFound();
+
+  const { confirm } = await searchParams;
+  const here = `/node/${encodeURIComponent(nodeId)}`;
+  const wasExcluded = node.excluded;
+
+  // Server Actions RGPD — chacune re-vérifie isAdmin() (endpoint à part entière).
+  async function toggleExcluded() {
+    "use server";
+    if (!(await isAdmin())) redirect("/admin/login");
+    await setNodeExcluded(nodeId, !wasExcluded);
+    redirect(here);
+  }
+  async function anonymize() {
+    "use server";
+    if (!(await isAdmin())) redirect("/admin/login");
+    await anonymizeNode(nodeId);
+    redirect(here);
+  }
+  async function remove() {
+    "use server";
+    if (!(await isAdmin())) redirect("/admin/login");
+    await deleteNode(nodeId);
+    redirect("/");
+  }
 
   const title = node.longName ?? node.shortName ?? node.nodeId;
   const isBridge = gateways.length >= 2;
@@ -115,6 +152,57 @@ export default async function NodePage({
           </h3>
           <NodeCharts data={history} />
         </section>
+
+        {admin && (
+          <section className="mt-8 rounded-lg border border-red-500/30 p-4">
+            <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">
+              Retrait RGPD (admin)
+            </h3>
+            {wasExcluded && (
+              <p className="mt-2 rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
+                Ce node est actuellement exclu de l’affichage public (opt-out).
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <form action={toggleExcluded}>
+                <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
+                  {wasExcluded
+                    ? "Réintégrer sur la carte"
+                    : "Exclure de la carte (opt-out)"}
+                </button>
+              </form>
+              <form action={anonymize}>
+                <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
+                  Anonymiser (effacer les noms)
+                </button>
+              </form>
+              {confirm === "delete" ? (
+                <form action={remove} className="flex items-center gap-2">
+                  <span className="text-sm text-red-700 dark:text-red-400">
+                    Suppression définitive ?
+                  </span>
+                  <button className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white">
+                    Oui, supprimer
+                  </button>
+                  <Link href={here} className="text-sm text-zinc-500 hover:text-current">
+                    Annuler
+                  </Link>
+                </form>
+              ) : (
+                <Link
+                  href={`${here}?confirm=delete`}
+                  className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-700 dark:text-red-400"
+                >
+                  Supprimer toutes les données…
+                </Link>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Anonymiser garde la télémétrie sans identité. Supprimer efface
+              définitivement le node et tous ses paquets.
+            </p>
+          </section>
+        )}
       </main>
     </div>
   );

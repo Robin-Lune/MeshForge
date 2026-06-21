@@ -36,6 +36,7 @@ const SELECT_OBSERVATIONS = `
     AND p.gateway_id <> p.node_id
     AND gw.is_mobile = FALSE AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
     AND nd.is_mobile = FALSE AND nd.last_lat IS NOT NULL AND nd.last_lon IS NOT NULL
+    AND NOT gw.excluded AND NOT nd.excluded            -- opt-out RGPD
     AND p.received_at > NOW() - INTERVAL '7 days'
   GROUP BY p.gateway_id, p.node_id
 `;
