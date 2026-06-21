@@ -63,8 +63,7 @@ export interface ParsedPacket {
 // ---------------------------------------------------------------------------
 
 // Node affiché sur la carte publique (sortie de getPublicNodes, API /api/nodes).
-// Ne contient QUE des nodes opt-in et non-mobiles : la barrière privacy est
-// appliquée en SQL (cf. getPublicNodes) et centralisée dans isPubliclyVisible.
+// Public par défaut : tous les nodes fixes localisés (cf. isPubliclyVisible).
 // lat/lon non nullables : la requête filtre les nodes sans position.
 export interface PublicNode {
   nodeId: string;
@@ -76,6 +75,35 @@ export interface PublicNode {
   lon: number;
   batteryPct: number | null;
   lastSeen: string | null; // ISO 8601
+  isGateway: boolean; // relaie vers MQTT (apparaît comme gateway_id) → marker vert
+  lastSnr: number | null; // dernier SNR reçu (signal), pour la fiche au survol
+}
+
+// Détail complet d'un node (page /node/[id], au clic sur un marker).
+export interface NodeDetail {
+  nodeId: string;
+  longName: string | null;
+  shortName: string | null;
+  hwModel: string | null;
+  firmware: string | null;
+  role: string | null;
+  lat: number | null;
+  lon: number | null;
+  batteryPct: number | null;
+  lastSeen: string | null; // ISO 8601
+  firstSeen: string | null; // ISO 8601
+  isMobile: boolean;
+  isGateway: boolean;
+  lastSnr: number | null;
+}
+
+// Arête de la toile mesh (API /api/observations) : un gateway a entendu un node.
+// bestHop = 0 → lien radio DIRECT (portée réelle) ; > 0 → via le mesh.
+export interface Observation {
+  gatewayId: string;
+  nodeId: string;
+  bestHop: number | null;
+  snr: number | null;
 }
 
 // Payload poussé en temps réel (pg_notify 'node_update' -> SSE /api/stream).

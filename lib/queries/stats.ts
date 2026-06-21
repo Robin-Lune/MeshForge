@@ -7,10 +7,10 @@ import type { Stats, NetworkStats, StatBucket } from "../../types";
 const SELECT_STATS = `
   SELECT
     (SELECT COUNT(*) FROM nodes
-       WHERE share_on_map = TRUE AND is_mobile = FALSE
+       WHERE is_mobile = FALSE
          AND last_lat IS NOT NULL AND last_lon IS NOT NULL)        AS "nodesTotal",
     (SELECT COUNT(*) FROM nodes
-       WHERE share_on_map = TRUE AND is_mobile = FALSE
+       WHERE is_mobile = FALSE
          AND last_lat IS NOT NULL AND last_lon IS NOT NULL
          AND last_seen > NOW() - INTERVAL '15 minutes')            AS "nodesOnline",
     (SELECT COUNT(*) FROM packets

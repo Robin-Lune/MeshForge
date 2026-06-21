@@ -1,6 +1,6 @@
 import { pool } from "../db";
 import { isPubliclyVisible } from "../privacy";
-import type { ParsedPacket, PublicNode, NodeUpdate } from "../../types";
+import type { ParsedPacket, PublicNode, NodeUpdate, NodeDetail } from "../../types";
 
 // Upsert du dernier état connu d'un node, à chaque paquet reçu.
 // COALESCE partout : un paquet sans position/batterie/nom ne doit jamais
@@ -79,25 +79,29 @@ export async function upsertNode(p: ParsedPacket): Promise<void> {
   }
 }
 
-// Nodes affichés sur la carte publique. La barrière privacy est ICI, en SQL :
-// opt-in (share_on_map), fixes (NOT is_mobile), et localisés (lat/lon présents).
+// Nodes affichés sur la carte publique. Barrière privacy ICI, en SQL : PUBLIC PAR
+// DÉFAUT (tous les fixes localisés), mobiles exclus (snap ~1,5 km pas encore fait).
+// isGateway : ce node relaie vers MQTT. lastSnr : dernier SNR reçu (fiche survol).
 const SELECT_PUBLIC_NODES = `
   SELECT
-    node_id      AS "nodeId",
-    long_name    AS "longName",
-    short_name   AS "shortName",
-    hw_model     AS "hwModel",
-    role         AS "role",
-    last_lat     AS "lat",
-    last_lon     AS "lon",
-    last_battery AS "batteryPct",
-    last_seen    AS "lastSeen"
-  FROM nodes
-  WHERE share_on_map = TRUE
-    AND is_mobile = FALSE
-    AND last_lat IS NOT NULL
-    AND last_lon IS NOT NULL
-  ORDER BY last_seen DESC NULLS LAST
+    n.node_id      AS "nodeId",
+    n.long_name    AS "longName",
+    n.short_name   AS "shortName",
+    n.hw_model     AS "hwModel",
+    n.role         AS "role",
+    n.last_lat     AS "lat",
+    n.last_lon     AS "lon",
+    n.last_battery AS "batteryPct",
+    n.last_seen    AS "lastSeen",
+    EXISTS (SELECT 1 FROM packets p WHERE p.gateway_id = n.node_id) AS "isGateway",
+    (SELECT p.snr FROM packets p
+       WHERE p.node_id = n.node_id AND p.snr IS NOT NULL
+       ORDER BY p.received_at DESC LIMIT 1)                         AS "lastSnr"
+  FROM nodes n
+  WHERE n.is_mobile = FALSE
+    AND n.last_lat IS NOT NULL
+    AND n.last_lon IS NOT NULL
+  ORDER BY n.last_seen DESC NULLS LAST
 `;
 
 type PublicNodeRow = Omit<PublicNode, "lastSeen"> & { lastSeen: Date | null };
@@ -108,4 +112,42 @@ export async function getPublicNodes(): Promise<PublicNode[]> {
     ...r,
     lastSeen: r.lastSeen ? r.lastSeen.toISOString() : null,
   }));
+}
+
+// Détail d'un node (page /node/[id], au clic sur un marker).
+const SELECT_NODE_BY_ID = `
+  SELECT
+    node_id      AS "nodeId",
+    long_name    AS "longName",
+    short_name   AS "shortName",
+    hw_model     AS "hwModel",
+    firmware     AS "firmware",
+    role         AS "role",
+    last_lat     AS "lat",
+    last_lon     AS "lon",
+    last_battery AS "batteryPct",
+    last_seen    AS "lastSeen",
+    first_seen   AS "firstSeen",
+    is_mobile    AS "isMobile",
+    EXISTS (SELECT 1 FROM packets p WHERE p.gateway_id = nodes.node_id)  AS "isGateway",
+    (SELECT p.snr FROM packets p
+       WHERE p.node_id = nodes.node_id AND p.snr IS NOT NULL
+       ORDER BY p.received_at DESC LIMIT 1)                              AS "lastSnr"
+  FROM nodes WHERE node_id = $1
+`;
+
+type NodeDetailRow = Omit<NodeDetail, "lastSeen" | "firstSeen"> & {
+  lastSeen: Date | null;
+  firstSeen: Date | null;
+};
+
+export async function getNodeById(nodeId: string): Promise<NodeDetail | null> {
+  const { rows } = await pool.query<NodeDetailRow>(SELECT_NODE_BY_ID, [nodeId]);
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    ...r,
+    lastSeen: r.lastSeen ? r.lastSeen.toISOString() : null,
+    firstSeen: r.firstSeen ? r.firstSeen.toISOString() : null,
+  };
 }
