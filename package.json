@@ -14,6 +14,8 @@
     "worker:dev": "tsx watch src/worker/mqtt-subscriber.ts"
   },
   "dependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "maplibre-gl": "^5.24.0",
     "mqtt": "^5.15.1",

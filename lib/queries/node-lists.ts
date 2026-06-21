@@ -1,28 +1,8 @@
 import { pool } from "../db";
+import { getSetting } from "./settings";
 import type { MisconfigReason, NodeListItem } from "../../types";
 
-// Seuils des vues listes (Phase 5). Tunables ici (source unique).
 export const LOW_BATTERY_THRESHOLD = 20; // %, sous ce niveau = batterie faible
-
-// Seuil « trop bavard » : transmissions DISTINCTES / 24h au-delà desquelles un
-// node est jugé bavard. On compte les émissions (id de paquet distinct), PAS les
-// réceptions : un node entendu par N gateways génère N lignes pour 1 seule
-// émission. C'est l'airtime réellement consommé qui sature le mesh, donc on
-// déduplique par id. Tunable via l'env MISCONFIG_MAX_PACKETS_24H.
-const DEFAULT_MAX_PACKETS_24H = 1000;
-
-// Parse le seuil depuis l'env : entier > 0, sinon `fallback` (logique pure).
-export function parseMaxPackets24h(
-  raw: string | undefined,
-  fallback = DEFAULT_MAX_PACKETS_24H,
-): number {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
-}
-
-export const MISCONFIG_MAX_PACKETS_24H = parseMaxPackets24h(
-  process.env.MISCONFIG_MAX_PACKETS_24H,
-);
 
 // Sous-ensemble d'une ligne suffisant pour classer (testé isolément).
 type ClassifyInput = {
@@ -32,10 +12,12 @@ type ClassifyInput = {
   packets24h: number;
 };
 
-// Raisons « mal configuré » pour un node (vide = sain). Ordre stable.
+// Raisons « mal configuré » pour un node (vide = sain). Ordre stable. Le seuil
+// « trop bavard » est fourni par l'appelant (config DB `misconfig_max_packets_24h`).
+// On compte les transmissions DISTINCTES, pas les réceptions (cf. SELECT).
 export function classifyMisconfig(
   row: ClassifyInput,
-  maxPackets24h = MISCONFIG_MAX_PACKETS_24H,
+  maxPackets24h: number,
 ): MisconfigReason[] {
   const reasons: MisconfigReason[] = [];
   if (!row.hasNodeinfo) reasons.push("no-nodeinfo");
@@ -66,7 +48,7 @@ interface NodeOverviewRow {
 // Normalise une ligne DB -> item d'affichage (logique pure, testée).
 export function toNodeListItem(
   row: NodeOverviewRow,
-  maxPackets24h = MISCONFIG_MAX_PACKETS_24H,
+  maxPackets24h: number,
 ): NodeListItem {
   const packets24h = Number(row.packets24h);
   return {
@@ -86,8 +68,10 @@ export function toNodeListItem(
 }
 
 // Tous les nodes avec les champs dérivés nécessaires aux 3 vues. Un seul aller
-// DB : le filtrage par onglet (actifs / batterie / mal configurés) se fait côté
-// page. packets24h = transmissions DISTINCTES (cf. MISCONFIG_MAX_PACKETS_24H).
+// DB pour les nodes : le filtrage par onglet (actifs / batterie / mal
+// configurés) se fait côté page. packets24h = transmissions DISTINCTES : un node
+// entendu par N gateways génère N lignes pour 1 émission ; on déduplique par id
+// (airtime réellement consommé). Le seuil « bavard » vient de la config DB.
 const SELECT_NODES_OVERVIEW = `
   SELECT
     n.node_id      AS "nodeId",
@@ -114,6 +98,7 @@ const SELECT_NODES_OVERVIEW = `
 `;
 
 export async function getNodesOverview(): Promise<NodeListItem[]> {
+  const maxPackets24h = await getSetting("misconfig_max_packets_24h");
   const { rows } = await pool.query<NodeOverviewRow>(SELECT_NODES_OVERVIEW);
-  return rows.map((r) => toNodeListItem(r));
+  return rows.map((r) => toNodeListItem(r, maxPackets24h));
 }

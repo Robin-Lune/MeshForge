@@ -152,6 +152,29 @@ export interface NodeListItem {
   misconfig: MisconfigReason[];
 }
 
+// Bornes géographiques de la carte (config `map_bounds`). null = carte ouverte
+// (aucune limite). Sinon MapLibre `maxBounds` = [[west,south],[east,north]].
+export interface MapBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+// Ligne du flux debug « Trames » (page /admin/trames, admin only). Paquet brut
+// capté ; Fr_EMCOM exclu en amont (privacy). `raw` = payload MQTT complet.
+export interface Trame {
+  receivedAt: string; // ISO 8601
+  gatewayId: string | null;
+  nodeId: string | null;
+  packetType: string | null;
+  channel: string | null;
+  rssi: number | null;
+  snr: number | null;
+  hopCount: number | null;
+  raw: RawMeshtasticPacket;
+}
+
 // Payload poussé en temps réel (pg_notify 'node_update' -> SSE /api/stream).
 // Sous-ensemble de PublicNode : juste ce qu'il faut pour bouger un marker.
 export interface NodeUpdate {
