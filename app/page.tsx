@@ -1,6 +1,7 @@
 import MapView from "@/components/MapView";
 import Nav from "@/components/Nav";
 import { getStats } from "@/lib/queries/stats";
+import { getSetting } from "@/lib/queries/settings";
 
 // Rendu au request-time : getStats() interroge la DB (pas de prérendu build).
 export const dynamic = "force-dynamic";
@@ -15,7 +16,11 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 export default async function Home() {
-  const stats = await getStats();
+  const [stats, bounds, minZoom] = await Promise.all([
+    getStats(),
+    getSetting("map_bounds"),
+    getSetting("map_min_zoom"),
+  ]);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -29,7 +34,7 @@ export default async function Home() {
         </div>
       </header>
       <main className="min-h-0 flex-1">
-        <MapView />
+        <MapView bounds={bounds} minZoom={minZoom} />
       </main>
     </div>
   );

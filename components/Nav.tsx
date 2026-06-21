@@ -5,7 +5,9 @@ import Link from "next/link";
 // blocs Phase 4 (détail node, link graph...).
 const LINKS = [
   { href: "/", label: "Carte" },
+  { href: "/nodes", label: "Listes" },
   { href: "/stats", label: "Statistiques" },
+  { href: "/register", label: "Devenir relais" },
 ];
 
 export default function Nav({ active }: { active: string }) {

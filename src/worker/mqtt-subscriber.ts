@@ -3,6 +3,7 @@ import mqtt from "mqtt";
 import { pool } from "../../lib/db";
 import { insertPacket } from "../../lib/queries/packets";
 import { upsertNode } from "../../lib/queries/nodes";
+import { getSetting } from "../../lib/queries/settings";
 import { parseMessage } from "./parser";
 import type { RawMeshtasticPacket } from "../../types";
 
@@ -10,12 +11,6 @@ const MQTT_URL = process.env.MQTT_URL ?? "mqtt://localhost:1883";
 // Uniquement le flux JSON (`+/+/json`) : exclut les topics binaires `/e/`
 // (protobuf chiffré) et `/map/` qui feraient échouer JSON.parse pour rien.
 const TOPIC = "msh/+/+/json/#";
-
-// Allowlist privacy : seuls ces canaux sont stockés (cf. MQTT_PUBLIC_CHANNELS).
-const PUBLIC_CHANNELS = (process.env.MQTT_PUBLIC_CHANNELS ?? "")
-  .split(",")
-  .map((c) => c.trim())
-  .filter(Boolean);
 
 function log(...args: unknown[]): void {
   console.log(new Date().toISOString(), ...args);
@@ -26,9 +21,16 @@ const client = mqtt.connect(MQTT_URL, {
   password: process.env.MQTT_PASSWORD || undefined,
 });
 
-client.on("connect", () => {
+client.on("connect", async () => {
   log(`[mqtt] connecté à ${MQTT_URL}`);
-  log(`[privacy] canaux publics : ${PUBLIC_CHANNELS.join(", ") || "(aucun !)"}`);
+  // Allowlist privacy : la liste vient de la config DB (settings.public_channels),
+  // éditable sur /admin/config. getSetting met en cache (30s) -> refresh auto.
+  try {
+    const channels = await getSetting("public_channels");
+    log(`[privacy] canaux publics : ${channels.join(", ") || "(aucun !)"}`);
+  } catch {
+    log("[privacy] config canaux indisponible (DB) — paquets droppés en attendant");
+  }
   client.subscribe(TOPIC, (err) => {
     if (err) log("[mqtt] échec subscribe", err.message);
     else log(`[mqtt] subscribe ${TOPIC}`);
@@ -38,7 +40,11 @@ client.on("connect", () => {
 client.on("message", async (topic, message) => {
   try {
     const raw = JSON.parse(message.toString()) as RawMeshtasticPacket;
-    const parsed = parseMessage(topic, raw, PUBLIC_CHANNELS);
+    // Allowlist relue à chaque message (cache 30s) : un changement de config
+    // est pris en compte sans redémarrer le worker. DB indispo -> getSetting
+    // jette -> message droppé (fail-closed, sûr pour la privacy).
+    const publicChannels = await getSetting("public_channels");
+    const parsed = parseMessage(topic, raw, publicChannels);
     if (!parsed) return; // bruit, canal privé filtré, ou émetteur inconnu
 
     await insertPacket(parsed);

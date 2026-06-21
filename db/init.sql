@@ -58,18 +58,56 @@ CREATE TABLE IF NOT EXISTS nodes (
     last_battery  SMALLINT,
     last_seen     TIMESTAMPTZ,
     first_seen    TIMESTAMPTZ DEFAULT NOW(),
-    share_on_map  BOOLEAN DEFAULT FALSE       -- opt-in explicite pour la carte publique
+    share_on_map  BOOLEAN DEFAULT FALSE,      -- (héritage : plus utilisé comme barrière)
+    excluded      BOOLEAN NOT NULL DEFAULT FALSE  -- opt-out RGPD (droit de retrait)
 );
 
+-- Idempotent pour les bases existantes (RGPD, Phase 5).
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- ---------------------------------------------------------------------------
--- contributors — auth MQTT en production (mosquitto-go-auth, Phase 5).
+-- contributors — comptes (Phase 5). Auth MQTT (mosquitto-go-auth) ET auth web.
+--   role = 'USER' (défaut) : enregistre un node MQTT. Posé à l'inscription.
+--   role = 'ADMIN'         : accès admin web (Trames, config). Posé À LA MAIN
+--                            (SQL / `yarn create-admin`), jamais via l'app.
+--   password = bcrypt (token MQTT pour les USERs, mot de passe pour les ADMINs).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS contributors (
     id          SERIAL PRIMARY KEY,
     username    TEXT UNIQUE NOT NULL,
-    password    TEXT NOT NULL,                -- bcrypt hash du token
+    password    TEXT NOT NULL,                -- bcrypt hash
     email       TEXT,
     node_name   TEXT,
+    role        TEXT NOT NULL DEFAULT 'USER',
     is_active   BOOLEAN DEFAULT TRUE,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent pour les bases existantes (CREATE TABLE IF NOT EXISTS ne migre pas).
+ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'USER';
+DO $$ BEGIN
+    ALTER TABLE contributors
+        ADD CONSTRAINT contributors_role_chk CHECK (role IN ('USER', 'ADMIN'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- settings — configuration runtime éditable par les admins (/admin/config).
+-- 1 clé = 1 réglage (value JSONB typée). Clés allowlistées côté code
+-- (lib/queries/settings.ts) : aucune clé dynamique issue du client.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS settings (
+    key         TEXT PRIMARY KEY,
+    value       JSONB NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed des défauts (ne pas écraser une valeur déjà réglée par un admin).
+-- public_channels : allowlist privacy (le worker n'ingère QUE ces canaux).
+-- map_bounds : bornes Réunion (null = carte ouverte). map_min_zoom : plage 0-22.
+INSERT INTO settings (key, value) VALUES
+    ('misconfig_max_packets_24h', '1000'::jsonb),
+    ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
+    ('map_bounds', '{"west":55,"south":-21.6,"east":56,"north":-20.7}'::jsonb),
+    ('map_min_zoom', '8'::jsonb)
+ON CONFLICT (key) DO NOTHING;

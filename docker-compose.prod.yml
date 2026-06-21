@@ -1,0 +1,14 @@
+# MeshForge — Override PRODUCTION du broker (auth des relais via mosquitto-go-auth).
+# Usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Remplace l'image anonyme du dev par un mosquitto incluant le plugin go-auth,
+# qui authentifie les contributors contre PostgreSQL (cf. mosquitto.prod.conf).
+# ⚠️ Template à valider : chemin de montage de la config selon l'image choisie.
+
+services:
+  mosquitto:
+    image: iegomez/mosquitto-go-auth:latest
+    volumes:
+      - ./mosquitto/config/mosquitto.prod.conf:/etc/mosquitto/mosquitto.conf:ro
+    depends_on:
+      - timescaledb

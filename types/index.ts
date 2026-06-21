@@ -96,6 +96,7 @@ export interface NodeDetail {
   isMobile: boolean;
   isGateway: boolean;
   lastSnr: number | null;
+  excluded: boolean; // opt-out RGPD (droit de retrait)
 }
 
 // Arête de la toile mesh (API /api/observations) : un gateway a entendu un node.
@@ -122,6 +123,67 @@ export interface NodeGatewayLink {
   snr: number | null;
   bestHop: number | null; // 0 = lien radio direct
   packets: number;
+}
+
+// ---------------------------------------------------------------------------
+// Vues listes nodes (Phase 5) — page /nodes. Dérivé de `nodes` (+ packets 24h).
+// ---------------------------------------------------------------------------
+
+// Raison pour laquelle un node est considéré « mal configuré » (un node peut
+// en cumuler plusieurs). Critères dérivés des seules données disponibles.
+export type MisconfigReason =
+  | "no-nodeinfo" // long_name NULL : n'a jamais émis son nodeinfo
+  | "no-position" // last_lat/last_lon NULL : GPS off ou position non partagée
+  | "low-battery" // last_battery < seuil : alim sous-dimensionnée
+  | "too-chatty"; // trop de transmissions / 24h : sature le mesh
+
+// Une ligne des vues listes (actifs / batterie faible / mal configurés).
+export interface NodeListItem {
+  nodeId: string;
+  longName: string | null;
+  shortName: string | null;
+  hwModel: string | null;
+  role: string | null;
+  batteryPct: number | null;
+  lastSeen: string | null; // ISO 8601
+  isMobile: boolean;
+  isGateway: boolean;
+  active: boolean; // vu dans les dernières 24h
+  packets24h: number; // transmissions DISTINCTES sur 24h (pas les réceptions)
+  misconfig: MisconfigReason[];
+}
+
+// Bornes géographiques de la carte (config `map_bounds`). null = carte ouverte
+// (aucune limite). Sinon MapLibre `maxBounds` = [[west,south],[east,north]].
+export interface MapBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+// Ligne de l'aperçu gateways (page /admin/trames). Diagnostic de charge/portée :
+// combien de trames un gateway capte et combien de nodes distincts il entend.
+export interface GatewayStat {
+  gatewayId: string;
+  name: string | null; // long_name du node gateway si connu
+  packets24h: number; // trames captées sur 24h (Fr_EMCOM exclu)
+  nodes24h: number; // nodes distincts entendus sur 24h
+  lastSeen: string | null; // ISO 8601, dernière trame captée
+}
+
+// Ligne du flux debug « Trames » (page /admin/trames, admin only). Paquet brut
+// capté ; Fr_EMCOM exclu en amont (privacy). `raw` = payload MQTT complet.
+export interface Trame {
+  receivedAt: string; // ISO 8601
+  gatewayId: string | null;
+  nodeId: string | null;
+  packetType: string | null;
+  channel: string | null;
+  rssi: number | null;
+  snr: number | null;
+  hopCount: number | null;
+  raw: RawMeshtasticPacket;
 }
 
 // Payload poussé en temps réel (pg_notify 'node_update' -> SSE /api/stream).

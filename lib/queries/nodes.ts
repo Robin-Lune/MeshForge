@@ -31,7 +31,8 @@ const UPSERT_NODE = `
     last_battery AS "batteryPct",
     last_seen    AS "lastSeen",
     share_on_map AS "shareOnMap",
-    is_mobile    AS "isMobile"
+    is_mobile    AS "isMobile",
+    excluded     AS "excluded"
 `;
 
 // État fusionné renvoyé par l'upsert. lastSeen = Date (TIMESTAMPTZ côté pg).
@@ -45,6 +46,7 @@ interface UpsertedNodeRow {
   lastSeen: Date | null;
   shareOnMap: boolean;
   isMobile: boolean;
+  excluded: boolean;
 }
 
 const NOTIFY_NODE_UPDATE = `SELECT pg_notify('node_update', $1)`;
@@ -105,6 +107,7 @@ const SELECT_PUBLIC_NODES = `
   FROM nodes n
   WHERE n.last_lat IS NOT NULL
     AND n.last_lon IS NOT NULL
+    AND NOT n.excluded            -- opt-out RGPD : node retiré de la carte
   ORDER BY n.last_seen DESC NULLS LAST
 `;
 
@@ -141,6 +144,7 @@ const SELECT_NODE_BY_ID = `
     last_seen    AS "lastSeen",
     first_seen   AS "firstSeen",
     is_mobile    AS "isMobile",
+    excluded     AS "excluded",
     EXISTS (SELECT 1 FROM packets p WHERE p.gateway_id = nodes.node_id)  AS "isGateway",
     (SELECT p.snr FROM packets p
        WHERE p.node_id = nodes.node_id AND p.snr IS NOT NULL
@@ -162,4 +166,44 @@ export async function getNodeById(nodeId: string): Promise<NodeDetail | null> {
     lastSeen: r.lastSeen ? r.lastSeen.toISOString() : null,
     firstSeen: r.firstSeen ? r.firstSeen.toISOString() : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Actions RGPD (réservées aux admins, cf. page /node/[id]).
+// ---------------------------------------------------------------------------
+
+// Droit de retrait (opt-out) : exclut/réintègre un node de l'affichage public.
+export async function setNodeExcluded(
+  nodeId: string,
+  excluded: boolean,
+): Promise<void> {
+  await pool.query("UPDATE nodes SET excluded = $2 WHERE node_id = $1", [
+    nodeId,
+    excluded,
+  ]);
+}
+
+// Anonymisation : efface les noms (PII affichée). La télémétrie reste, sans
+// identité. NB : les noms historiques dans packets.raw ne sont pas scrubbés ici.
+export async function anonymizeNode(nodeId: string): Promise<void> {
+  await pool.query(
+    "UPDATE nodes SET long_name = NULL, short_name = NULL WHERE node_id = $1",
+    [nodeId],
+  );
+}
+
+// Droit à l'effacement : supprime TOUTES les données du node (transaction).
+export async function deleteNode(nodeId: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM packets WHERE node_id = $1", [nodeId]);
+    await client.query("DELETE FROM nodes WHERE node_id = $1", [nodeId]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

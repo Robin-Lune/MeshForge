@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl, { type LineLayerSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { PublicNode, NodeUpdate, Observation } from "@/types";
+import type { PublicNode, NodeUpdate, Observation, MapBounds } from "@/types";
 import { nodeColor, GATEWAY_COLOR } from "@/lib/nodeColor";
 
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
@@ -192,7 +192,13 @@ const MESH_RELAY_LAYER: LineLayerSpecification = {
   },
 };
 
-export default function MapView() {
+export default function MapView({
+  bounds,
+  minZoom,
+}: {
+  bounds: MapBounds | null;
+  minZoom: number;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());
@@ -220,11 +226,23 @@ export default function MapView() {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Bornes & zoom mini configurables (settings DB). bounds null = carte
+    // ouverte ; sinon on recentre et on bloque le pan hors zone via maxBounds.
+    const center: [number, number] = bounds
+      ? [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2]
+      : REUNION_CENTER;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: REUNION_CENTER,
-      zoom: 9,
+      center,
+      zoom: Math.max(9, minZoom),
+      minZoom,
+      maxBounds: bounds
+        ? [
+            [bounds.west, bounds.south],
+            [bounds.east, bounds.north],
+          ]
+        : undefined,
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
@@ -525,7 +543,7 @@ export default function MapView() {
       Object.values(markers).forEach((m) => m.remove());
       map.remove();
     };
-  }, []);
+  }, [bounds, minZoom]);
 
   return (
     <div className="relative h-full w-full">
