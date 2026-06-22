@@ -37,14 +37,15 @@ C'est un outil de **diagnostic de portée et de résilience**, pas juste une jol
 
 ## ✨ Fonctionnalités
 
-| | Fonctionnalité |
-|---|---|
-| 🗺️ | **Carte temps réel** MapLibre GL — pastilles Meshtastic, clustering anti-superposition, MAJ live via SSE |
-| 🕸️ | **Toile de liaisons** depuis les gateways (0-hop plein vs mesh pointillé, animée au survol) |
-| 🔍 | **Filtres** : recherche, rôle, fenêtre temporelle, nombre de hops |
-| 📈 | **Page détail node** : courbes 30 j (batterie, SNR…) + multi-SNR par gateway |
-| 📊 | **Page statistiques** : répartitions et santé globale du réseau |
-| 🔒 | **Privacy by design** : public par défaut, mais consentement respecté à la source + droit de retrait |
+|     | Fonctionnalité                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------- |
+| 🗺️  | **Carte temps réel** MapLibre GL — pastilles Meshtastic, clustering anti-superposition, MAJ live via SSE          |
+| 🕸️  | **Toile de liaisons** depuis les gateways (0-hop plein vs mesh pointillé, animée au survol)                       |
+| 🔍  | **Filtres** : recherche, rôle, fenêtre temporelle, nombre de hops                                                 |
+| 📈  | **Page détail node** : courbes 30 j + multi-SNR par gateway **avec distance** (portée réelle) + télémétrie device |
+| 📊  | **Page statistiques** : répartitions et santé globale du réseau                                                   |
+| 🛰️  | **Inscription relais** (`/register`) → identifiants MQTT · espace **admin** : Trames, config runtime, RGPD        |
+| 🔒  | **Privacy by design** : public par défaut, mais consentement respecté à la source + droit de retrait              |
 
 ---
 
@@ -59,19 +60,17 @@ Nodes Meshtastic ──MQTT(JSON)──▶ Mosquitto ──▶ worker ──▶ 
                                                   └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
 ```
 
-| Couche | Techno |
-| --- | --- |
-| Frontend | Next.js 16 (App Router, Server Components), React 19, Tailwind v4 |
-| Carte | MapLibre GL JS (tuiles OpenFreeMap → Protomaps self-host avant prod) |
-| API | Route Handlers Next (`app/api/*`), SSE pour le temps réel |
-| Worker | Process Node autonome (TS via `tsx`), client `mqtt` |
-| Base | TimescaleDB (Postgres 16 + hypertables), accès via `pg` |
-| Broker | Mosquitto (**uplink only**, downlink OFF) |
-| Infra locale | `docker compose up` (Mosquitto + TimescaleDB) |
+| Couche   | Techno                                                                            |
+| -------- | --------------------------------------------------------------------------------- |
+| Frontend | Next.js 16 (App Router, Server Components), React 19, Tailwind v4                 |
+| Carte    | MapLibre GL JS (tuiles OpenFreeMap → Protomaps self-host avant prod)              |
+| API      | Route Handlers Next (`app/api/*`), SSE pour le temps réel                         |
+| Worker   | Process Node autonome (TS via `tsx`), client `mqtt`                               |
+| Base     | TimescaleDB (Postgres 16 + hypertables), accès via `pg`                           |
+| Broker   | Mosquitto (**uplink only**, downlink OFF)                                         |
+| Infra    | `docker compose` — dev : db + broker · prod : + app + worker (`yarn docker:prod`) |
 
 **Principes de conception** : SQL centralisé dans `lib/queries/` (jamais inline) · Server Components par défaut · worker MQTT **séparé** de Next.js · barrière privacy unique (`lib/privacy.ts`) appliquée à l'API REST **et** au flux temps réel · paquets malformés en `try/catch` silencieux (le mesh envoie du bruit) · zéro dépendance cloud propriétaire.
-
-Détails : [.claude/architecture.md](.claude/architecture.md).
 
 ---
 
@@ -87,7 +86,6 @@ yarn install
 
 # 2. Configurer l'environnement
 cp .env.example .env         # mot de passe DB (docker compose)
-cp .env.example .env.local   # DATABASE_URL, MQTT_URL, canaux publics…
 
 # 3. Lancer l'infra (TimescaleDB + Mosquitto)
 docker compose up -d         # db/init.sql joué au 1er démarrage
@@ -101,30 +99,60 @@ yarn dev
 
 Ouvrir **[http://localhost:3000](http://localhost:3000)**.
 
-> Le worker et Next.js tournent **hors Docker** en dev. Docker ne porte que le broker et la base.
+> En dev, `docker compose up -d` ne lance que le **broker et la base** ; le worker et Next.js tournent en `yarn` (hot-reload). Pour tout lancer en Docker, voir **Production** ci-dessous.
 
 ### Variables d'environnement (extrait)
 
-| Variable | Rôle |
-| --- | --- |
-| `DATABASE_URL` | Connexion TimescaleDB |
-| `MQTT_URL` | Broker MQTT (uplink only) |
-| `MQTT_PUBLIC_CHANNELS` | **Allowlist** des canaux publics (default-deny). Tout canal absent est droppé **avant** insertion |
+| Variable               | Rôle                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Connexion TimescaleDB                                                                               |
+| `MQTT_URL`             | Broker MQTT (uplink only)                                                                           |
+| `ADMIN_SESSION_SECRET` | Secret HMAC du cookie de session admin (sans lui, l'accès admin est refusé). `openssl rand -hex 32` |
+| `LEGAL_*`              | Raison sociale, SIRET, hébergeur… affichés sur `/mentions-legales` (à renseigner en prod)           |
+
+> L'**allowlist des canaux publics** se configure en base
+> (table `settings`, éditable sur `/admin/config`), avec les bornes carte, le zoom et les seuils.
 
 Modèle complet et commenté : [.env.example](.env.example).
+
+### Production (tout en Docker)
+
+Un **override** (`docker-compose.prod.yml`) ajoute, par-dessus l'infra : le broker
+**authentifié** (mosquitto-go-auth) + l'app + le worker conteneurisés.
+
+```bash
+cp .env.example .env          # tout est dans .env : DB_PASSWORD + secrets app
+#   → éditer .env avec les vraies valeurs (ADMIN_SESSION_SECRET, LEGAL_*, creds MQTT…) + VOIR PLUS BAS POUR CONNEXION BROKER
+
+yarn docker:prod              # build + lance db + broker(go-auth) + app + worker
+
+# pour les commandes suivantes (admin, logs, down), pointer les 2 fichiers une fois :
+export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+docker compose exec app yarn create-admin   # créer 1er compte admin pour le Worker MQTT
+docker compose exec app yarn create-admin   # créer 2nd compte admin pour l'administration web
+```
+
+- ⚠️ **Connexion DB du broker** : `mosquitto.prod.conf` porte les identifiants Postgres **en dur** (`auth_opt_pg_host/port/dbname/user/password`, défaut `meshforge`). Mosquitto **ne lit pas** les variables d'env → si on change `DB_PASSWORD` (ou user/dbname) dans `.env`, il faut **recopier à la main** dans `mosquitto.prod.conf`, sinon le broker ne peut pas authentifier les relais.
+- ⚠️ **Worker** : il doit _subscribe_, donc s'authentifier → renseigne `MQTT_USERNAME`/`MQTT_PASSWORD` (un compte **ADMIN**) dans `.env` après le `create-admin`, puis `docker compose restart worker`.
+- L'app écoute sur **:3000** (à placer derrière un reverse proxy TLS).
+- Les conteneurs joignent db/broker par leur **nom de service** : `DATABASE_URL`/`MQTT_URL` sont surchargés dans le compose, rien à changer.
+- Mots de passe des **relais** : chacun crée le sien via `/register` (bcrypt en base) — jamais dans un fichier.
+- Canaux publics / bornes carte / zoom / seuils : réglés en base via `/admin/config`.
 
 ---
 
 ## 🧰 Scripts
 
-| Commande | Description |
-| --- | --- |
-| `yarn dev` | Serveur Next.js (dashboard) |
-| `yarn worker:dev` | Worker MQTT en watch (ingestion) |
-| `yarn build` / `yarn start` | Build & run production |
-| `yarn test` | Tests Vitest (logique pure, TDD) |
-| `yarn typecheck` | `tsc --noEmit` (TypeScript strict) |
-| `yarn lint` | ESLint |
+| Commande                    | Description                                  |
+| --------------------------- | -------------------------------------------- |
+| `yarn dev`                  | Serveur Next.js (dashboard)                  |
+| `yarn worker:dev`           | Worker MQTT en watch (ingestion)             |
+| `yarn build` / `yarn start` | Build & run production                       |
+| `yarn test`                 | Tests Vitest (logique pure, TDD)             |
+| `yarn typecheck`            | `tsc --noEmit` (TypeScript strict)           |
+| `yarn lint`                 | ESLint                                       |
+| `yarn create-admin`         | Crée un compte admin (DB, bcrypt)            |
+| `yarn docker:prod`          | Build + lance tout le stack en Docker (prod) |
 
 ---
 
@@ -136,18 +164,7 @@ Politique : **public par défaut** (norme Meshtastic — un node qui uplinke est
 - **`ok_to_mqtt = false`** → node exclu de l'affichage.
 - **Nodes mobiles** → position snappée sur une cellule **~500 m constante** (jamais re-randomisée : un flou aléatoire se moyennerait et révélerait le vrai point).
 - **`Fr_EMCOM`** (urgence) + canaux privés/chiffrés → contenu et positions **jamais** exposés.
-- **Opt-out + droit de suppression en un clic** ; NodeID anonymisable.
-
----
-
-## 🗺️ Roadmap
-
-- [x] **Phase 1 — Infra** : `docker-compose`, Mosquitto, schéma TimescaleDB
-- [x] **Phase 2 — Pipeline** : worker MQTT, parsing défensif, ingestion `packets` + `nodes`
-- [x] **Phase 3 — Frontend carte** : API + SSE, MapView MapLibre, temps réel `LISTEN/NOTIFY`
-- [x] **Phase 4 — Toile mesh & analytics** : clustering, filtres, toile de liaisons, nœud-pont, page détail (30 j + multi-SNR), page stats
-- [ ] **Phase 5 — Alertes & prod** : détection offline, alertes batterie, vues listes, page debug « Trames », auth MQTT, inscription contributeurs, RGPD
-- [ ] **Bonus** — onglet *Messages* par canal public (façon Gaulix)
+- **Opt-out, anonymisation et suppression** depuis `/node/[id]` (admin). L'anonymisation est **permanente** : les noms ne reviennent pas au prochain `nodeinfo` (colonne `anonymized`).
 
 ---
 
@@ -161,8 +178,14 @@ La logique métier suit le cycle **TDD red-green-refactor** (Vitest). Les compos
 
 ## 📄 Licence
 
-> ⚠️ Aucun fichier `LICENSE` n'est encore présent. Ajoute-en une (MIT, AGPL-3.0…) pour clarifier les conditions de réutilisation de ce projet open source.
+MeshForge est distribué sous licence **AGPL-3.0**.
+
+Vous pouvez l'héberger, le modifier et le partager librement, à condition
+de publier vos modifications sous la même licence.
+
+Pour un usage commercial en code fermé, une licence commerciale séparée
+est disponible — contact : contact@la-forge-numerique.com
 
 <div align="center">
-<sub>Fait avec ❤️ pour le mesh réunionnais 🇷🇪</sub>
+<sub>Fait avec 💜 pour le mesh réunionnais 🇷🇪</sub>
 </div>

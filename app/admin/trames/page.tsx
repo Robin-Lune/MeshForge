@@ -1,45 +1,18 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Nav from "@/components/Nav";
-import { isAdmin, ADMIN_COOKIE } from "@/lib/admin";
+import SiteHeader from "@/components/SiteHeader";
+import { isAdmin } from "@/lib/admin";
 import { getRecentPackets, getGatewayOverview } from "@/lib/queries/packets";
 import { relativeTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-
-async function logout() {
-  "use server";
-  (await cookies()).set(ADMIN_COOKIE, "", { path: "/", maxAge: 0 });
-  redirect("/admin/login");
-}
-
-function AdminHeader() {
-  return (
-    <header className="flex items-center gap-6 border-b border-black/10 px-6 py-3 dark:border-white/15">
-      <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-      <Nav active="" />
-      <nav className="flex gap-4 text-sm">
-        <span className="font-semibold">Trames</span>
-        <Link href="/admin/config" className="text-zinc-500 hover:text-current">
-          Config
-        </Link>
-      </nav>
-      <form action={logout} className="ml-auto">
-        <button className="text-sm text-zinc-500 hover:text-current">
-          Déconnexion
-        </button>
-      </form>
-    </header>
-  );
-}
 
 // Vue par défaut : aperçu de chaque gateway (charge & portée). Clic -> ses trames.
 async function GatewayOverview() {
   const gateways = await getGatewayOverview();
   const now = new Date();
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-6">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="text-xl font-semibold">Gateways</h2>
         <Link
@@ -108,7 +81,7 @@ async function FramesView({ gateway }: { gateway: string }) {
   const title = gatewayId ? `Gateway ${gatewayId}` : "Flux global (tous gateways)";
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
       <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <Link
           href="/admin/trames"
@@ -187,8 +160,8 @@ export default async function TramesPage({
   const { gateway } = await searchParams;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AdminHeader />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SiteHeader active="/admin/trames" />
       {gateway ? <FramesView gateway={gateway} /> : <GatewayOverview />}
     </div>
   );

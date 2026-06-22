@@ -1,22 +1,21 @@
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { isAdmin, ADMIN_COOKIE } from "@/lib/admin";
+import SiteHeader from "@/components/SiteHeader";
+import { isAdmin } from "@/lib/admin";
 import { getAllSettings, setSetting } from "@/lib/queries/settings";
 
 export const dynamic = "force-dynamic";
 
-// Toutes les actions re-vérifient isAdmin() : une Server Action est un endpoint
-// à part entière (A01 — autorisation côté serveur, pas juste cacher l'UI).
-// setSetting valide strictement (jette si invalide) -> on redirige avec le
-// message d'erreur. redirect() est appelé HORS du try (il jette NEXT_REDIRECT).
 async function requireAdmin() {
   if (!(await isAdmin())) redirect("/admin/login");
 }
 
 function done(error: string | null): never {
-  redirect(error ? `/admin/config?err=${encodeURIComponent(error)}` : "/admin/config?ok=1");
+  redirect(
+    error
+      ? `/admin/config?err=${encodeURIComponent(error)}`
+      : "/admin/config?ok=1",
+  );
 }
 
 async function saveThreshold(formData: FormData) {
@@ -24,7 +23,10 @@ async function saveThreshold(formData: FormData) {
   await requireAdmin();
   let error: string | null = null;
   try {
-    await setSetting("misconfig_max_packets_24h", String(formData.get("value") ?? ""));
+    await setSetting(
+      "misconfig_max_packets_24h",
+      String(formData.get("value") ?? ""),
+    );
   } catch (e) {
     error = (e as Error).message;
   }
@@ -81,12 +83,6 @@ async function saveBounds(formData: FormData) {
   done(error);
 }
 
-async function logout() {
-  "use server";
-  (await cookies()).set(ADMIN_COOKIE, "", { path: "/", maxAge: 0 });
-  redirect("/admin/login");
-}
-
 const numCls =
   "w-full rounded border border-black/15 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-black/40 dark:border-white/20";
 const btnCls =
@@ -121,23 +117,10 @@ export default async function ConfigPage({
   const b = s.map_bounds;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center gap-6 border-b border-black/10 px-6 py-3 dark:border-white/15">
-        <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-        <nav className="flex gap-4 text-sm">
-          <Link href="/admin/trames" className="text-zinc-500 hover:text-current">
-            Trames
-          </Link>
-          <span className="font-semibold">Config</span>
-        </nav>
-        <form action={logout} className="ml-auto">
-          <button className="text-sm text-zinc-500 hover:text-current">
-            Déconnexion
-          </button>
-        </form>
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SiteHeader active="/admin/config" />
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6">
         <h2 className="mb-4 text-xl font-semibold">Configuration réseau</h2>
 
         {ok && (
@@ -187,27 +170,55 @@ export default async function ConfigPage({
             hint="Limite le déplacement hors de la zone. Cocher « carte ouverte » pour ne poser aucune limite (self-host hors Réunion)."
           >
             <form action={saveBounds} className="flex flex-col gap-2">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <label className="text-xs text-zinc-500">
                   Ouest
-                  <input name="west" type="number" step="any" defaultValue={b?.west ?? 55} className={numCls} />
+                  <input
+                    name="west"
+                    type="number"
+                    step="any"
+                    defaultValue={b?.west ?? 54.7}
+                    className={numCls}
+                  />
                 </label>
                 <label className="text-xs text-zinc-500">
                   Sud
-                  <input name="south" type="number" step="any" defaultValue={b?.south ?? -21.6} className={numCls} />
+                  <input
+                    name="south"
+                    type="number"
+                    step="any"
+                    defaultValue={b?.south ?? -21.9}
+                    className={numCls}
+                  />
                 </label>
                 <label className="text-xs text-zinc-500">
                   Est
-                  <input name="east" type="number" step="any" defaultValue={b?.east ?? 56} className={numCls} />
+                  <input
+                    name="east"
+                    type="number"
+                    step="any"
+                    defaultValue={b?.east ?? 56.3}
+                    className={numCls}
+                  />
                 </label>
                 <label className="text-xs text-zinc-500">
                   Nord
-                  <input name="north" type="number" step="any" defaultValue={b?.north ?? -20.7} className={numCls} />
+                  <input
+                    name="north"
+                    type="number"
+                    step="any"
+                    defaultValue={b?.north ?? -20.4}
+                    className={numCls}
+                  />
                 </label>
               </div>
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="open" defaultChecked={b === null} />
+                  <input
+                    type="checkbox"
+                    name="open"
+                    defaultChecked={b === null}
+                  />
                   Carte ouverte (aucune limite)
                 </label>
                 <button className={btnCls}>OK</button>

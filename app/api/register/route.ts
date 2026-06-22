@@ -6,12 +6,30 @@ import {
   generatePassword,
   insertContributor,
 } from "@/lib/queries/contributors";
+import { createRateLimiter, clientIp } from "@/lib/rate-limit";
+
+// Anti-spam d'inscription : 5 relais par IP et par heure (singleton module).
+const limiter = createRateLimiter({ limit: 5, windowMs: 60 * 60 * 1000 });
 
 // Inscription publique d'un relais. Renvoie { username, token } UNE SEULE FOIS :
 // le token n'est jamais stocké en clair (seul son bcrypt l'est). À configurer
 // comme credentials MQTT sur le Heltec.
-// NB sécurité : pas de rate-limiting ici (à ajouter — anti-spam d'inscription).
 export async function POST(req: Request) {
+  const ip = clientIp(
+    req.headers.get("x-forwarded-for"),
+    req.headers.get("x-real-ip"),
+  );
+  const rl = limiter.check(ip);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Trop de tentatives. Réessaie plus tard." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) },
+      },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

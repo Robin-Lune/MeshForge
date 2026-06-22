@@ -44,8 +44,8 @@ export default function RegisterForm() {
     return (
       <div className="flex flex-col gap-3">
         <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-          ⚠️ Copie ces identifiants <strong>maintenant</strong> : le mot de passe
-          ne sera <strong>plus jamais</strong> affiché.
+          ⚠️ Copie ces identifiants <strong>maintenant</strong> : le mot de
+          passe ne sera <strong>plus jamais</strong> affiché.
         </p>
         <div className="rounded-lg border border-black/10 p-4 font-mono text-sm dark:border-white/15">
           <div className="text-zinc-500">MQTT username</div>
@@ -54,7 +54,7 @@ export default function RegisterForm() {
           <div className="select-all break-all">{creds.password}</div>
         </div>
         <p className="text-sm text-zinc-500">
-          Configure ces valeurs comme identifiants MQTT sur ton Heltec. En cas de
+          Configure ces valeurs comme identifiants MQTT sur ton Node. En cas de
           perte, réinscris-toi (l’ancien compte restera révocable par un admin).
         </p>
       </div>

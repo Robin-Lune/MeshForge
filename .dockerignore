@@ -1,0 +1,12 @@
+# Jamais dans l'image (réduits le contexte + évitent de fuiter des secrets).
+node_modules
+.next
+.git
+.env
+.env.local
+*.log
+.claude
+_bmad
+_bmad-output
+.github
+README.md

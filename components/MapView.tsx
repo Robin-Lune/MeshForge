@@ -56,7 +56,6 @@ function nodeFeature(n: MarkerNode): GeoJSON.Feature {
   };
 }
 
-// Pastille façon app Meshtastic (nom court). Gateways verts, plus gros, au-dessus.
 function pillElement(p: Record<string, unknown>): HTMLElement {
   const isGateway = p.isGateway === true;
   const el = document.createElement("div");
@@ -80,13 +79,14 @@ function pillElement(p: Record<string, unknown>): HTMLElement {
   // Taille estimée (sans reflow) pour l'anti-superposition. gw : gateway fixe.
   el.dataset.gw = isGateway ? "1" : "0";
   el.dataset.w = String(
-    String(p.label ?? "").length * (isGateway ? 8.5 : 7) + (isGateway ? 20 : 16),
+    String(p.label ?? "").length * (isGateway ? 8.5 : 7) +
+      (isGateway ? 20 : 16),
   );
   el.dataset.h = String(isGateway ? 24 : 20);
   return el;
 }
 
-// Bulle de cluster : vert Meshtastic si un gateway dedans, bleu sinon. Taille ∝ nb.
+// Bulle de cluster : vert si un gateway dedans, bleu sinon. Taille ∝ nb.
 function clusterElement(p: Record<string, unknown>): HTMLElement {
   const hasGateway = Number(p.hasGateway ?? 0) > 0;
   const count = Number(p.point_count ?? 0);
@@ -225,6 +225,7 @@ export default function MapView({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    let alive = true;
 
     // Bornes & zoom mini configurables (settings DB). bounds null = carte
     // ouverte ; sinon on recentre et on bloque le pan hors zone via maxBounds.
@@ -246,7 +247,7 @@ export default function MapView({
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    // DEBUG temporaire — badge de zoom (pour caler le seuil cluster ↔ pastille).
+    //badge de zoom (pour caler le seuil cluster ↔ pastille).
     const showZoom = (): void => {
       if (zoomRef.current)
         zoomRef.current.textContent = `zoom ${map.getZoom().toFixed(2)}`;
@@ -257,12 +258,16 @@ export default function MapView({
     const hoverPopup = new maplibregl.Popup({
       closeButton: false,
       closeOnClick: false,
-      offset: 12,
+      offset: 19,
+      className: "mf-popup",
     });
 
     const nodesSource = (): maplibregl.GeoJSONSource | undefined =>
-      map.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
+      alive
+        ? (map.getSource("nodes") as maplibregl.GeoJSONSource | undefined)
+        : undefined;
     const refreshNodes = (): void => {
+      if (!alive) return;
       const { search, role, sinceH } = filtersRef.current;
       const q = search.trim().toLowerCase();
       const minSeen = sinceH > 0 ? Date.now() - sinceH * 3600000 : 0;
@@ -463,8 +468,7 @@ export default function MapView({
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
-      // Couche invisible : force le chargement des tuiles de "nodes" pour que
-      // querySourceFeatures renvoie les features (le rendu visible = markers HTML).
+
       map.addLayer({
         id: "nodes-hit",
         type: "circle",
@@ -526,7 +530,10 @@ export default function MapView({
           const p = existing.properties as Record<string, unknown>;
           p.longName = u.longName ?? p.longName;
           p.shortName = u.shortName ?? p.shortName;
-          p.label = shortLabel(u.nodeId, (u.shortName ?? p.shortName) as string);
+          p.label = shortLabel(
+            u.nodeId,
+            (u.shortName ?? p.shortName) as string,
+          );
           p.lastSeen = u.lastSeen ?? "";
         } else {
           nodesById.current.set(u.nodeId, nodeFeature(u));
@@ -538,6 +545,8 @@ export default function MapView({
     });
 
     return () => {
+      alive = false;
+      refreshRef.current = () => {};
       es.close();
       if (meshRaf !== null) cancelAnimationFrame(meshRaf);
       Object.values(markers).forEach((m) => m.remove());
@@ -550,33 +559,39 @@ export default function MapView({
       <div ref={containerRef} className="h-full w-full" />
       <div
         ref={zoomRef}
-        className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-white"
+        className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-white sm:bottom-auto sm:top-2"
       />
-      <div className="absolute left-1/2 top-2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-sm shadow ring-1 ring-black/10 dark:bg-zinc-800/95 dark:text-zinc-100 dark:ring-white/15">
+      <div className="absolute inset-x-2 top-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-sm shadow ring-1 ring-black/10 sm:inset-x-auto sm:left-1/2 sm:max-w-[calc(100%-1rem)] sm:-translate-x-1/2 dark:bg-zinc-800/95 dark:text-zinc-100 dark:ring-white/15">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher un node…"
-          className="w-40 rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
+          className="min-w-32 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:w-40 sm:flex-none dark:border-white/20"
         />
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className="rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
+          className="min-w-0 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:flex-none dark:border-white/20"
         >
           <option value="">Tous rôles</option>
-          {["CLIENT", "CLIENT_MUTE", "ROUTER", "ROUTER_LATE", "REPEATER", "TRACKER", "SENSOR"].map(
-            (r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ),
-          )}
+          {[
+            "CLIENT",
+            "CLIENT_MUTE",
+            "ROUTER",
+            "ROUTER_LATE",
+            "REPEATER",
+            "TRACKER",
+            "SENSOR",
+          ].map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
         <select
           value={sinceH}
           onChange={(e) => setSinceH(Number(e.target.value))}
-          className="rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
+          className="min-w-0 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:flex-none dark:border-white/20"
         >
           <option value={0}>Vus : tous</option>
           <option value={24}>24 h</option>
@@ -586,7 +601,7 @@ export default function MapView({
         <select
           value={maxHop}
           onChange={(e) => setMaxHop(Number(e.target.value))}
-          className="rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
+          className="min-w-0 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:flex-none dark:border-white/20"
         >
           <option value={9}>Toile : tous hops</option>
           <option value={0}>direct (0-hop)</option>

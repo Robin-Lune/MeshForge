@@ -1,9 +1,14 @@
-# MeshForge — Override PRODUCTION du broker (auth des relais via mosquitto-go-auth).
-# Usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# MeshForge — Override PRODUCTION.
+# Usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Remplace l'image anonyme du dev par un mosquitto incluant le plugin go-auth,
-# qui authentifie les contributors contre PostgreSQL (cf. mosquitto.prod.conf).
-# ⚠️ Template à valider : chemin de montage de la config selon l'image choisie.
+# Ce que l'override fait, par-dessus l'infra de base (db + broker du docker-compose.yml) :
+#   1) Remplace le broker anonyme par mosquitto-go-auth : les relais s'authentifient
+#      contre la table `contributors` (PostgreSQL, bcrypt) — cf. mosquitto.prod.conf.
+#   2) Conteneurise l'app Next.js + le worker MQTT (image construite via le Dockerfile).
+#
+# En conteneur, la base et le broker se joignent par leur NOM DE SERVICE
+# (timescaledb / mosquitto), pas localhost -> DATABASE_URL/MQTT_URL surchargés ici.
+# ⚠️ Template à valider : chemin de montage de la config selon la version de l'image.
 
 services:
   mosquitto:
@@ -12,3 +17,36 @@ services:
       - ./mosquitto/config/mosquitto.prod.conf:/etc/mosquitto/mosquitto.conf:ro
     depends_on:
       - timescaledb
+
+  app:
+    image: meshforge:latest
+    build: .
+    container_name: meshforge-app
+    restart: unless-stopped
+    env_file: [.env] # DB_PASSWORD, ADMIN_SESSION_SECRET, LEGAL_*, creds MQTT…
+    environment:
+      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      MQTT_URL: mqtt://mosquitto:1883
+    ports:
+      - "3000:3000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  worker:
+    image: meshforge:latest
+    build: .
+    container_name: meshforge-worker
+    restart: unless-stopped
+    command: ["yarn", "worker"]
+    env_file: [.env] # le worker SUBSCRIBE -> MQTT_USERNAME/PASSWORD d'un compte ADMIN
+    environment:
+      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      MQTT_URL: mqtt://mosquitto:1883
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started

@@ -1,13 +1,14 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (C) 2026 Robin Lebon — La Forge Numérique
 -- MeshForge — Schéma initial (Phase 1)
--- Implémente .claude/docs/schema-db.md. Exécuté automatiquement par l'image
+-- Exécuté automatiquement par l'image
 -- TimescaleDB au premier démarrage (monté dans /docker-entrypoint-initdb.d).
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- ---------------------------------------------------------------------------
 -- packets — hypertable principale. Une ligne = un paquet capté par un relais.
--- rssi/snr = qualité du DERNIER hop (relais -> nous), pas de l'émetteur
--- d'origine : ne pas mal interpréter pour la heatmap (cf. reseau-meshtastic).
+-- rssi/snr = qualité du DERNIER hop (node qui relais le packet -> gateway), pas de l'émetteur
 -- lat/lon/altitude/batterie sont mis à plat (colonnes) pour les requêtes
 -- géo/time-series directes ; `raw` conserve le payload complet.
 -- ---------------------------------------------------------------------------
@@ -41,9 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_packets_geo     ON packets (lat, lon) WHERE lat I
 -- ---------------------------------------------------------------------------
 -- nodes — dernier état connu d'un node. Upsert à chaque paquet reçu.
 -- Aucune série temporelle ici : les courbes vivent dans `packets`.
--- Privacy (cf. CLAUDE.md) :
---   is_mobile = true    -> jamais affiché sur la carte publique
---   share_on_map = false (défaut) -> node fixe non affiché sans consentement
+-- Privacy: public par défaut, consentement à la source.
+--   is_mobile = true -> position snappée (~0.5 km) avant affichage (pas exclue)
+--   excluded  = true -> opt-out RGPD : node retiré de la carte
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS nodes (
     node_id       TEXT PRIMARY KEY,
@@ -58,15 +59,18 @@ CREATE TABLE IF NOT EXISTS nodes (
     last_battery  SMALLINT,
     last_seen     TIMESTAMPTZ,
     first_seen    TIMESTAMPTZ DEFAULT NOW(),
-    share_on_map  BOOLEAN DEFAULT FALSE,      -- (héritage : plus utilisé comme barrière)
-    excluded      BOOLEAN NOT NULL DEFAULT FALSE  -- opt-out RGPD (droit de retrait)
+    excluded      BOOLEAN NOT NULL DEFAULT FALSE,  -- opt-out RGPD (droit de retrait)
+    anonymized    BOOLEAN NOT NULL DEFAULT FALSE   -- RGPD : noms effacés DÉFINITIVEMENT
 );
 
 -- Idempotent pour les bases existantes (RGPD, Phase 5).
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS anonymized BOOLEAN NOT NULL DEFAULT FALSE;
+-- Colonne morte retirée : la visibilité ne dépend QUE de excluded + règles privacy.
+ALTER TABLE nodes DROP COLUMN IF EXISTS share_on_map;
 
 -- ---------------------------------------------------------------------------
--- contributors — comptes (Phase 5). Auth MQTT (mosquitto-go-auth) ET auth web.
+-- contributors — comptes. Auth MQTT (mosquitto-go-auth) ET auth web.
 --   role = 'USER' (défaut) : enregistre un node MQTT. Posé à l'inscription.
 --   role = 'ADMIN'         : accès admin web (Trames, config). Posé À LA MAIN
 --                            (SQL / `yarn create-admin`), jamais via l'app.
@@ -108,6 +112,6 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (key, value) VALUES
     ('misconfig_max_packets_24h', '1000'::jsonb),
     ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
-    ('map_bounds', '{"west":55,"south":-21.6,"east":56,"north":-20.7}'::jsonb),
+    ('map_bounds', '{"west":54.7,"south":-21.9,"east":56.3,"north":-20.4}'::jsonb),
     ('map_min_zoom', '8'::jsonb)
 ON CONFLICT (key) DO NOTHING;

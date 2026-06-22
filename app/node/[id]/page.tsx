@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import Nav from "@/components/Nav";
+import SiteHeader from "@/components/SiteHeader";
 import NodeCharts from "@/components/NodeCharts";
 import { isAdmin } from "@/lib/admin";
 import {
@@ -9,7 +9,11 @@ import {
   anonymizeNode,
   deleteNode,
 } from "@/lib/queries/nodes";
-import { getNodeHistory, getNodeGateways } from "@/lib/queries/node-detail";
+import {
+  getNodeHistory,
+  getNodeGateways,
+  getNodeDeviceMetrics,
+} from "@/lib/queries/node-detail";
 
 // Request-time : interroge la DB.
 export const dynamic = "force-dynamic";
@@ -39,13 +43,15 @@ export default async function NodePage({
 }) {
   const { id } = await params;
   const nodeId = decodeURIComponent(id);
-  const [node, history, gateways, admin] = await Promise.all([
-    getNodeById(nodeId),
+  // node chargé d'abord : sa position alimente le calcul de distance vers les gateways.
+  const node = await getNodeById(nodeId);
+  if (!node) notFound();
+  const [history, gateways, deviceMetrics, admin] = await Promise.all([
     getNodeHistory(nodeId),
-    getNodeGateways(nodeId),
+    getNodeGateways(nodeId, node.lat, node.lon),
+    getNodeDeviceMetrics(nodeId),
     isAdmin(),
   ]);
-  if (!node) notFound();
   // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
   // pour le gérer/réintégrer).
   if (node.excluded && !admin) notFound();
@@ -78,13 +84,10 @@ export default async function NodePage({
   const isBridge = gateways.length >= 2;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center gap-8 border-b border-black/10 px-6 py-3 dark:border-white/15">
-        <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-        <Nav active="" />
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SiteHeader />
 
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold">{title}</h2>
           {node.isGateway && (
@@ -130,19 +133,50 @@ export default async function NodePage({
               {gateways.map((g) => (
                 <li
                   key={g.gatewayId}
-                  className="flex items-center justify-between gap-4 px-4 py-2 text-sm"
+                  className="flex flex-col gap-1 px-4 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                 >
                   <span className="font-medium">{g.gatewayName ?? g.gatewayId}</span>
-                  <span className="flex gap-4 font-mono text-zinc-600 dark:text-zinc-300">
+                  <span className="flex flex-wrap gap-x-4 gap-y-0.5 font-mono text-zinc-600 dark:text-zinc-300">
                     <span>{fmt(g.snr, " dB")}</span>
                     <span className={g.bestHop === 0 ? "text-emerald-600" : ""}>
                       {hopLabel(g.bestHop)}
                     </span>
+                    {g.distanceKm != null && (
+                      <span
+                        className={g.bestHop === 0 ? "text-emerald-600" : "text-zinc-400"}
+                      >
+                        {g.distanceKm} km
+                      </span>
+                    )}
                     <span className="text-zinc-400">{g.packets} pqts</span>
                   </span>
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <h3 className="mb-3 text-sm font-semibold">Télémétrie appareil</h3>
+          {deviceMetrics.voltage == null &&
+          deviceMetrics.channelUtil == null &&
+          deviceMetrics.airUtilTx == null ? (
+            <p className="text-sm text-zinc-400">
+              Aucune télémétrie device reçue sur 30 j (node sans capteurs ou
+              module télémétrie désactivé).
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Field label="Tension" value={fmt(deviceMetrics.voltage, " V")} />
+              <Field
+                label="Utilisation canal"
+                value={fmt(deviceMetrics.channelUtil, " %")}
+              />
+              <Field
+                label="Air util TX"
+                value={fmt(deviceMetrics.airUtilTx, " %")}
+              />
+            </div>
           )}
         </section>
 

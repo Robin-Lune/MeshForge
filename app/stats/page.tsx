@@ -1,4 +1,4 @@
-import Nav from "@/components/Nav";
+import SiteHeader from "@/components/SiteHeader";
 import { BarBreakdown } from "@/components/StatsCharts";
 import { getNetworkStats } from "@/lib/queries/stats";
 
@@ -20,13 +20,10 @@ export default async function StatsPage() {
   const s = await getNetworkStats();
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center gap-8 border-b border-black/10 px-6 py-3 dark:border-white/15">
-        <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-        <Nav active="/stats" />
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SiteHeader active="/stats" />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
         <h2 className="mb-4 text-xl font-semibold">Statistiques réseau</h2>
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

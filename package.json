@@ -2,6 +2,7 @@
   "name": "meshforge",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +13,8 @@
     "test:watch": "vitest",
     "worker": "tsx src/worker/mqtt-subscriber.ts",
     "worker:dev": "tsx watch src/worker/mqtt-subscriber.ts",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "tsx scripts/create-admin.ts",
+    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build"
   },
   "dependencies": {
     "@types/bcrypt": "^6.0.0",

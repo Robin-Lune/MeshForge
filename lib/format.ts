@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 // Formatage partagé (logique pure, testée). `now` est toujours injecté pour
 // rester déterministe — jamais de Date.now() implicite dans ces helpers.
 

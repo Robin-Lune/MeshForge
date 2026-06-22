@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import Nav from "@/components/Nav";
+import SiteHeader from "@/components/SiteHeader";
 import { getNodesOverview } from "@/lib/queries/node-lists";
 import { relativeTime } from "@/lib/format";
 import type { MisconfigReason, NodeListItem } from "@/types";
@@ -76,13 +76,10 @@ export default async function NodesPage({
   const showReasons = view === "misconfigured";
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center gap-8 border-b border-black/10 px-6 py-3 dark:border-white/15">
-        <h1 className="text-lg font-semibold tracking-tight">MeshForge</h1>
-        <Nav active="/nodes" />
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SiteHeader active="/nodes" />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
         <nav className="mb-4 flex gap-2 text-sm">
           {TABS.map((t) => (
             <Link

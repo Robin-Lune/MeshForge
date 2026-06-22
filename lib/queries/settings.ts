@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
 import type { MapBounds } from "../../types";
 
@@ -25,7 +27,7 @@ interface SettingValues {
 
 export const DEFAULT_MAX_PACKETS_24H = 1000;
 const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
-const REUNION_BOUNDS: MapBounds = { west: 55, south: -21.6, east: 56, north: -20.7 };
+const REUNION_BOUNDS: MapBounds = { west: 54.7, south: -21.9, east: 56.3, north: -20.4 };
 const DEFAULT_MIN_ZOOM = 8;
 
 // Noms de canaux : alphanumérique + _ - (anti-injection : on n'accepte rien d'autre).

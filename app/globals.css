@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0a0e14;
+  --surface: #111620;
+  --border: #1e2a3a;
+  --accent: #67ea94;
+  --accent-2: #a78bfa;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --footer-h: 3rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-syne);
+  --font-mono: var(--font-space-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Texture grille "blueprint" discrète (récap) : fixée derrière tout le contenu. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(103, 234, 148, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 234, 148, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Le contenu passe au-dessus de la texture. */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: rgba(103, 234, 148, 0.25);
+}
+
+/* Fiche au survol d'un node : par défaut le popup maplibre passe SOUS les
+   pastilles (markers en z-index 1-2). On le remonte au-dessus, et on lui donne
+   un fond givré translucide : lisible, mais les nodes voisins et les toiles du
+   gateway restent devinables dessous (ne masque pas). */
+.mf-popup {
+  z-index: 100;
+}
+.mf-popup .maplibregl-popup-content {
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.mf-popup .maplibregl-popup-tip {
+  border-top-color: rgba(255, 255, 255, 0.82);
+  border-bottom-color: rgba(255, 255, 255, 0.82);
 }

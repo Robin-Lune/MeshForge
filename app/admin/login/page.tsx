@@ -1,23 +1,25 @@
 import bcrypt from "bcrypt";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { newSessionToken, SESSION_TTL_MS } from "@/lib/auth";
 import { ADMIN_COOKIE, isAdmin } from "@/lib/admin";
 import { getContributorByUsername, canLogin } from "@/lib/queries/contributors";
+import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-// Hash bidon (format valide) comparé quand le compte n'existe pas : on exécute
-// TOUJOURS un bcrypt.compare -> temps de réponse identique que l'utilisateur
-// existe ou non (anti-énumération par timing). Calculé une fois au chargement.
 const DUMMY_HASH = bcrypt.hashSync("unused-placeholder", 12);
 
-// Login admin via Server Action : username + mot de passe vérifiés en bcrypt
-// contre `contributors` (role=ADMIN, actif). Pose le cookie de session signé
-// (porte le username) et redirige. Échec -> ?error=1 (message générique : on ne
-// révèle jamais si le username existe). Pas d'API route ni de JS client.
+// Anti-brute-force : 10 tentatives par IP / 15 min (singleton module). Vérifié
+// AVANT le bcrypt.compare -> coûte rien à soutenir sous attaque.
+const loginLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
+
 async function login(formData: FormData) {
   "use server";
+  const h = await headers();
+  const ip = clientIp(h.get("x-forwarded-for"), h.get("x-real-ip"));
+  if (!loginLimiter.check(ip).allowed) redirect("/admin/login?error=rate");
+
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -49,9 +51,11 @@ export default async function AdminLoginPage({
   const { error } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-1 text-lg font-semibold tracking-tight">MeshForge</h1>
-      <p className="mb-6 text-sm text-zinc-500">Accès admin</p>
+    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-4 sm:px-6">
+      <h1 className="mb-1 text-lg font-extrabold tracking-tight">
+        Mesh<span className="text-accent">Forge</span>
+      </h1>
+      <p className="mb-6 text-sm text-muted">Accès admin</p>
       <form action={login} className="flex flex-col gap-3">
         <input
           name="username"
@@ -69,7 +73,9 @@ export default async function AdminLoginPage({
         />
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">
-            Identifiants invalides.
+            {error === "rate"
+              ? "Trop de tentatives. Réessaie dans quelques minutes."
+              : "Identifiants invalides."}
           </p>
         )}
         <button
