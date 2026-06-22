@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Session admin minimale, sans dépendance externe : un cookie httpOnly signé
-// HMAC-SHA256. Token : `<payload base64url>.<signature>`, payload = JSON des
-// claims {sub, exp}. `sub` = username -> permet de re-vérifier le rôle en DB à
-// chaque requête (révocation immédiate). Logique pure (Node crypto), testable,
-// utilisable côté Server Component / Route Handler (runtime Node, pas Edge).
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
 
 export interface SessionClaims {
@@ -23,7 +20,11 @@ export function signSession(claims: SessionClaims, secret: string): string {
 }
 
 // Token de session pour `sub`, expirant dans SESSION_TTL_MS.
-export function newSessionToken(sub: string, now: number, secret: string): string {
+export function newSessionToken(
+  sub: string,
+  now: number,
+  secret: string,
+): string {
   return signSession({ sub, exp: now + SESSION_TTL_MS }, secret);
 }
 

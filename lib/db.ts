@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { Pool } from "pg";
 
 // Pool PostgreSQL partagé par le worker MQTT et (plus tard) l'API Next.js.

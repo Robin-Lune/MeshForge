@@ -37,14 +37,14 @@ C'est un outil de **diagnostic de portée et de résilience**, pas juste une jol
 
 ## ✨ Fonctionnalités
 
-| | Fonctionnalité |
-|---|---|
-| 🗺️ | **Carte temps réel** MapLibre GL — pastilles Meshtastic, clustering anti-superposition, MAJ live via SSE |
-| 🕸️ | **Toile de liaisons** depuis les gateways (0-hop plein vs mesh pointillé, animée au survol) |
-| 🔍 | **Filtres** : recherche, rôle, fenêtre temporelle, nombre de hops |
-| 📈 | **Page détail node** : courbes 30 j (batterie, SNR…) + multi-SNR par gateway |
-| 📊 | **Page statistiques** : répartitions et santé globale du réseau |
-| 🔒 | **Privacy by design** : public par défaut, mais consentement respecté à la source + droit de retrait |
+|     | Fonctionnalité                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------- |
+| 🗺️  | **Carte temps réel** MapLibre GL — pastilles Meshtastic, clustering anti-superposition, MAJ live via SSE |
+| 🕸️  | **Toile de liaisons** depuis les gateways (0-hop plein vs mesh pointillé, animée au survol)              |
+| 🔍  | **Filtres** : recherche, rôle, fenêtre temporelle, nombre de hops                                        |
+| 📈  | **Page détail node** : courbes 30 j (batterie, SNR…) + multi-SNR par gateway                             |
+| 📊  | **Page statistiques** : répartitions et santé globale du réseau                                          |
+| 🔒  | **Privacy by design** : public par défaut, mais consentement respecté à la source + droit de retrait     |
 
 ---
 
@@ -59,15 +59,15 @@ Nodes Meshtastic ──MQTT(JSON)──▶ Mosquitto ──▶ worker ──▶ 
                                                   └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
 ```
 
-| Couche | Techno |
-| --- | --- |
-| Frontend | Next.js 16 (App Router, Server Components), React 19, Tailwind v4 |
-| Carte | MapLibre GL JS (tuiles OpenFreeMap → Protomaps self-host avant prod) |
-| API | Route Handlers Next (`app/api/*`), SSE pour le temps réel |
-| Worker | Process Node autonome (TS via `tsx`), client `mqtt` |
-| Base | TimescaleDB (Postgres 16 + hypertables), accès via `pg` |
-| Broker | Mosquitto (**uplink only**, downlink OFF) |
-| Infra locale | `docker compose up` (Mosquitto + TimescaleDB) |
+| Couche       | Techno                                                               |
+| ------------ | -------------------------------------------------------------------- |
+| Frontend     | Next.js 16 (App Router, Server Components), React 19, Tailwind v4    |
+| Carte        | MapLibre GL JS (tuiles OpenFreeMap → Protomaps self-host avant prod) |
+| API          | Route Handlers Next (`app/api/*`), SSE pour le temps réel            |
+| Worker       | Process Node autonome (TS via `tsx`), client `mqtt`                  |
+| Base         | TimescaleDB (Postgres 16 + hypertables), accès via `pg`              |
+| Broker       | Mosquitto (**uplink only**, downlink OFF)                            |
+| Infra locale | `docker compose up` (Mosquitto + TimescaleDB)                        |
 
 **Principes de conception** : SQL centralisé dans `lib/queries/` (jamais inline) · Server Components par défaut · worker MQTT **séparé** de Next.js · barrière privacy unique (`lib/privacy.ts`) appliquée à l'API REST **et** au flux temps réel · paquets malformés en `try/catch` silencieux (le mesh envoie du bruit) · zéro dépendance cloud propriétaire.
 
@@ -105,10 +105,10 @@ Ouvrir **[http://localhost:3000](http://localhost:3000)**.
 
 ### Variables d'environnement (extrait)
 
-| Variable | Rôle |
-| --- | --- |
-| `DATABASE_URL` | Connexion TimescaleDB |
-| `MQTT_URL` | Broker MQTT (uplink only) |
+| Variable               | Rôle                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Connexion TimescaleDB                                                                             |
+| `MQTT_URL`             | Broker MQTT (uplink only)                                                                         |
 | `MQTT_PUBLIC_CHANNELS` | **Allowlist** des canaux publics (default-deny). Tout canal absent est droppé **avant** insertion |
 
 Modèle complet et commenté : [.env.example](.env.example).
@@ -117,14 +117,14 @@ Modèle complet et commenté : [.env.example](.env.example).
 
 ## 🧰 Scripts
 
-| Commande | Description |
-| --- | --- |
-| `yarn dev` | Serveur Next.js (dashboard) |
-| `yarn worker:dev` | Worker MQTT en watch (ingestion) |
-| `yarn build` / `yarn start` | Build & run production |
-| `yarn test` | Tests Vitest (logique pure, TDD) |
-| `yarn typecheck` | `tsc --noEmit` (TypeScript strict) |
-| `yarn lint` | ESLint |
+| Commande                    | Description                        |
+| --------------------------- | ---------------------------------- |
+| `yarn dev`                  | Serveur Next.js (dashboard)        |
+| `yarn worker:dev`           | Worker MQTT en watch (ingestion)   |
+| `yarn build` / `yarn start` | Build & run production             |
+| `yarn test`                 | Tests Vitest (logique pure, TDD)   |
+| `yarn typecheck`            | `tsc --noEmit` (TypeScript strict) |
+| `yarn lint`                 | ESLint                             |
 
 ---
 
@@ -140,17 +140,6 @@ Politique : **public par défaut** (norme Meshtastic — un node qui uplinke est
 
 ---
 
-## 🗺️ Roadmap
-
-- [x] **Phase 1 — Infra** : `docker-compose`, Mosquitto, schéma TimescaleDB
-- [x] **Phase 2 — Pipeline** : worker MQTT, parsing défensif, ingestion `packets` + `nodes`
-- [x] **Phase 3 — Frontend carte** : API + SSE, MapView MapLibre, temps réel `LISTEN/NOTIFY`
-- [x] **Phase 4 — Toile mesh & analytics** : clustering, filtres, toile de liaisons, nœud-pont, page détail (30 j + multi-SNR), page stats
-- [ ] **Phase 5 — Alertes & prod** : détection offline, alertes batterie, vues listes, page debug « Trames », auth MQTT, inscription contributeurs, RGPD
-- [ ] **Bonus** — onglet *Messages* par canal public (façon Gaulix)
-
----
-
 ## 🤝 Contribuer
 
 Workflow : branche `feat/…` · `fix/…` · `chore/…` · `refactor/…` → Pull Request vers `main` (branche protégée) → CI verte (typecheck + lint + test) avant merge.
@@ -161,8 +150,14 @@ La logique métier suit le cycle **TDD red-green-refactor** (Vitest). Les compos
 
 ## 📄 Licence
 
-> ⚠️ Aucun fichier `LICENSE` n'est encore présent. Ajoute-en une (MIT, AGPL-3.0…) pour clarifier les conditions de réutilisation de ce projet open source.
+MeshForge est distribué sous licence **AGPL-3.0**.
+
+Vous pouvez l'héberger, le modifier et le partager librement, à condition
+de publier vos modifications sous la même licence.
+
+Pour un usage commercial en code fermé, une licence commerciale séparée
+est disponible — contact : contact@la-forge-numerique.com
 
 <div align="center">
-<sub>Fait avec ❤️ pour le mesh réunionnais 🇷🇪</sub>
+<sub>Fait avec 💜 pour le mesh réunionnais 🇷🇪</sub>
 </div>

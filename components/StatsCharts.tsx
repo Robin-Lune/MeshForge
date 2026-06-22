@@ -13,14 +13,13 @@ import type { StatBucket } from "@/types";
 const TOP_N = 10;
 
 // Limite l'affichage au top N et agrège la traîne en "autres" : firmware et
-// hw_model ont une longue traîne (cf. Gaulix), sinon le graphe est interminable.
+// hw_model ont une longue traîne, sinon le graphe est interminable.
 function topWithRest(data: StatBucket[]): StatBucket[] {
   if (data.length <= TOP_N) return data;
   const rest = data.slice(TOP_N).reduce((sum, b) => sum + b.count, 0);
   return [...data.slice(0, TOP_N), { label: "autres", count: rest }];
 }
 
-// Barres horizontales triées (remplace les camemberts illisibles de Gaulix).
 export function BarBreakdown({
   title,
   data,
@@ -39,7 +38,11 @@ export function BarBreakdown({
           width="100%"
           height={Math.max(rows.length * 28, 80)}
         >
-          <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 16 }}>
+          <BarChart
+            data={rows}
+            layout="vertical"
+            margin={{ left: 0, right: 16 }}
+          >
             <XAxis type="number" hide />
             <YAxis
               type="category"

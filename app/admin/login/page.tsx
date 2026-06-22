@@ -7,15 +7,8 @@ import { getContributorByUsername, canLogin } from "@/lib/queries/contributors";
 
 export const dynamic = "force-dynamic";
 
-// Hash bidon (format valide) comparé quand le compte n'existe pas : on exécute
-// TOUJOURS un bcrypt.compare -> temps de réponse identique que l'utilisateur
-// existe ou non (anti-énumération par timing). Calculé une fois au chargement.
 const DUMMY_HASH = bcrypt.hashSync("unused-placeholder", 12);
 
-// Login admin via Server Action : username + mot de passe vérifiés en bcrypt
-// contre `contributors` (role=ADMIN, actif). Pose le cookie de session signé
-// (porte le username) et redirige. Échec -> ?error=1 (message générique : on ne
-// révèle jamais si le username existe). Pas d'API route ni de JS client.
 async function login(formData: FormData) {
   "use server";
   const username = String(formData.get("username") ?? "");
@@ -49,9 +42,11 @@ export default async function AdminLoginPage({
   const { error } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-1 text-lg font-semibold tracking-tight">MeshForge</h1>
-      <p className="mb-6 text-sm text-zinc-500">Accès admin</p>
+    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6">
+      <h1 className="mb-1 text-lg font-extrabold tracking-tight">
+        Mesh<span className="text-accent">Forge</span>
+      </h1>
+      <p className="mb-6 text-sm text-muted">Accès admin</p>
       <form action={login} className="flex flex-col gap-3">
         <input
           name="username"

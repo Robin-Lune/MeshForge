@@ -56,7 +56,6 @@ function nodeFeature(n: MarkerNode): GeoJSON.Feature {
   };
 }
 
-// Pastille façon app Meshtastic (nom court). Gateways verts, plus gros, au-dessus.
 function pillElement(p: Record<string, unknown>): HTMLElement {
   const isGateway = p.isGateway === true;
   const el = document.createElement("div");
@@ -80,13 +79,14 @@ function pillElement(p: Record<string, unknown>): HTMLElement {
   // Taille estimée (sans reflow) pour l'anti-superposition. gw : gateway fixe.
   el.dataset.gw = isGateway ? "1" : "0";
   el.dataset.w = String(
-    String(p.label ?? "").length * (isGateway ? 8.5 : 7) + (isGateway ? 20 : 16),
+    String(p.label ?? "").length * (isGateway ? 8.5 : 7) +
+      (isGateway ? 20 : 16),
   );
   el.dataset.h = String(isGateway ? 24 : 20);
   return el;
 }
 
-// Bulle de cluster : vert Meshtastic si un gateway dedans, bleu sinon. Taille ∝ nb.
+// Bulle de cluster : vert si un gateway dedans, bleu sinon. Taille ∝ nb.
 function clusterElement(p: Record<string, unknown>): HTMLElement {
   const hasGateway = Number(p.hasGateway ?? 0) > 0;
   const count = Number(p.point_count ?? 0);
@@ -120,6 +120,8 @@ function hoverCard(p: Record<string, unknown>): HTMLElement {
   el.style.color = "#111";
   el.style.fontSize = "12px";
   el.style.lineHeight = "1.4";
+  el.style.opacity = "0.7";
+  el.style.zIndex = "999";
 
   const title = document.createElement("div");
   title.style.fontWeight = "600";
@@ -225,6 +227,7 @@ export default function MapView({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    let alive = true;
 
     // Bornes & zoom mini configurables (settings DB). bounds null = carte
     // ouverte ; sinon on recentre et on bloque le pan hors zone via maxBounds.
@@ -246,7 +249,7 @@ export default function MapView({
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    // DEBUG temporaire — badge de zoom (pour caler le seuil cluster ↔ pastille).
+    //badge de zoom (pour caler le seuil cluster ↔ pastille).
     const showZoom = (): void => {
       if (zoomRef.current)
         zoomRef.current.textContent = `zoom ${map.getZoom().toFixed(2)}`;
@@ -257,12 +260,15 @@ export default function MapView({
     const hoverPopup = new maplibregl.Popup({
       closeButton: false,
       closeOnClick: false,
-      offset: 12,
+      offset: 19,
     });
 
     const nodesSource = (): maplibregl.GeoJSONSource | undefined =>
-      map.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
+      alive
+        ? (map.getSource("nodes") as maplibregl.GeoJSONSource | undefined)
+        : undefined;
     const refreshNodes = (): void => {
+      if (!alive) return;
       const { search, role, sinceH } = filtersRef.current;
       const q = search.trim().toLowerCase();
       const minSeen = sinceH > 0 ? Date.now() - sinceH * 3600000 : 0;
@@ -463,8 +469,7 @@ export default function MapView({
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
-      // Couche invisible : force le chargement des tuiles de "nodes" pour que
-      // querySourceFeatures renvoie les features (le rendu visible = markers HTML).
+
       map.addLayer({
         id: "nodes-hit",
         type: "circle",
@@ -526,7 +531,10 @@ export default function MapView({
           const p = existing.properties as Record<string, unknown>;
           p.longName = u.longName ?? p.longName;
           p.shortName = u.shortName ?? p.shortName;
-          p.label = shortLabel(u.nodeId, (u.shortName ?? p.shortName) as string);
+          p.label = shortLabel(
+            u.nodeId,
+            (u.shortName ?? p.shortName) as string,
+          );
           p.lastSeen = u.lastSeen ?? "";
         } else {
           nodesById.current.set(u.nodeId, nodeFeature(u));
@@ -538,6 +546,8 @@ export default function MapView({
     });
 
     return () => {
+      alive = false;
+      refreshRef.current = () => {};
       es.close();
       if (meshRaf !== null) cancelAnimationFrame(meshRaf);
       Object.values(markers).forEach((m) => m.remove());
@@ -565,13 +575,19 @@ export default function MapView({
           className="rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
         >
           <option value="">Tous rôles</option>
-          {["CLIENT", "CLIENT_MUTE", "ROUTER", "ROUTER_LATE", "REPEATER", "TRACKER", "SENSOR"].map(
-            (r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ),
-          )}
+          {[
+            "CLIENT",
+            "CLIENT_MUTE",
+            "ROUTER",
+            "ROUTER_LATE",
+            "REPEATER",
+            "TRACKER",
+            "SENSOR",
+          ].map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
         <select
           value={sinceH}

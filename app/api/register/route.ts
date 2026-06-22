@@ -10,7 +10,6 @@ import {
 // Inscription publique d'un relais. Renvoie { username, token } UNE SEULE FOIS :
 // le token n'est jamais stocké en clair (seul son bcrypt l'est). À configurer
 // comme credentials MQTT sur le Heltec.
-// NB sécurité : pas de rate-limiting ici (à ajouter — anti-spam d'inscription).
 export async function POST(req: Request) {
   let body: unknown;
   try {

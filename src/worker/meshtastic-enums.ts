@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 // Enums Meshtastic (protobufs officiels) — mapping valeur numérique → nom.
 // Le payload JSON MQTT publie `hardware` et `role` en NOMBRES (enums) ; on les
 // libelle ici. Source : meshtastic/protobufs mesh.proto (HardwareModel) &

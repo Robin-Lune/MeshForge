@@ -59,7 +59,7 @@ export interface ParsedPacket {
 }
 
 // ---------------------------------------------------------------------------
-// Frontend carte (Phase 3) — formes exposées par l'API publique.
+// Frontend carte  — formes exposées par l'API publique.
 // ---------------------------------------------------------------------------
 
 // Node affiché sur la carte publique (sortie de getPublicNodes, API /api/nodes).
@@ -123,10 +123,18 @@ export interface NodeGatewayLink {
   snr: number | null;
   bestHop: number | null; // 0 = lien radio direct
   packets: number;
+  distanceKm: number | null; // distance node ↔ gateway (null si position inconnue)
+}
+
+// Dernières métriques "device" d'un node (déjà captées en colonnes packets).
+export interface NodeDeviceMetrics {
+  voltage: number | null; // tension batterie (V)
+  channelUtil: number | null; // utilisation du canal (%)
+  airUtilTx: number | null; // temps d'émission sur l'air (%)
 }
 
 // ---------------------------------------------------------------------------
-// Vues listes nodes (Phase 5) — page /nodes. Dérivé de `nodes` (+ packets 24h).
+// Vues listes nodes — page /nodes. Dérivé de `nodes` (+ packets 24h).
 // ---------------------------------------------------------------------------
 
 // Raison pour laquelle un node est considéré « mal configuré » (un node peut
@@ -207,13 +215,13 @@ export interface Stats {
 }
 
 // ---------------------------------------------------------------------------
-// Statistiques réseau (Phase 4) — page /stats. CONTRAIREMENT à Stats/PublicNode,
+// Statistiques réseau — page /stats. CONTRAIREMENT à Stats/PublicNode,
 // agrégats sur TOUT le réseau capté (aucun filtre privacy : un agrégat n'expose
 // aucun individu). La barrière privacy reste sur la carte + temps réel.
 // Cf. docs/analytics.md.
 // ---------------------------------------------------------------------------
 
-// Une barre d'une répartition (rendu en barres horizontales, pas camembert).
+// Une barre d'une répartition.
 export interface StatBucket {
   label: string;
   count: number;

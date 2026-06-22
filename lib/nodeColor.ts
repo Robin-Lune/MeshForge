@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 // Couleur d'un marker. Gateways (relais MQTT) = vert Meshtastic ; autres nodes =
 // teinte déterministe dérivée du node_id → stable entre rechargements (pas un
 // random par render). Logique pure (testée).

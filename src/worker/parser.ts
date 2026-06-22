@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import type { RawMeshtasticPacket, ParsedPacket } from "../../types";
 import { hardwareModelName, deviceRoleName } from "./meshtastic-enums";
 

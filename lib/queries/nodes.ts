@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
 import { isPubliclyVisible, snapToGrid } from "../privacy";
 import type { ParsedPacket, PublicNode, NodeUpdate, NodeDetail } from "../../types";
@@ -6,6 +8,8 @@ import type { ParsedPacket, PublicNode, NodeUpdate, NodeDetail } from "../../typ
 // COALESCE partout : un paquet sans position/batterie/nom ne doit jamais
 // écraser une valeur déjà connue. Les champs nodeinfo (long_name, hw_model...)
 // arrivent à null sur les autres types de paquets -> COALESCE les préserve.
+// RGPD : si le node est `anonymized`, les noms restent NULL même si un nouveau
+// nodeinfo les renvoie (sinon l'anonymisation serait annulée à la trame suivante).
 // RETURNING : on récupère l'état FUSIONNÉ pour décider du pg_notify temps réel.
 const UPSERT_NODE = `
   INSERT INTO nodes (
@@ -13,8 +17,10 @@ const UPSERT_NODE = `
     last_lat, last_lon, last_battery, last_seen
   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, NOW())
   ON CONFLICT (node_id) DO UPDATE SET
-    long_name    = COALESCE(EXCLUDED.long_name,    nodes.long_name),
-    short_name   = COALESCE(EXCLUDED.short_name,   nodes.short_name),
+    long_name    = CASE WHEN nodes.anonymized THEN NULL
+                        ELSE COALESCE(EXCLUDED.long_name,  nodes.long_name)  END,
+    short_name   = CASE WHEN nodes.anonymized THEN NULL
+                        ELSE COALESCE(EXCLUDED.short_name, nodes.short_name) END,
     hw_model     = COALESCE(EXCLUDED.hw_model,     nodes.hw_model),
     firmware     = COALESCE(EXCLUDED.firmware,     nodes.firmware),
     role         = COALESCE(EXCLUDED.role,         nodes.role),
@@ -30,7 +36,6 @@ const UPSERT_NODE = `
     last_lon     AS "lon",
     last_battery AS "batteryPct",
     last_seen    AS "lastSeen",
-    share_on_map AS "shareOnMap",
     is_mobile    AS "isMobile",
     excluded     AS "excluded"
 `;
@@ -44,7 +49,6 @@ interface UpsertedNodeRow {
   lon: number | null;
   batteryPct: number | null;
   lastSeen: Date | null;
-  shareOnMap: boolean;
   isMobile: boolean;
   excluded: boolean;
 }
@@ -183,11 +187,12 @@ export async function setNodeExcluded(
   ]);
 }
 
-// Anonymisation : efface les noms (PII affichée). La télémétrie reste, sans
-// identité. NB : les noms historiques dans packets.raw ne sont pas scrubbés ici.
+// Anonymisation (RGPD) : efface les noms ET pose `anonymized` pour que l'upsert
+// ne les recrée PAS à la prochaine trame nodeinfo. La télémétrie reste (sans
+// identité). NB : les noms historiques dans packets.raw ne sont pas scrubbés ici.
 export async function anonymizeNode(nodeId: string): Promise<void> {
   await pool.query(
-    "UPDATE nodes SET long_name = NULL, short_name = NULL WHERE node_id = $1",
+    "UPDATE nodes SET long_name = NULL, short_name = NULL, anonymized = TRUE WHERE node_id = $1",
     [nodeId],
   );
 }

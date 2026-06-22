@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import "./env"; // charge .env.local AVANT lib/db (qui lit DATABASE_URL)
 import mqtt from "mqtt";
 import { pool } from "../../lib/db";

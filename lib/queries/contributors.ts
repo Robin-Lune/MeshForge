@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { randomInt } from "node:crypto";
 import { pool } from "../db";
 
@@ -115,5 +117,10 @@ export async function insertContributor(
   email: string,
   nodeName: string,
 ): Promise<void> {
-  await pool.query(INSERT_CONTRIBUTOR, [username, passwordHash, email, nodeName]);
+  await pool.query(INSERT_CONTRIBUTOR, [
+    username,
+    passwordHash,
+    email,
+    nodeName,
+  ]);
 }
