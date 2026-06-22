@@ -70,7 +70,6 @@ function pillElement(p: Record<string, unknown>): HTMLElement {
   el.style.border = isGateway
     ? "2px solid rgba(255,255,255,0.95)"
     : "1.5px solid rgba(255,255,255,0.9)";
-  if (p.isMobile === true) el.style.borderStyle = "dashed"; // position approximative
   el.style.boxShadow = "0 1px 3px rgba(0,0,0,0.35)";
   el.style.cursor = "pointer";
   el.style.whiteSpace = "nowrap";
@@ -138,12 +137,6 @@ function hoverCard(p: Record<string, unknown>): HTMLElement {
     sig.textContent = `Signal : ${lastSnr} dB`;
     el.appendChild(sig);
   }
-  if (p.isMobile === true) {
-    const m = document.createElement("div");
-    m.style.color = "#999";
-    m.textContent = "≈ position approximative";
-    el.appendChild(m);
-  }
   return el;
 }
 
@@ -205,6 +198,8 @@ export default function MapView({
   const obsRef = useRef<Map<string, { nodeId: string; hop: number }[]>>(
     new Map(),
   );
+  // Hop minimal connu par node (sur toutes les gateways) → filtre hop des pastilles.
+  const minHopRef = useRef<Map<string, number>>(new Map());
   const bridgeRef = useRef<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
@@ -268,7 +263,7 @@ export default function MapView({
         : undefined;
     const refreshNodes = (): void => {
       if (!alive) return;
-      const { search, role, sinceH } = filtersRef.current;
+      const { search, role, sinceH, maxHop } = filtersRef.current;
       const q = search.trim().toLowerCase();
       const minSeen = sinceH > 0 ? Date.now() - sinceH * 3600000 : 0;
       const features = [...nodesById.current.values()].filter((f) => {
@@ -281,6 +276,13 @@ export default function MapView({
         if (q) {
           const hay = `${p.nodeId} ${p.longName} ${p.shortName}`.toLowerCase();
           if (!hay.includes(q)) return false;
+        }
+        // Filtre hop : on garde les nodes joignables en ≤ maxHop (min sur toutes
+        // les gateways). Les gateways = 0-hop, toujours visibles. Hop inconnu
+        // (jamais entendu avec hop_count) → masqué dès qu'on restreint.
+        if (maxHop < 9 && p.isGateway !== true) {
+          const mh = minHopRef.current.get(p.nodeId as string);
+          if (mh === undefined || mh > maxHop) return false;
         }
         return true;
       });
@@ -484,11 +486,16 @@ export default function MapView({
         .then((obs) => {
           const m = obsRef.current;
           m.clear();
+          const minHop = minHopRef.current;
+          minHop.clear();
           const gwByNode = new Map<string, Set<string>>();
           for (const o of obs) {
+            const hop = o.bestHop ?? 9;
             const arr = m.get(o.gatewayId) ?? [];
-            arr.push({ nodeId: o.nodeId, hop: o.bestHop ?? 9 });
+            arr.push({ nodeId: o.nodeId, hop });
             m.set(o.gatewayId, arr);
+            const prev = minHop.get(o.nodeId);
+            if (prev === undefined || hop < prev) minHop.set(o.nodeId, hop);
             const set = gwByNode.get(o.nodeId) ?? new Set<string>();
             set.add(o.gatewayId);
             gwByNode.set(o.nodeId, set);
@@ -498,6 +505,7 @@ export default function MapView({
             [...gwByNode].filter(([, s]) => s.size >= 2).map(([n]) => n),
           );
           applyBridge();
+          refreshNodes(); // re-filtre maintenant que les hops sont connus
         })
         .catch(() => {});
     });
@@ -603,7 +611,7 @@ export default function MapView({
           onChange={(e) => setMaxHop(Number(e.target.value))}
           className="min-w-0 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:flex-none dark:border-white/20"
         >
-          <option value={9}>Toile : tous hops</option>
+          <option value={9}>Hops : tous</option>
           <option value={0}>direct (0-hop)</option>
           <option value={1}>≤ 1 hop</option>
           <option value={2}>≤ 2 hops</option>

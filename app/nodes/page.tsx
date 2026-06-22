@@ -1,9 +1,8 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import NodesTable from "@/components/NodesTable";
 import { getNodesOverview } from "@/lib/queries/node-lists";
-import { relativeTime } from "@/lib/format";
-import type { MisconfigReason, NodeListItem } from "@/types";
+import type { NodeListItem } from "@/types";
 
 // Rendu au request-time : getNodesOverview() interroge la DB (pas de prérendu).
 export const dynamic = "force-dynamic";
@@ -15,13 +14,6 @@ const TABS: { key: View; label: string }[] = [
   { key: "low-battery", label: "Batterie faible" },
   { key: "misconfigured", label: "Mal configurés" },
 ];
-
-const REASON_LABEL: Record<MisconfigReason, string> = {
-  "no-nodeinfo": "Pas de nodeinfo",
-  "no-position": "Sans position",
-  "low-battery": "Batterie faible",
-  "too-chatty": "Trop bavard",
-};
 
 const LOW_BATTERY = 20;
 
@@ -41,20 +33,6 @@ function selectView(nodes: NodeListItem[], view: View): NodeListItem[] {
   return nodes.filter((n) => n.active); // déjà triés last_seen desc par la query
 }
 
-function Badge({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
-      {children}
-    </span>
-  );
-}
-
-function batteryClass(pct: number): string {
-  if (pct < 20) return "text-red-600 dark:text-red-400";
-  if (pct < 40) return "text-amber-600 dark:text-amber-400";
-  return "";
-}
-
 export default async function NodesPage({
   searchParams,
 }: {
@@ -72,7 +50,6 @@ export default async function NodesPage({
     misconfigured: all.filter((n) => n.misconfig.length > 0).length,
   };
   const rows = selectView(all, view);
-  const now = new Date();
   const showReasons = view === "misconfigured";
 
   return (
@@ -100,81 +77,11 @@ export default async function NodesPage({
           ))}
         </nav>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aucun node dans cette vue.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
-            <table className="w-full text-sm">
-              <thead className="border-b border-black/10 text-left text-xs text-zinc-500 dark:border-white/15">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Node</th>
-                  <th className="px-3 py-2 font-medium">Rôle</th>
-                  <th className="px-3 py-2 font-medium">Carte</th>
-                  <th className="px-3 py-2 font-medium">Batterie</th>
-                  <th className="px-3 py-2 font-medium">Tx&nbsp;24h</th>
-                  <th className="px-3 py-2 font-medium">Vu</th>
-                  {showReasons && (
-                    <th className="px-3 py-2 font-medium">Problèmes</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((n) => (
-                  <tr
-                    key={n.nodeId}
-                    className="border-b border-black/5 last:border-0 dark:border-white/10"
-                  >
-                    <td className="px-3 py-2">
-                      <Link
-                        href={`/node/${n.nodeId}`}
-                        className="font-medium hover:underline"
-                      >
-                        {n.longName ?? n.shortName ?? n.nodeId}
-                      </Link>
-                      {n.isGateway && (
-                        <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">
-                          gateway
-                        </span>
-                      )}
-                      <div className="font-mono text-xs text-zinc-500">
-                        {n.nodeId}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                      {n.role ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                      {n.hwModel ?? "—"}
-                    </td>
-                    <td
-                      className={
-                        "px-3 py-2 font-mono " +
-                        (n.batteryPct != null ? batteryClass(n.batteryPct) : "")
-                      }
-                    >
-                      {n.batteryPct != null ? `${n.batteryPct} %` : "—"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-zinc-600 dark:text-zinc-400">
-                      {n.packets24h.toLocaleString("fr-FR")}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-500">
-                      {relativeTime(n.lastSeen, now)}
-                    </td>
-                    {showReasons && (
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {n.misconfig.map((r) => (
-                            <Badge key={r}>{REASON_LABEL[r]}</Badge>
-                          ))}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <NodesTable
+          rows={rows}
+          showReasons={showReasons}
+          nowIso={new Date().toISOString()}
+        />
       </main>
     </div>
   );

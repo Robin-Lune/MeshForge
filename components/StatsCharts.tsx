@@ -52,7 +52,10 @@ export function BarBreakdown({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+            <Tooltip
+              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+              labelStyle={{ color: "#111", fontWeight: 500 }}
+            />
             <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>

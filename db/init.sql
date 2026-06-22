@@ -43,7 +43,9 @@ CREATE INDEX IF NOT EXISTS idx_packets_geo     ON packets (lat, lon) WHERE lat I
 -- nodes — dernier état connu d'un node. Upsert à chaque paquet reçu.
 -- Aucune série temporelle ici : les courbes vivent dans `packets`.
 -- Privacy: public par défaut, consentement à la source.
---   is_mobile = true -> position snappée (~0.5 km) avant affichage (pas exclue)
+--   is_mobile = TRUE (DÉFAUT prudent) -> position snappée (~0.5 km) avant affichage
+--     (node visible mais flou). Protège une position MQTT précise saisie par erreur.
+--     L'admin passe is_mobile = FALSE à la main pour un relais fixe assumé (exacte).
 --   excluded  = true -> opt-out RGPD : node retiré de la carte
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS nodes (
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     hw_model      TEXT,                       -- ex: HELTEC_V4
     firmware      TEXT,
     role          TEXT,                       -- CLIENT / ROUTER / ROUTER_CLIENT / etc.
-    is_mobile     BOOLEAN DEFAULT FALSE,      -- mobile = jamais sur la carte publique
+    is_mobile     BOOLEAN DEFAULT TRUE,       -- défaut prudent : position floutée ~0.5 km
     last_lat      DOUBLE PRECISION,
     last_lon      DOUBLE PRECISION,
     last_battery  SMALLINT,
@@ -68,6 +70,9 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT FAL
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS anonymized BOOLEAN NOT NULL DEFAULT FALSE;
 -- Colonne morte retirée : la visibilité ne dépend QUE de excluded + règles privacy.
 ALTER TABLE nodes DROP COLUMN IF EXISTS share_on_map;
+-- is_mobile par défaut prudent (privacy) : flou ~0.5 km sauf relais fixe confirmé.
+-- N'affecte QUE les futurs INSERT ; les nodes existants gardent leur valeur.
+ALTER TABLE nodes ALTER COLUMN is_mobile SET DEFAULT TRUE;
 
 -- ---------------------------------------------------------------------------
 -- contributors — comptes. Auth MQTT (mosquitto-go-auth) ET auth web.

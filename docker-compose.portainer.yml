@@ -1,0 +1,86 @@
+# MeshForge — compose UNIQUE pour déploiement via Portainer (Stacks → Repository).
+#
+# Pourquoi un fichier à part :
+#   - Portainer ne déploie qu'UN fichier (pas le combo `-f base -f prod`)
+#     → on fusionne ici docker-compose.yml + docker-compose.prod.yml.
+#   - `.env` est gitignored → il n'est PAS dans le repo cloné par Portainer.
+#     Les secrets sont donc déclarés en `${VAR}` et saisis dans le panneau
+#     « Environment variables » du stack Portainer (pas via env_file).
+#   - Ports : sur un serveur Plesk on n'expose au host QUE le strict nécessaire
+#     (1883 pour les relais, 3000 pour le reverse proxy). DB & websockets MQTT
+#     restent internes au réseau Docker → zéro conflit avec les services Plesk.
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: meshforge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: meshforge
+      POSTGRES_USER: meshforge
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-meshforge}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Pas de port publié sur le host : l'app et le broker joignent la DB par le
+    # nom de service (timescaledb:5432) dans le réseau Docker interne.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meshforge -d meshforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mosquitto:
+    image: iegomez/mosquitto-go-auth:latest
+    container_name: meshforge-mqtt
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto/config/mosquitto.prod.conf:/etc/mosquitto/mosquitto.conf:ro
+    ports:
+      - "1883:1883" # relais Meshtastic externes (uplink MQTT)
+    depends_on:
+      - timescaledb
+
+  app:
+    image: meshforge:latest
+    build: .
+    container_name: meshforge-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      MQTT_URL: mqtt://mosquitto:1883
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      LEGAL_COMPANY_NAME: ${LEGAL_COMPANY_NAME}
+      LEGAL_COMPANY_TYPE: ${LEGAL_COMPANY_TYPE}
+      LEGAL_COMPANY_SIRET: ${LEGAL_COMPANY_SIRET}
+      LEGAL_COMPANY_ADDRESS: ${LEGAL_COMPANY_ADDRESS}
+      LEGAL_HOSTING_PROVIDER: ${LEGAL_HOSTING_PROVIDER}
+      LEGAL_HOSTING_LOCATION: ${LEGAL_HOSTING_LOCATION}
+    ports:
+      - "127.0.0.1:3000:3000" # exposé en local uniquement → reverse proxy Plesk
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  worker:
+    image: meshforge:latest
+    build: .
+    container_name: meshforge-worker
+    restart: unless-stopped
+    command: ["yarn", "worker"]
+    environment:
+      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_USERNAME} # compte ADMIN (le worker doit SUBSCRIBE)
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+volumes:
+  timescaledb_data:

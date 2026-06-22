@@ -23,8 +23,10 @@ export function toObservations(rows: ObservationRow[]): Observation[] {
 
 // "Qui a entendu qui" : par (gateway, node), le hop MINIMAL (0 = lien radio direct
 // réel, exploitable pour la portée) et le SNR moyen.
-// PRIVACY : uniquement entre nodes affichables (fixes, localisés) — on ne trace
-// jamais une arête vers un node masqué. Même prédicat que getPublicNodes.
+// PRIVACY : uniquement entre nodes affichables (localisés, non exclus). Les mobiles
+// sont INCLUS — leur position snappée (~500 m, cf. getPublicNodes) alimente le tracé.
+// Découplage is_mobile/toile : is_mobile = TRUE est désormais le défaut prudent
+// (flou position), il ne doit donc plus vider la toile des nouveaux nodes.
 const SELECT_OBSERVATIONS = `
   SELECT
     p.gateway_id      AS "gatewayId",
@@ -36,8 +38,8 @@ const SELECT_OBSERVATIONS = `
   JOIN nodes nd ON nd.node_id = p.node_id
   WHERE p.gateway_id IS NOT NULL AND p.node_id IS NOT NULL
     AND p.gateway_id <> p.node_id
-    AND gw.is_mobile = FALSE AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
-    AND nd.is_mobile = FALSE AND nd.last_lat IS NOT NULL AND nd.last_lon IS NOT NULL
+    AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
+    AND nd.last_lat IS NOT NULL AND nd.last_lon IS NOT NULL
     AND NOT gw.excluded AND NOT nd.excluded            -- opt-out RGPD
     AND p.received_at > NOW() - INTERVAL '7 days'
   GROUP BY p.gateway_id, p.node_id

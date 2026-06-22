@@ -2,14 +2,19 @@
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
 import { isPubliclyVisible, snapToGrid } from "../privacy";
-import type { ParsedPacket, PublicNode, NodeUpdate, NodeDetail } from "../../types";
+import type {
+  ParsedPacket,
+  PublicNode,
+  NodeUpdate,
+  NodeDetail,
+} from "../../types";
 
 // Upsert du dernier état connu d'un node, à chaque paquet reçu.
 // COALESCE partout : un paquet sans position/batterie/nom ne doit jamais
 // écraser une valeur déjà connue. Les champs nodeinfo (long_name, hw_model...)
 // arrivent à null sur les autres types de paquets -> COALESCE les préserve.
 // RGPD : si le node est `anonymized`, les noms restent NULL même si un nouveau
-// nodeinfo les renvoie (sinon l'anonymisation serait annulée à la trame suivante).
+// nodeinfo les renvoie.
 // RETURNING : on récupère l'état FUSIONNÉ pour décider du pg_notify temps réel.
 const UPSERT_NODE = `
   INSERT INTO nodes (
@@ -184,6 +189,18 @@ export async function setNodeExcluded(
   await pool.query("UPDATE nodes SET excluded = $2 WHERE node_id = $1", [
     nodeId,
     excluded,
+  ]);
+}
+
+// Précision de la position (admin). is_mobile = TRUE (défaut prudent) → position
+// floutée ~500 m ; FALSE → position exacte, à réserver aux relais fixes assumés.
+export async function setNodeMobile(
+  nodeId: string,
+  isMobile: boolean,
+): Promise<void> {
+  await pool.query("UPDATE nodes SET is_mobile = $2 WHERE node_id = $1", [
+    nodeId,
+    isMobile,
   ]);
 }
 

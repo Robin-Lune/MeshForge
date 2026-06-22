@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
-// Règle privacy de la carte publique, centralisée (cf. .claude/docs/privacy-rgpd.md).
+// Règle privacy de la carte publique, centralisée.
 // Politique : PUBLIC PAR DÉFAUT. Un node localisé est visible. Les mobiles le sont
 // aussi, mais leur position est FLOUTÉE par snapToGrid (cellule ~1,5 km constante).
 // Appliquée à deux endroits qui DOIVENT rester cohérents :

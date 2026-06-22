@@ -35,7 +35,7 @@ function Chart({
             tickFormatter={(d: string) => d.slice(5)}
           />
           <YAxis tick={{ fontSize: 10 }} width={34} />
-          <Tooltip />
+          <Tooltip labelStyle={{ color: "#111", fontWeight: 700 }} />
           <Line
             type="monotone"
             dataKey={dataKey}

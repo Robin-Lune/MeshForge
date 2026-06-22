@@ -6,6 +6,7 @@ import { isAdmin } from "@/lib/admin";
 import {
   getNodeById,
   setNodeExcluded,
+  setNodeMobile,
   anonymizeNode,
   deleteNode,
 } from "@/lib/queries/nodes";
@@ -59,12 +60,20 @@ export default async function NodePage({
   const { confirm } = await searchParams;
   const here = `/node/${encodeURIComponent(nodeId)}`;
   const wasExcluded = node.excluded;
+  const wasMobile = node.isMobile;
 
   // Server Actions RGPD — chacune re-vérifie isAdmin() (endpoint à part entière).
   async function toggleExcluded() {
     "use server";
     if (!(await isAdmin())) redirect("/admin/login");
     await setNodeExcluded(nodeId, !wasExcluded);
+    redirect(here);
+  }
+  // Précision position : bascule mobile (flou ~500 m) ↔ fixe (position exacte).
+  async function toggleMobile() {
+    "use server";
+    if (!(await isAdmin())) redirect("/admin/login");
+    await setNodeMobile(nodeId, !wasMobile);
     redirect(here);
   }
   async function anonymize() {
@@ -98,11 +107,6 @@ export default async function NodePage({
           {isBridge && (
             <span className="rounded bg-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
               Nœud-pont · {gateways.length} gateways
-            </span>
-          )}
-          {node.isMobile && (
-            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-              Mobile · position ≈
             </span>
           )}
         </div>
@@ -186,6 +190,36 @@ export default async function NodePage({
           </h3>
           <NodeCharts data={history} />
         </section>
+
+        {admin && (
+          <section className="mt-8 rounded-lg border border-black/10 p-4 dark:border-white/15">
+            <h3 className="text-sm font-semibold">
+              Précision de la position (admin)
+            </h3>
+            <p className="mt-2 text-xs text-zinc-500">
+              Par défaut, la position d’un node est <strong>approximative</strong>{" "}
+              (floutée ~500 m) pour protéger la vie privée — utile si une position
+              MQTT précise a été saisie par erreur. À passer en{" "}
+              <strong>précise</strong> uniquement pour un relais fixe dont la
+              position exacte est assumée.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="text-sm">
+                Actuel :{" "}
+                <strong>
+                  {wasMobile ? "approximative (~500 m)" : "précise (exacte)"}
+                </strong>
+              </span>
+              <form action={toggleMobile}>
+                <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
+                  {wasMobile
+                    ? "Marquer comme position précise (fixe)"
+                    : "Repasser en position approximative"}
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
 
         {admin && (
           <section className="mt-8 rounded-lg border border-red-500/30 p-4">

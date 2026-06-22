@@ -3,7 +3,7 @@
 # yarn worker). En dev, on n'utilise PAS cette image (app/worker en `yarn`).
 
 # ---- Build : installe TOUTES les deps (dont devDeps : tsx, tailwind…) + build
-FROM node:20-slim AS build
+FROM node:24-slim AS build
 WORKDIR /app
 # Outils natifs pour compiler bcrypt (module natif) sur debian-slim.
 RUN apt-get update \
@@ -16,7 +16,7 @@ RUN yarn build
 
 # ---- Runtime : reprend l'arbre construit (node_modules avec tsx pour le worker,
 # .next pour l'app, src). NODE_ENV=production pour Next + pg.
-FROM node:20-slim AS runtime
+FROM node:24-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app ./
