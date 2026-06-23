@@ -23,6 +23,19 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "lastSeen", label: "Vu" },
 ];
 
+const MOBILE_SORTS: { value: `${SortKey}:${SortDir}`; label: string }[] = [
+  { value: "hwModel:asc", label: "Type de carte" },
+  { value: "role:asc", label: "Type de rôle" },
+  { value: "name:asc", label: "A-Z" },
+  { value: "name:desc", label: "Z-A" },
+  { value: "batteryPct:asc", label: "Batterie ↑" },
+  { value: "batteryPct:desc", label: "Batterie ↓" },
+  { value: "packets24h:asc", label: "Tx 24h ↑" },
+  { value: "packets24h:desc", label: "Tx 24h ↓" },
+  { value: "lastSeen:asc", label: "Vu ↑" },
+  { value: "lastSeen:desc", label: "Vu ↓" },
+];
+
 function batteryClass(pct: number): string {
   if (pct < 20) return "text-red-600 dark:text-red-400";
   if (pct < 40) return "text-amber-600 dark:text-amber-400";
@@ -76,6 +89,16 @@ export default function NodesTable({
 
   const arrow = (key: SortKey): string =>
     sort?.key === key ? (sort.dir === "asc" ? " ↑" : " ↓") : "";
+  const sortValue = sort ? `${sort.key}:${sort.dir}` : "";
+
+  function setSortFromValue(value: string) {
+    if (!value) {
+      setSort(null);
+      return;
+    }
+    const [key, dir] = value.split(":") as [SortKey, SortDir];
+    setSort({ key, dir });
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -85,6 +108,21 @@ export default function NodesTable({
         placeholder="Rechercher un node (nom ou ID)…"
         className="w-full max-w-xs rounded-lg border border-black/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/15"
       />
+      <div className="flex items-center gap-2 md:hidden">
+        <span className="text-xs text-zinc-500">Tri</span>
+        <select
+          value={sortValue}
+          onChange={(e) => setSortFromValue(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/15"
+        >
+          <option value="">Par défaut</option>
+          {MOBILE_SORTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {view.length === 0 ? (
         <p className="text-sm text-zinc-500">
@@ -93,7 +131,75 @@ export default function NodesTable({
             : "Aucun node ne correspond à la recherche."}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {view.map((n) => (
+            <Link
+              key={n.nodeId}
+              href={`/node/${n.nodeId}`}
+              className="rounded-lg border border-black/10 bg-white/[0.02] p-3 transition-colors hover:border-accent/60 dark:border-white/15"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">
+                    {n.longName ?? n.shortName ?? n.nodeId}
+                  </div>
+                  <div className="mt-0.5 break-all font-mono text-xs text-zinc-500">
+                    {n.nodeId}
+                  </div>
+                </div>
+                {n.isGateway && (
+                  <span className="shrink-0 rounded bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+                    gateway
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-xs">
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Batterie
+                  </div>
+                  <span
+                    className={
+                      n.batteryPct != null ? batteryClass(n.batteryPct) : ""
+                    }
+                  >
+                    {n.batteryPct != null ? `${n.batteryPct} %` : "—"}
+                  </span>
+                </div>
+                <div className="rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-xs">
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Tx 24h
+                  </div>
+                  {n.packets24h.toLocaleString("fr-FR")}
+                </div>
+                <div className="rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-xs">
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Vu
+                  </div>
+                  {relativeTime(n.lastSeen, now)}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
+                <span>{n.role ?? "Rôle inconnu"}</span>
+                <span>·</span>
+                <span>{n.hwModel ?? "Carte inconnue"}</span>
+              </div>
+
+              {showReasons && n.misconfig.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {n.misconfig.map((r) => (
+                    <Badge key={r}>{REASON_LABEL[r]}</Badge>
+                  ))}
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-black/10 dark:border-white/15 md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-black/10 text-left text-xs text-zinc-500 dark:border-white/15">
               <tr>
@@ -170,6 +276,7 @@ export default function NodesTable({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

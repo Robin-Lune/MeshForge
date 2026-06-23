@@ -8,6 +8,8 @@ import {
   requireMapBounds,
   parseZoom,
   requireZoom,
+  parseLegalInfo,
+  requireLegalInfo,
 } from "./settings";
 
 // Lecture tolérante d'une valeur stockée (JSONB) : invalide -> fallback.
@@ -120,5 +122,53 @@ describe("parseZoom / requireZoom — zoom min [0,22]", () => {
     expect(() => requireZoom(-1)).toThrow();
     expect(() => requireZoom(23)).toThrow();
     expect(() => requireZoom("abc")).toThrow();
+  });
+});
+
+const LEGAL_FALLBACK = {
+  companyName: "À compléter",
+  companyType: "À compléter",
+  companySiret: "À compléter",
+  companyAddress: "À compléter",
+  hostingProvider: "À compléter",
+  hostingLocation: "À compléter",
+};
+
+describe("parseLegalInfo / requireLegalInfo — mentions légales", () => {
+  it("lecture : garde et trim les champs texte attendus", () => {
+    expect(
+      parseLegalInfo(
+        {
+          companyName: " La Forge Numérique ",
+          companyType: "SASU",
+          companySiret: "92753858700019",
+          companyAddress: "Saint Joseph",
+          hostingProvider: "OVH",
+          hostingLocation: "Roubaix",
+          extra: "ignoré",
+        },
+        LEGAL_FALLBACK,
+      ),
+    ).toEqual({
+      companyName: "La Forge Numérique",
+      companyType: "SASU",
+      companySiret: "92753858700019",
+      companyAddress: "Saint Joseph",
+      hostingProvider: "OVH",
+      hostingLocation: "Roubaix",
+    });
+  });
+
+  it("lecture : retombe sur le fallback si l'objet est incomplet", () => {
+    expect(parseLegalInfo({ companyName: "MeshForge" }, LEGAL_FALLBACK)).toEqual(
+      LEGAL_FALLBACK,
+    );
+  });
+
+  it("écriture : refuse les champs vides ou trop longs", () => {
+    expect(() => requireLegalInfo({ ...LEGAL_FALLBACK, companyName: "" })).toThrow();
+    expect(() =>
+      requireLegalInfo({ ...LEGAL_FALLBACK, companyAddress: "x".repeat(501) }),
+    ).toThrow();
   });
 });
