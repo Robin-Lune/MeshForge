@@ -31,11 +31,12 @@ services:
       retries: 10
 
   mosquitto:
-    image: iegomez/mosquitto-go-auth:latest
+    # Config bakée dans l'image (cf. mosquitto/Dockerfile) : le bind-mount relatif
+    # ne fonctionne PAS en stack Git Portainer (config montée comme dossier vide).
+    build: ./mosquitto
+    image: meshforge-mqtt:latest
     container_name: meshforge-mqtt
     restart: unless-stopped
-    volumes:
-      - ./mosquitto/config/mosquitto.prod.conf:/etc/mosquitto/mosquitto.conf:ro
     ports:
       - "1883:1883" # relais Meshtastic externes (uplink MQTT)
     depends_on:
