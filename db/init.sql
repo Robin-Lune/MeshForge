@@ -120,5 +120,13 @@ INSERT INTO settings (key, value) VALUES
     ('misconfig_max_packets_24h', '1000'::jsonb),
     ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
     ('map_bounds', '{"west":54.7,"south":-21.9,"east":56.3,"north":-20.4}'::jsonb),
-    ('map_min_zoom', '8'::jsonb)
+    ('map_min_zoom', '8'::jsonb),
+    ('legal_info', '{
+        "companyName": "À compléter",
+        "companyType": "À compléter",
+        "companySiret": "À compléter",
+        "companyAddress": "À compléter",
+        "hostingProvider": "À compléter",
+        "hostingLocation": "À compléter"
+    }'::jsonb)
 ON CONFLICT (key) DO NOTHING;

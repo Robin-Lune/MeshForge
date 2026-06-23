@@ -7,6 +7,13 @@ import { relativeTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+const monoChip =
+  "rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-xs";
+
+function fmt(v: string | number | null): string {
+  return v === null ? "—" : String(v);
+}
+
 // Vue par défaut : aperçu de chaque gateway (charge & portée). Clic -> ses trames.
 async function GatewayOverview() {
   const gateways = await getGatewayOverview();
@@ -29,7 +36,47 @@ async function GatewayOverview() {
       {gateways.length === 0 ? (
         <p className="text-sm text-zinc-500">Aucun gateway actif.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {gateways.map((g) => (
+            <Link
+              key={g.gatewayId}
+              href={`/admin/trames?gateway=${encodeURIComponent(g.gatewayId)}`}
+              className="rounded-lg border border-black/10 bg-white/[0.02] p-3 transition-colors hover:border-accent/60 dark:border-white/15"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">
+                    {g.name ?? g.gatewayId}
+                  </div>
+                  <div className="mt-0.5 break-all font-mono text-xs text-zinc-500">
+                    {g.gatewayId}
+                  </div>
+                </div>
+                <div className="shrink-0 text-xs text-zinc-500">
+                  {relativeTime(g.lastSeen, now)}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className={monoChip}>
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Trames 24h
+                  </div>
+                  {g.packets24h.toLocaleString("fr-FR")}
+                </div>
+                <div className={monoChip}>
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Nodes 24h
+                  </div>
+                  {g.nodes24h}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-black/10 dark:border-white/15 md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-black/10 text-left text-xs text-zinc-500 dark:border-white/15">
               <tr>
@@ -68,6 +115,7 @@ async function GatewayOverview() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </main>
   );
@@ -98,7 +146,76 @@ async function FramesView({ gateway }: { gateway: string }) {
       {trames.length === 0 ? (
         <p className="text-sm text-zinc-500">Aucune trame pour ce gateway.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {trames.map((t, i) => (
+            <article
+              key={i}
+              className="rounded-lg border border-black/10 bg-white/[0.02] p-3 dark:border-white/15"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-mono text-sm font-semibold">
+                    {t.packetType ?? "trame"}
+                  </div>
+                  <div className="mt-0.5 text-xs text-zinc-500">
+                    {relativeTime(t.receivedAt, now)}
+                  </div>
+                </div>
+                <div className="font-mono text-xs text-zinc-500">
+                  {t.channel ?? "—"}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-zinc-200">
+                <div className={monoChip}>
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    RSSI
+                  </div>
+                  {fmt(t.rssi)}
+                </div>
+                <div className={monoChip}>
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    SNR
+                  </div>
+                  {fmt(t.snr)}
+                </div>
+                <div className={monoChip}>
+                  <div className="mb-0.5 text-[10px] uppercase text-zinc-500">
+                    Hops
+                  </div>
+                  {fmt(t.hopCount)}
+                </div>
+              </div>
+
+              <dl className="mt-3 space-y-1 text-xs">
+                <div className="flex gap-2">
+                  <dt className="w-16 shrink-0 text-zinc-500">Node</dt>
+                  <dd className="min-w-0 break-all font-mono">{t.nodeId ?? "—"}</dd>
+                </div>
+                {!gatewayId && (
+                  <div className="flex gap-2">
+                    <dt className="w-16 shrink-0 text-zinc-500">Gateway</dt>
+                    <dd className="min-w-0 break-all font-mono">
+                      {t.gatewayId ?? "—"}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs text-zinc-400">
+                  Payload JSON
+                </summary>
+                <pre className="mt-2 max-h-72 overflow-auto rounded border border-white/10 bg-black/20 p-3 text-xs text-zinc-400">
+                  {JSON.stringify(t.raw, null, 2)}
+                </pre>
+              </details>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-black/10 dark:border-white/15 md:block">
           <table className="w-full text-xs">
             <thead className="border-b border-black/10 text-left text-zinc-500 dark:border-white/15">
               <tr>
@@ -137,7 +254,7 @@ async function FramesView({ gateway }: { gateway: string }) {
                         json
                       </summary>
                       <pre className="mt-1 max-w-md overflow-x-auto whitespace-pre-wrap break-all text-zinc-500">
-                        {JSON.stringify(t.raw)}
+                        {JSON.stringify(t.raw, null, 2)}
                       </pre>
                     </details>
                   </td>
@@ -146,6 +263,7 @@ async function FramesView({ gateway }: { gateway: string }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </main>
   );

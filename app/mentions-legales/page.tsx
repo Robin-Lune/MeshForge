@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
+import { getSetting } from "@/lib/queries/settings";
 
 export const metadata = { title: "Mentions légales — MeshForge" };
+export const dynamic = "force-dynamic";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -25,7 +27,9 @@ const A = ({ href, children }: { href: string; children: ReactNode }) => (
   </a>
 );
 
-export default function MentionsLegalesPage() {
+export default async function MentionsLegalesPage() {
+  const legal = await getSetting("legal_info");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader active="/mentions-legales" />
@@ -41,10 +45,10 @@ export default function MentionsLegalesPage() {
           <Section title="Éditeur du site">
             <p>
               MeshForge est édité par{" "}
-              <strong>{process.env.LEGAL_COMPANY_NAME}</strong>(
-              <strong>{process.env.LEGAL_COMPANY_TYPE}</strong>),{" "}
-              <strong>{process.env.LEGAL_COMPANY_ADDRESS}</strong>,{" "}
-              <strong>SIRET:{process.env.LEGAL_COMPANY_SIRET}</strong>.
+              <strong>{legal.companyName}</strong>(
+              <strong>{legal.companyType}</strong>),{" "}
+              <strong>{legal.companyAddress}</strong>,{" "}
+              <strong>SIRET:{legal.companySiret}</strong>.
             </p>
             <p>
               Contact :{" "}
@@ -71,8 +75,8 @@ export default function MentionsLegalesPage() {
           <Section title="Hébergement">
             <p>
               L’instance de production est hébergée par{" "}
-              <strong>{process.env.LEGAL_HOSTING_PROVIDER}</strong>, sur{" "}
-              <strong>{process.env.LEGAL_HOSTING_LOCATION}</strong>.
+              <strong>{legal.hostingProvider}</strong>, sur{" "}
+              <strong>{legal.hostingLocation}</strong>.
             </p>
           </Section>
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
@@ -15,6 +16,14 @@ function done(error: string | null): never {
     error
       ? `/admin/config?err=${encodeURIComponent(error)}`
       : "/admin/config?ok=1",
+  );
+}
+
+function doneLegal(error: string | null): never {
+  redirect(
+    error
+      ? `/admin/config?tab=legal&err=${encodeURIComponent(error)}`
+      : "/admin/config?tab=legal&ok=1",
   );
 }
 
@@ -83,6 +92,25 @@ async function saveBounds(formData: FormData) {
   done(error);
 }
 
+async function saveLegal(formData: FormData) {
+  "use server";
+  await requireAdmin();
+  let error: string | null = null;
+  try {
+    await setSetting("legal_info", {
+      companyName: String(formData.get("companyName") ?? ""),
+      companyType: String(formData.get("companyType") ?? ""),
+      companySiret: String(formData.get("companySiret") ?? ""),
+      companyAddress: String(formData.get("companyAddress") ?? ""),
+      hostingProvider: String(formData.get("hostingProvider") ?? ""),
+      hostingLocation: String(formData.get("hostingLocation") ?? ""),
+    });
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  doneLegal(error);
+}
+
 const numCls =
   "w-full rounded border border-black/15 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-black/40 dark:border-white/20";
 const btnCls =
@@ -109,19 +137,43 @@ function Section({
 export default async function ConfigPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; err?: string }>;
+  searchParams: Promise<{ ok?: string; err?: string; tab?: string }>;
 }) {
   if (!(await isAdmin())) redirect("/admin/login");
   const s = await getAllSettings();
-  const { ok, err } = await searchParams;
+  const { ok, err, tab } = await searchParams;
+  const activeTab = tab === "legal" ? "legal" : "network";
   const b = s.map_bounds;
+  const legal = s.legal_info;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader active="/admin/config" />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6">
-        <h2 className="mb-4 text-xl font-semibold">Configuration réseau</h2>
+        <h2 className="mb-4 text-xl font-semibold">Configuration</h2>
+        <nav className="mb-4 flex gap-2 text-sm">
+          <Link
+            href="/admin/config"
+            className={`rounded-lg px-3 py-1.5 ${
+              activeTab === "network"
+                ? "bg-zinc-900 text-white dark:bg-white dark:text-black"
+                : "border border-black/15 dark:border-white/20"
+            }`}
+          >
+            Réseau
+          </Link>
+          <Link
+            href="/admin/config?tab=legal"
+            className={`rounded-lg px-3 py-1.5 ${
+              activeTab === "legal"
+                ? "bg-zinc-900 text-white dark:bg-white dark:text-black"
+                : "border border-black/15 dark:border-white/20"
+            }`}
+          >
+            Légal
+          </Link>
+        </nav>
 
         {ok && (
           <p className="mb-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
@@ -134,6 +186,7 @@ export default async function ConfigPage({
           </p>
         )}
 
+        {activeTab === "network" ? (
         <div className="flex flex-col gap-4">
           <Section
             title="Canaux publics (whitelist)"
@@ -244,6 +297,72 @@ export default async function ConfigPage({
             </form>
           </Section>
         </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <Section
+              title="Mentions légales"
+              hint="Informations affichées sur la page publique /mentions-legales."
+            >
+              <form action={saveLegal} className="grid gap-3">
+                <label className="text-xs text-zinc-500">
+                  Nom de l’entreprise
+                  <input
+                    name="companyName"
+                    defaultValue={legal.companyName}
+                    className={numCls}
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    Forme juridique
+                    <input
+                      name="companyType"
+                      defaultValue={legal.companyType}
+                      className={numCls}
+                    />
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    SIRET
+                    <input
+                      name="companySiret"
+                      defaultValue={legal.companySiret}
+                      className={numCls}
+                    />
+                  </label>
+                </div>
+                <label className="text-xs text-zinc-500">
+                  Adresse
+                  <input
+                    name="companyAddress"
+                    defaultValue={legal.companyAddress}
+                    className={numCls}
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    Hébergeur
+                    <input
+                      name="hostingProvider"
+                      defaultValue={legal.hostingProvider}
+                      className={numCls}
+                    />
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    Localisation hébergement
+                    <input
+                      name="hostingLocation"
+                      defaultValue={legal.hostingLocation}
+                      className={numCls}
+                    />
+                  </label>
+                </div>
+                <div className="flex justify-end">
+                  <button className={btnCls}>Enregistrer</button>
+                </div>
+              </form>
+            </Section>
+          </div>
+        )}
       </main>
     </div>
   );

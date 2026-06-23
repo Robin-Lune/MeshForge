@@ -15,7 +15,17 @@ export type SettingKey =
   | "misconfig_max_packets_24h"
   | "public_channels"
   | "map_bounds"
-  | "map_min_zoom";
+  | "map_min_zoom"
+  | "legal_info";
+
+export interface LegalInfo {
+  companyName: string;
+  companyType: string;
+  companySiret: string;
+  companyAddress: string;
+  hostingProvider: string;
+  hostingLocation: string;
+}
 
 // Type de la valeur pour chaque clé.
 interface SettingValues {
@@ -23,12 +33,21 @@ interface SettingValues {
   public_channels: string[];
   map_bounds: MapBounds | null;
   map_min_zoom: number;
+  legal_info: LegalInfo;
 }
 
 export const DEFAULT_MAX_PACKETS_24H = 1000;
 const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
 const REUNION_BOUNDS: MapBounds = { west: 54.7, south: -21.9, east: 56.3, north: -20.4 };
 const DEFAULT_MIN_ZOOM = 8;
+const DEFAULT_LEGAL_INFO: LegalInfo = {
+  companyName: "À compléter",
+  companyType: "À compléter",
+  companySiret: "À compléter",
+  companyAddress: "À compléter",
+  hostingProvider: "À compléter",
+  hostingLocation: "À compléter",
+};
 
 // Noms de canaux : alphanumérique + _ - (anti-injection : on n'accepte rien d'autre).
 const CHANNEL_RE = /^[A-Za-z0-9_-]{1,40}$/;
@@ -136,6 +155,49 @@ export function requireZoom(raw: unknown): number {
   return n;
 }
 
+const LEGAL_FIELDS: (keyof LegalInfo)[] = [
+  "companyName",
+  "companyType",
+  "companySiret",
+  "companyAddress",
+  "hostingProvider",
+  "hostingLocation",
+];
+
+function isLegalInfo(raw: unknown): raw is Record<keyof LegalInfo, string> {
+  if (!raw || typeof raw !== "object") return false;
+  const o = raw as Record<string, unknown>;
+  return LEGAL_FIELDS.every((field) => typeof o[field] === "string");
+}
+
+function pickLegalInfo(raw: Record<keyof LegalInfo, string>): LegalInfo {
+  return {
+    companyName: raw.companyName.trim(),
+    companyType: raw.companyType.trim(),
+    companySiret: raw.companySiret.trim(),
+    companyAddress: raw.companyAddress.trim(),
+    hostingProvider: raw.hostingProvider.trim(),
+    hostingLocation: raw.hostingLocation.trim(),
+  };
+}
+
+export function parseLegalInfo(raw: unknown, fallback: LegalInfo): LegalInfo {
+  return isLegalInfo(raw) ? pickLegalInfo(raw) : fallback;
+}
+
+export function requireLegalInfo(raw: unknown): LegalInfo {
+  if (!isLegalInfo(raw)) {
+    throw new Error("mentions légales invalides : objet incomplet");
+  }
+  const info = pickLegalInfo(raw);
+  for (const field of LEGAL_FIELDS) {
+    if (!info[field] || info[field].length > 500) {
+      throw new Error("mentions légales invalides : champ vide ou trop long");
+    }
+  }
+  return info;
+}
+
 interface Spec<K extends SettingKey> {
   default: SettingValues[K];
   parseStored: (raw: unknown) => SettingValues[K]; // lecture
@@ -162,6 +224,11 @@ const SPECS: { [K in SettingKey]: Spec<K> } = {
     default: DEFAULT_MIN_ZOOM,
     parseStored: (raw) => parseZoom(raw, DEFAULT_MIN_ZOOM),
     validateInput: (raw) => requireZoom(raw),
+  },
+  legal_info: {
+    default: DEFAULT_LEGAL_INFO,
+    parseStored: (raw) => parseLegalInfo(raw, DEFAULT_LEGAL_INFO),
+    validateInput: (raw) => requireLegalInfo(raw),
   },
 };
 

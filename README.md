@@ -23,29 +23,13 @@ Les nœuds Meshtastic (Heltec V4 & co) émettent leur télémétrie LoRa via MQT
 
 Pensé pour le réseau réunionnais (compatible Gaulix : `EU_868`, profil `LONG_MODERATE`, hop limit 3), mais **self-hostable** pour n'importe quel mesh.
 
-### Le différenciateur : la toile de liaisons
+Fonctionnalités principales :
 
-Là où les dashboards classiques affichent des points, MeshForge trace la **toile des liens radio depuis les gateways** :
-
-- **Lien 0-hop plein** = portée radio **directe et réelle** (le gateway a entendu le node sans relais).
-- **Lien mesh pointillé** = node atteint via relais.
-- **Nœud-pont** (liseré bleu) = node entendu par ≥ 2 gateways → point de résilience du réseau.
-
-C'est un outil de **diagnostic de portée et de résilience**, pas juste une jolie carte.
-
----
-
-## ✨ Fonctionnalités
-
-|     | Fonctionnalité                                                                                                    |
-| --- | ----------------------------------------------------------------------------------------------------------------- |
-| 🗺️  | **Carte temps réel** MapLibre GL — pastilles Meshtastic, clustering anti-superposition, MAJ live via SSE          |
-| 🕸️  | **Toile de liaisons** depuis les gateways (0-hop plein vs mesh pointillé, animée au survol)                       |
-| 🔍  | **Filtres** : recherche, rôle, fenêtre temporelle, nombre de hops                                                 |
-| 📈  | **Page détail node** : courbes 30 j + multi-SNR par gateway **avec distance** (portée réelle) + télémétrie device |
-| 📊  | **Page statistiques** : répartitions et santé globale du réseau                                                   |
-| 🛰️  | **Inscription relais** (`/register`) → identifiants MQTT · espace **admin** : Trames, config runtime, RGPD        |
-| 🔒  | **Privacy by design** : public par défaut, mais consentement respecté à la source + droit de retrait              |
+- Carte temps réel MapLibre GL avec clustering, filtres et SSE.
+- Toile de liaisons depuis les gateways : 0-hop = portée radio directe ; mesh pointillé = via relais.
+- Détail node : historique 30 j, SNR par gateway, distance, télémétrie.
+- Admin : trames brutes, config runtime, RGPD, inscription relais MQTT.
+- Privacy : public par défaut, mais précision du node respectée + droit de retrait.
 
 ---
 
@@ -60,84 +44,162 @@ Nodes Meshtastic ──MQTT(JSON)──▶ Mosquitto ──▶ worker ──▶ 
                                                   └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
 ```
 
-| Couche   | Techno                                                                            |
-| -------- | --------------------------------------------------------------------------------- |
-| Frontend | Next.js 16 (App Router, Server Components), React 19, Tailwind v4                 |
-| Carte    | MapLibre GL JS (tuiles OpenFreeMap → Protomaps self-host avant prod)              |
-| API      | Route Handlers Next (`app/api/*`), SSE pour le temps réel                         |
-| Worker   | Process Node autonome (TS via `tsx`), client `mqtt`                               |
-| Base     | TimescaleDB (Postgres 16 + hypertables), accès via `pg`                           |
-| Broker   | Mosquitto (**uplink only**, downlink OFF)                                         |
-| Infra    | `docker compose` — dev : db + broker · prod : + app + worker (`yarn docker:prod`) |
+Stack : Next.js 16, React 19, Tailwind v4, MapLibre GL, worker Node/TS, MQTT, TimescaleDB/Postgres 16, Mosquitto.
 
-**Principes de conception** : SQL centralisé dans `lib/queries/` (jamais inline) · Server Components par défaut · worker MQTT **séparé** de Next.js · barrière privacy unique (`lib/privacy.ts`) appliquée à l'API REST **et** au flux temps réel · paquets malformés en `try/catch` silencieux (le mesh envoie du bruit) · zéro dépendance cloud propriétaire.
+Principes : worker séparé de Next.js, SQL centralisé dans `lib/queries/`, broker **uplink only**, zéro dépendance cloud propriétaire.
 
 ---
 
-## 🚀 Démarrage rapide
+## 🚀 Développement local
 
 **Prérequis** : Node 20+, Yarn, Docker.
 
 ```bash
-# 1. Cloner & installer
 git clone https://github.com/Robin-Lune/meshforge.git
 cd meshforge
 yarn install
+```
 
-# 2. Configurer l'environnement
-cp .env.example .env         # mot de passe DB (docker compose)
+### 1. Configurer l'environnement
 
-# 3. Lancer l'infra (TimescaleDB + Mosquitto)
-docker compose up -d         # db/init.sql joué au 1er démarrage
+```bash
+cp .env.example .env
+```
 
-# 4. Démarrer le worker MQTT (ingestion) — terminal dédié
+À minima, garder cohérents :
+
+```env
+DB_PASSWORD=...
+DATABASE_URL=postgresql://meshforge:...@localhost:5432/meshforge
+ADMIN_SESSION_SECRET=...
+```
+
+Si le mot de passe contient des caractères spéciaux, encode-le dans
+`DATABASE_URL`, ou utilise les variables `PG*` documentées dans `.env.example`.
+
+### 2. Lancer l'infra dev
+
+```bash
+docker compose up -d
+```
+
+Lance TimescaleDB + Mosquitto. `db/init.sql` est joué au premier démarrage du
+volume.
+
+### 3. Lancer les process applicatifs
+
+Terminal 1 :
+
+```bash
 yarn worker:dev
+```
 
-# 5. Démarrer le dashboard — autre terminal
+Terminal 2 :
+
+```bash
 yarn dev
 ```
 
-Ouvrir **[http://localhost:3000](http://localhost:3000)**.
+Ouvre [http://localhost:3000](http://localhost:3000).
 
-> En dev, `docker compose up -d` ne lance que le **broker et la base** ; le worker et Next.js tournent en `yarn` (hot-reload). Pour tout lancer en Docker, voir **Production** ci-dessous.
-
-### Variables d'environnement (extrait)
-
-| Variable               | Rôle                                                                                                |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`         | Connexion TimescaleDB                                                                               |
-| `MQTT_URL`             | Broker MQTT (uplink only)                                                                           |
-| `ADMIN_SESSION_SECRET` | Secret HMAC du cookie de session admin (sans lui, l'accès admin est refusé). `openssl rand -hex 32` |
-| `LEGAL_*`              | Raison sociale, SIRET, hébergeur… affichés sur `/mentions-legales` (à renseigner en prod)           |
-
-> L'**allowlist des canaux publics** se configure en base
-> (table `settings`, éditable sur `/admin/config`), avec les bornes carte, le zoom et les seuils.
-
-Modèle complet et commenté : [.env.example](.env.example).
-
-### Production (tout en Docker)
-
-Un **override** (`docker-compose.prod.yml`) ajoute, par-dessus l'infra : le broker
-**authentifié** (mosquitto-go-auth) + l'app + le worker conteneurisés.
+### Debug dev
 
 ```bash
-cp .env.example .env          # tout est dans .env : DB_PASSWORD + secrets app
-#   → éditer .env avec les vraies valeurs (ADMIN_SESSION_SECRET, LEGAL_*, creds MQTT…)
-
-yarn docker:prod              # build + lance db + broker(go-auth) + app + worker
-
-# pour les commandes suivantes (admin, logs, down), pointer les 2 fichiers une fois :
-export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
-docker compose exec app yarn create-admin   # créer 1er compte admin pour le Worker MQTT
-docker compose exec app yarn create-admin   # créer 2nd compte admin pour l'administration web
+docker compose ps
+docker compose logs -f timescaledb
+docker compose logs -f mosquitto
+docker compose exec timescaledb psql -U meshforge -d meshforge
 ```
 
-- **Connexion DB du broker** : `mosquitto.prod.conf` est un template committable. Au démarrage, `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` par `DB_PASSWORD` et écrit la config rendue dans `/tmp/mosquitto.conf` avant de lancer Mosquitto.
-- ⚠️ **Worker** : il doit _subscribe_, donc s'authentifier → renseigne `MQTT_USERNAME`/`MQTT_PASSWORD` (un compte **ADMIN**) dans `.env` après le `create-admin`, puis `docker compose restart worker`.
-- L'app écoute sur **:3000** (à placer derrière un reverse proxy TLS).
-- Les conteneurs joignent db/broker par leur **nom de service** : `PGHOST`/`MQTT_URL` sont surchargés dans le compose, rien à changer.
-- Mots de passe des **relais** : chacun crée le sien via `/register` (bcrypt en base) — jamais dans un fichier.
-- Canaux publics / bornes carte / zoom / seuils : réglés en base via `/admin/config`.
+Pour repartir d'une DB locale vide :
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+Ça supprime les données locales.
+
+---
+
+## 🚢 Production
+
+Deux modes :
+
+- Docker Compose classique : `docker-compose.yml` + `docker-compose.prod.yml`
+- Portainer : `docker-compose.portainer.yml`
+
+### Production avec Docker Compose
+
+```bash
+cp .env.example .env
+```
+
+Renseigne au minimum :
+
+```env
+DB_PASSWORD=...
+ADMIN_SESSION_SECRET=...
+MQTT_USERNAME=...
+MQTT_PASSWORD=...
+NEXT_PUBLIC_APP_URL=https://ton-domaine.example
+```
+
+Puis lance :
+
+```bash
+yarn docker:prod
+```
+
+Créer un compte admin :
+
+```bash
+export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+docker compose exec app yarn create-admin
+```
+
+Crée au moins un compte admin dédié au worker MQTT et un compte admin humain.
+
+Après création du compte worker, mets ses identifiants dans `.env`, puis :
+
+```bash
+docker compose restart worker
+```
+
+### Production avec Portainer
+
+1. Crée une stack depuis le repository Git.
+2. Utilise `docker-compose.portainer.yml`.
+3. Ajoute les variables d'environnement dans Portainer :
+
+```env
+DB_PASSWORD=...
+ADMIN_SESSION_SECRET=...
+MQTT_USERNAME=...
+MQTT_PASSWORD=...
+NEXT_PUBLIC_APP_URL=https://ton-domaine.example
+```
+
+4. Déploie la stack.
+5. Ouvre une console dans `meshforge-app`, puis crée un admin :
+
+```bash
+yarn create-admin
+```
+
+6. Renseigne `/admin/config`, notamment l'onglet `Légal`.
+
+### Notes prod
+
+- `DB_PASSWORD` est passé brut à Postgres, app, worker et broker. Les caractères
+  spéciaux sont acceptés.
+- Si tu changes `DB_PASSWORD` sur une DB existante, aligne aussi Postgres :
+  `ALTER USER meshforge WITH PASSWORD 'NEW_PASSWORD'`.
+- Le broker prod utilise `mosquitto-go-auth`. Sa config est un template :
+  `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` au démarrage.
+- Les relais créent leurs identifiants MQTT via `/register`.
+- Canaux publics, bornes carte, zoom, seuils et mentions légales se règlent dans
+  `/admin/config`.
 
 ---
 

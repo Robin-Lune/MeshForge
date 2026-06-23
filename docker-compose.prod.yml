@@ -23,7 +23,7 @@ services:
     build: .
     container_name: meshforge-app
     restart: unless-stopped
-    env_file: [.env] # DB_PASSWORD, ADMIN_SESSION_SECRET, LEGAL_*, creds MQTT…
+    env_file: [.env] # DB_PASSWORD, ADMIN_SESSION_SECRET, creds MQTT…
     environment:
       PGHOST: timescaledb
       PGDATABASE: meshforge
