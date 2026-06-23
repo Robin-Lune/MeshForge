@@ -50,7 +50,10 @@ services:
     container_name: meshforge-app
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      PGHOST: timescaledb
+      PGDATABASE: meshforge
+      PGUSER: meshforge
+      PGPASSWORD: ${DB_PASSWORD:-meshforge}
       MQTT_URL: mqtt://mosquitto:1883
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
@@ -75,7 +78,10 @@ services:
     restart: unless-stopped
     command: ["yarn", "worker"]
     environment:
-      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      PGHOST: timescaledb
+      PGDATABASE: meshforge
+      PGUSER: meshforge
+      PGPASSWORD: ${DB_PASSWORD:-meshforge}
       MQTT_URL: mqtt://mosquitto:1883
       MQTT_USERNAME: ${MQTT_USERNAME} # compte ADMIN (le worker doit SUBSCRIBE)
       MQTT_PASSWORD: ${MQTT_PASSWORD}

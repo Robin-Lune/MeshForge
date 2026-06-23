@@ -7,7 +7,7 @@
 #   2) Conteneurise l'app Next.js + le worker MQTT (image construite via le Dockerfile).
 #
 # En conteneur, la base et le broker se joignent par leur NOM DE SERVICE
-# (timescaledb / mosquitto), pas localhost -> DATABASE_URL/MQTT_URL surchargés ici.
+# (timescaledb / mosquitto), pas localhost -> PGHOST/MQTT_URL surchargés ici.
 # ⚠️ Template à valider : chemin de montage de la config selon la version de l'image.
 
 services:
@@ -25,7 +25,10 @@ services:
     restart: unless-stopped
     env_file: [.env] # DB_PASSWORD, ADMIN_SESSION_SECRET, LEGAL_*, creds MQTT…
     environment:
-      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      PGHOST: timescaledb
+      PGDATABASE: meshforge
+      PGUSER: meshforge
+      PGPASSWORD: ${DB_PASSWORD:-meshforge}
       MQTT_URL: mqtt://mosquitto:1883
     ports:
       - "3000:3000"
@@ -43,7 +46,10 @@ services:
     command: ["yarn", "worker"]
     env_file: [.env] # le worker SUBSCRIBE -> MQTT_USERNAME/PASSWORD d'un compte ADMIN
     environment:
-      DATABASE_URL: postgresql://meshforge:${DB_PASSWORD:-meshforge}@timescaledb:5432/meshforge
+      PGHOST: timescaledb
+      PGDATABASE: meshforge
+      PGUSER: meshforge
+      PGPASSWORD: ${DB_PASSWORD:-meshforge}
       MQTT_URL: mqtt://mosquitto:1883
     depends_on:
       timescaledb:

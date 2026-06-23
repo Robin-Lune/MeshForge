@@ -135,7 +135,7 @@ docker compose exec app yarn create-admin   # créer 2nd compte admin pour l'adm
 - **Connexion DB du broker** : `mosquitto.prod.conf` est un template committable. Au démarrage, `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` par `DB_PASSWORD` et écrit la config rendue dans `/tmp/mosquitto.conf` avant de lancer Mosquitto.
 - ⚠️ **Worker** : il doit _subscribe_, donc s'authentifier → renseigne `MQTT_USERNAME`/`MQTT_PASSWORD` (un compte **ADMIN**) dans `.env` après le `create-admin`, puis `docker compose restart worker`.
 - L'app écoute sur **:3000** (à placer derrière un reverse proxy TLS).
-- Les conteneurs joignent db/broker par leur **nom de service** : `DATABASE_URL`/`MQTT_URL` sont surchargés dans le compose, rien à changer.
+- Les conteneurs joignent db/broker par leur **nom de service** : `PGHOST`/`MQTT_URL` sont surchargés dans le compose, rien à changer.
 - Mots de passe des **relais** : chacun crée le sien via `/register` (bcrypt en base) — jamais dans un fichier.
 - Canaux publics / bornes carte / zoom / seuils : réglés en base via `/admin/config`.
 

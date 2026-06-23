@@ -3,6 +3,7 @@
 import { EventEmitter } from "node:events";
 import { Client } from "pg";
 import type { NodeUpdate } from "../types";
+import { getDbConfig } from "./db-config";
 
 // Canal Postgres LISTEN/NOTIFY. Le worker fait pg_notify('node_update', ...)
 // après upsert d'un node PUBLIC (cf. upsertNode + isPubliclyVisible).
@@ -50,7 +51,7 @@ bus.emitter.setMaxListeners(0); // pas de warning au-delà de 10 abonnés SSE
 async function ensureListening(): Promise<void> {
   if (bus.started) return;
   bus.started = true;
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client(getDbConfig());
   bus.client = client;
 
   const reset = (): void => {
