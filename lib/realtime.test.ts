@@ -6,6 +6,7 @@ const valid = JSON.stringify({
   nodeId: "!f669cf14",
   longName: "Piton",
   shortName: "PIT",
+  role: "ROUTER",
   lat: -21.1,
   lon: 55.5,
   batteryPct: 80,
@@ -16,6 +17,7 @@ describe("parseNotification — payload NOTIFY 'node_update'", () => {
   it("parse un payload valide", () => {
     const u = parseNotification(valid);
     expect(u?.nodeId).toBe("!f669cf14");
+    expect(u?.role).toBe("ROUTER");
     expect(u?.lat).toBe(-21.1);
     expect(u?.batteryPct).toBe(80);
     expect(u?.lastSeen).toBe("2026-06-20T10:00:00.000Z");
@@ -36,6 +38,7 @@ describe("parseNotification — payload NOTIFY 'node_update'", () => {
   it("tolère les champs optionnels absents (mis à null)", () => {
     const u = parseNotification(JSON.stringify({ nodeId: "!x", lat: -21, lon: 55 }));
     expect(u?.longName).toBeNull();
+    expect(u?.role).toBeNull();
     expect(u?.batteryPct).toBeNull();
     expect(u?.lastSeen).toBeNull();
   });
