@@ -6,13 +6,13 @@ import { pool } from "../../lib/db";
 import { insertPacket } from "../../lib/queries/packets";
 import { upsertGatewayNode, upsertNode } from "../../lib/queries/nodes";
 import { getSetting } from "../../lib/queries/settings";
-import { parseMessage } from "./parser";
-import type { RawMeshtasticPacket } from "../../types";
+import { parseMqttPacket } from "./parsers";
 
 const MQTT_URL = process.env.MQTT_URL ?? "mqtt://localhost:1883";
-// Uniquement le flux JSON (`+/+/json`) : exclut les topics binaires `/e/`
-// (protobuf chiffré) et `/map/` qui feraient échouer JSON.parse pour rien.
-const TOPIC = "msh/+/+/json/#";
+// Flux utiles : JSON décodé, map reports protobuf, et MeshPacket brut `/e/`
+// déchiffrable quand la clé du canal est connue.
+const TOPICS = ["msh/+/+/json/#", "msh/+/+/map/#", "msh/+/+/e/#"];
+const PROTO_DEBUG = process.env.MQTT_PROTO_DEBUG === "1";
 
 function log(...args: unknown[]): void {
   console.log(new Date().toISOString(), ...args);
@@ -33,20 +33,25 @@ client.on("connect", async () => {
   } catch {
     log("[privacy] config canaux indisponible (DB) — paquets droppés en attendant");
   }
-  client.subscribe(TOPIC, (err) => {
+  client.subscribe(TOPICS, (err) => {
     if (err) log("[mqtt] échec subscribe", err.message);
-    else log(`[mqtt] subscribe ${TOPIC}`);
+    else log(`[mqtt] subscribe ${TOPICS.join(", ")}`);
   });
 });
 
 client.on("message", async (topic, message) => {
   try {
-    const raw = JSON.parse(message.toString()) as RawMeshtasticPacket;
+    if (PROTO_DEBUG) log(`[mqtt:rx] ${topic} bytes=${message.length}`);
     // Allowlist relue à chaque message (cache 30s) : un changement de config
     // est pris en compte sans redémarrer le worker. DB indispo -> getSetting
     // jette -> message droppé (fail-closed, sûr pour la privacy).
     const publicChannels = await getSetting("public_channels");
-    const parsed = parseMessage(topic, raw, publicChannels);
+    const parsed = parseMqttPacket(
+      topic,
+      message,
+      publicChannels,
+      PROTO_DEBUG ? (msg) => log(`[proto] ${msg}`) : undefined,
+    );
     if (!parsed) return; // bruit, canal privé filtré, ou émetteur inconnu
 
     await insertPacket(parsed);

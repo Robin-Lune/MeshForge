@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hardwareModelName, deviceRoleName } from "./meshtastic-enums";
+import { hardwareModelName, deviceRoleName } from "./enums";
 
 describe("hardwareModelName — enum HardwareModel", () => {
   it("mappe les valeurs connues vers leur nom", () => {

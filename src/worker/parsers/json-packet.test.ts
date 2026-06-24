@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseMessage } from "./parser";
-import type { RawMeshtasticPacket } from "../../types";
+import { parseMessage } from "./json-packet";
+import type { RawMeshtasticPacket } from "../../../types";
 
 const CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
 
