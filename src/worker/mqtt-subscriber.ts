@@ -4,7 +4,7 @@ import "./env"; // charge .env.local AVANT lib/db (qui lit DATABASE_URL)
 import mqtt from "mqtt";
 import { pool } from "../../lib/db";
 import { insertPacket } from "../../lib/queries/packets";
-import { upsertNode } from "../../lib/queries/nodes";
+import { upsertGatewayNode, upsertNode } from "../../lib/queries/nodes";
 import { getSetting } from "../../lib/queries/settings";
 import { parseMessage } from "./parser";
 import type { RawMeshtasticPacket } from "../../types";
@@ -51,6 +51,7 @@ client.on("message", async (topic, message) => {
 
     await insertPacket(parsed);
     await upsertNode(parsed);
+    await upsertGatewayNode(parsed);
     log(`[pkt] ${parsed.channel} ${parsed.packetType} ${parsed.nodeId}`);
   } catch (err) {
     // Silencieux : le mesh envoie du bruit / JSON malformé, erreur DB ponctuelle.

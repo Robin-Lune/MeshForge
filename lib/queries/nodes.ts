@@ -59,12 +59,25 @@ interface UpsertedNodeRow {
 }
 
 const NOTIFY_NODE_UPDATE = `SELECT pg_notify('node_update', $1)`;
+const UPSERT_GATEWAY_NODE = `
+  INSERT INTO nodes (node_id, last_seen)
+  VALUES ($1, NOW())
+  ON CONFLICT (node_id) DO UPDATE SET
+    last_seen = EXCLUDED.last_seen
+`;
 
 export function resolveGatewayStatus(
   gatewayOverride: boolean | null,
   autoIsGateway: boolean,
 ): boolean {
   return gatewayOverride ?? autoIsGateway;
+}
+
+export function shouldUpsertGatewayNode(
+  gatewayId: string | null,
+  nodeId: string,
+): gatewayId is string {
+  return gatewayId !== null && gatewayId !== nodeId;
 }
 
 export async function upsertNode(p: ParsedPacket): Promise<void> {
@@ -99,6 +112,11 @@ export async function upsertNode(p: ParsedPacket): Promise<void> {
     };
     await pool.query(NOTIFY_NODE_UPDATE, [JSON.stringify(update)]);
   }
+}
+
+export async function upsertGatewayNode(p: ParsedPacket): Promise<void> {
+  if (!shouldUpsertGatewayNode(p.gatewayId, p.nodeId)) return;
+  await pool.query(UPSERT_GATEWAY_NODE, [p.gatewayId]);
 }
 
 // Nodes affichés sur la carte publique (PUBLIC PAR DÉFAUT : tous les localisés).
