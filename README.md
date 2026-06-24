@@ -36,17 +36,21 @@ Fonctionnalités principales :
 ## 🏗️ Architecture
 
 ```
-Nodes Meshtastic ──MQTT(JSON)──▶ Mosquitto ──▶ worker ──▶ TimescaleDB ──▶ API Next ──▶ carte
-                                              (parse,        (packets,      (/api/nodes,    (MapView)
-                                               filtre         nodes)         /api/stats,
-                                               privacy)                      /api/stream SSE)
-                                                  │                              ▲
-                                                  └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
+Nodes Meshtastic ──MQTT(JSON/protobuf)──▶ Mosquitto ──▶ worker ──▶ TimescaleDB ──▶ API Next ──▶ carte
+                                                    (parse,        (packets,      (/api/nodes,    (MapView)
+                                                     filtre         nodes)         /api/stats,
+                                                     privacy)                      /api/stream SSE)
+                                                        │                              ▲
+                                                        └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
 ```
 
 Stack : Next.js 16, React 19, Tailwind v4, MapLibre GL, worker Node/TS, MQTT, TimescaleDB/Postgres 16, Mosquitto.
 
 Principes : worker séparé de Next.js, SQL centralisé dans `lib/queries/`, broker **uplink only**, zéro dépendance cloud propriétaire.
+
+Le worker ingère les topics Meshtastic `msh/+/+/json/#`, `msh/+/+/map/#` et
+`msh/+/+/e/#`. Les paquets `/e/` chiffrés sont décodés uniquement quand la PSK
+du canal est fournie via `MESHTASTIC_CHANNEL_KEYS`.
 
 ---
 
@@ -72,10 +76,13 @@ cp .env.example .env
 DB_PASSWORD=...
 DATABASE_URL=postgresql://meshforge:...@localhost:5432/meshforge
 ADMIN_SESSION_SECRET=...
+MESHTASTIC_CHANNEL_KEYS=Fr_Balise:AQ==
 ```
 
 Si le mot de passe contient des caractères spéciaux, encode-le dans
 `DATABASE_URL`, ou utilise les variables `PG*` documentées dans `.env.example`.
+Laisse `MESHTASTIC_CHANNEL_KEYS` vide si tes gateways publient déjà du JSON et
+que tu veux éviter les doublons fonctionnels en local.
 
 ### 2. Lancer l'infra dev
 
@@ -142,6 +149,7 @@ DB_PASSWORD=...
 ADMIN_SESSION_SECRET=...
 MQTT_USERNAME=...
 MQTT_PASSWORD=...
+MESHTASTIC_CHANNEL_KEYS=Fr_Balise:AQ==
 NEXT_PUBLIC_APP_URL=https://ton-domaine.example
 ```
 
@@ -177,6 +185,7 @@ DB_PASSWORD=...
 ADMIN_SESSION_SECRET=...
 MQTT_USERNAME=...
 MQTT_PASSWORD=...
+MESHTASTIC_CHANNEL_KEYS=Fr_Balise:AQ==
 NEXT_PUBLIC_APP_URL=https://ton-domaine.example
 ```
 
@@ -200,6 +209,8 @@ yarn create-admin
 - Les relais créent leurs identifiants MQTT via `/register`.
 - Canaux publics, bornes carte, zoom, seuils, mentions légales et onboarding MQTT
   se règlent dans `/admin/config`.
+- `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
+  réception, enveloppe, raison de drop et fixture base64 en cas d'échec.
 
 ---
 

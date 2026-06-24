@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
-import type { RawMeshtasticPacket, ParsedPacket } from "../../types";
-import { hardwareModelName, deviceRoleName } from "./meshtastic-enums";
+import type { RawMeshtasticPacket, ParsedPacket } from "../../../types";
+import { hardwareModelName, deviceRoleName } from "../meshtastic/enums";
 
 // NodeNum entier -> NodeID hex Meshtastic. Ex: 4134129428 -> "!f669cf14".
 // `>>> 0` force l'interprétation non signée (NodeNum va jusqu'à 0xFFFFFFFF).
