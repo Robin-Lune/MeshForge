@@ -35,8 +35,11 @@ export default async function SiteHeader({
   const admin = await isAdmin();
 
   return (
-    <header className="relative flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-white/10 px-4 py-3 sm:px-6">
-      <Link href="/" className="text-lg font-extrabold tracking-tight">
+    <header className="relative flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-white/10 px-4 py-3 sm:px-6">
+      <Link
+        href="/"
+        className="min-w-0 break-words text-lg font-extrabold tracking-tight"
+      >
         <span className="text-accent">Mesh</span>Forge
       </Link>
 
@@ -68,8 +71,12 @@ export default async function SiteHeader({
         )}
       </nav>
 
-      <div className="ml-auto flex items-center gap-4 sm:gap-6">
-        {right && <div className="hidden items-center sm:flex">{right}</div>}
+      <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-4 sm:gap-6">
+        {right && (
+          <div className="hidden min-w-0 items-center justify-end sm:flex">
+            {right}
+          </div>
+        )}
         {admin && (
           <form action={logout} className="hidden md:block">
             <button className="font-mono text-xs uppercase tracking-wider text-muted transition-colors hover:text-foreground">

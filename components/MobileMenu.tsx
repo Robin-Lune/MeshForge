@@ -66,14 +66,14 @@ export default function MobileMenu({
             onClick={close}
             className="fixed inset-0 z-20 cursor-default"
           />
-          <div className="absolute left-0 right-0 top-full z-30 flex flex-col gap-1 border-b border-white/10 bg-background/98 px-4 py-3 shadow-lg backdrop-blur">
+          <div className="absolute left-0 right-0 top-full z-30 flex min-w-0 flex-col gap-1 border-b border-white/10 bg-background/98 px-4 py-3 shadow-lg backdrop-blur">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 onClick={close}
                 className={
-                  "rounded px-2 py-2 text-sm font-medium " +
+                  "min-w-0 break-words rounded px-2 py-2 text-sm font-medium " +
                   (active === l.href
                     ? "text-accent"
                     : "text-foreground/90 hover:bg-white/5")
@@ -94,7 +94,7 @@ export default function MobileMenu({
                     href={l.href}
                     onClick={close}
                     className={
-                      "rounded px-2 py-2 font-mono text-xs uppercase tracking-wider " +
+                      "min-w-0 break-words rounded px-2 py-2 font-mono text-xs uppercase tracking-wider " +
                       (active === l.href
                         ? "text-accent-2"
                         : "text-muted hover:bg-white/5")
@@ -104,7 +104,7 @@ export default function MobileMenu({
                   </Link>
                 ))}
                 <form action={logout}>
-                  <button className="w-full rounded px-2 py-2 text-left font-mono text-xs uppercase tracking-wider text-muted hover:bg-white/5">
+                  <button className="w-full min-w-0 break-words rounded px-2 py-2 text-left font-mono text-xs uppercase tracking-wider text-muted hover:bg-white/5">
                     Déconnexion
                   </button>
                 </form>

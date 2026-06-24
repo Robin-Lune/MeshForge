@@ -23,26 +23,26 @@ export default function Footer() {
   return (
     <footer
       onClick={registerTap}
-      className="flex min-h-(--footer-h) shrink-0 select-none flex-wrap items-center justify-center gap-x-1 gap-y-0.5 border-t border-white/10 px-4 py-1.5 text-center font-mono text-xs text-muted sm:px-6"
+      className="flex min-h-(--footer-h) min-w-0 shrink-0 select-none flex-wrap items-center justify-center gap-x-1 gap-y-0.5 border-t border-white/10 px-4 py-1.5 text-center font-mono text-xs text-muted sm:px-6"
     >
-      <span className="pr-1 font-bold text-accent">MeshForge</span>
+      <span className="min-w-0 break-words pr-1 font-bold text-accent">
+        MeshForge
+      </span>
       par
       <a
         href="https://la-forge-numerique.com"
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="pl-1 text-accent transition-colors hover:text-accent-2"
+        className="min-w-0 break-words pl-1 text-accent transition-colors hover:text-accent-2"
       >
         La Forge Numérique
       </a>
-      <span className="px-1 text-white/20" aria-hidden>
-        ·
-      </span>
+      <span className="basis-full sm:hidden" aria-hidden />
       <Link
         href="/mentions-legales"
         onClick={(e) => e.stopPropagation()}
-        className="transition-colors hover:text-foreground"
+        className="min-w-0 break-words transition-colors hover:text-foreground"
       >
         Mentions légales
       </Link>
@@ -52,7 +52,7 @@ export default function Footer() {
       <Link
         href="/remerciements"
         onClick={(e) => e.stopPropagation()}
-        className="transition-colors hover:text-foreground"
+        className="min-w-0 break-words transition-colors hover:text-foreground"
       >
         Remerciements
       </Link>
