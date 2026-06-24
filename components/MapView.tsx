@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapBounds } from "@/types";
 import { MapFilters } from "@/components/map/MapFilters";
+import type { HopFilter } from "@/components/map/MapFilters";
 import { MapLegend } from "@/components/map/MapLegend";
 import { useMapController } from "@/components/map/useMapController";
 
@@ -18,17 +19,22 @@ export default function MapView({
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
   const [sinceH, setSinceH] = useState(0); // 0 = tous
-  const [maxHop, setMaxHop] = useState(9); // 9 = tous (inclut hop inconnu)
+  const [hopFilter, setHopFilter] = useState<HopFilter>("all");
   const [legendOpen, setLegendOpen] = useState(true);
   const filters = useMemo(
-    () => ({ search, role, sinceH, maxHop }),
-    [search, role, sinceH, maxHop],
+    () => ({ search, role, sinceH, hopFilter }),
+    [search, role, sinceH, hopFilter],
   );
 
-  useMapController({ containerRef, bounds, minZoom, filters });
+  const { roleOptions } = useMapController({
+    containerRef,
+    bounds,
+    minZoom,
+    filters,
+  });
 
   return (
-    <div className="relative h-full w-full">
+    <div className="mf-map relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapLegend
         open={legendOpen}
@@ -37,12 +43,13 @@ export default function MapView({
       <MapFilters
         search={search}
         role={role}
+        roleOptions={roleOptions}
         sinceH={sinceH}
-        maxHop={maxHop}
+        hopFilter={hopFilter}
         onSearchChange={setSearch}
         onRoleChange={setRole}
         onSinceHChange={setSinceH}
-        onMaxHopChange={setMaxHop}
+        onHopFilterChange={setHopFilter}
       />
     </div>
   );

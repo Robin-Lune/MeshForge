@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import type { PublicNode, NodeUpdate, Observation, MapBounds } from "@/types";
@@ -20,6 +20,7 @@ import {
   MESH_DIRECT_LAYER,
   MESH_RELAY_LAYER,
 } from "@/components/map/map-layers";
+import type { HopFilter } from "@/components/map/MapFilters";
 
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -28,7 +29,7 @@ type MapFiltersState = {
   search: string;
   role: string;
   sinceH: number;
-  maxHop: number;
+  hopFilter: HopFilter;
 };
 
 type UseMapControllerProps = {
@@ -44,6 +45,7 @@ export function useMapController({
   minZoom,
   filters,
 }: UseMapControllerProps) {
+  const [roleOptions, setRoleOptions] = useState<string[]>([]);
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());
   const obsRef = useRef<Map<string, { nodeId: string; hop: number }[]>>(
     new Map(),
@@ -54,6 +56,20 @@ export function useMapController({
   const refreshRef = useRef<() => void>(() => {});
   const router = useRouter();
   const routerRef = useRef(router);
+  const updateRoleOptions = (): void => {
+    const roles = new Set<string>();
+    for (const f of nodesById.current.values()) {
+      const role = (f.properties as Record<string, unknown> | null)?.role;
+      if (typeof role === "string" && role.trim()) roles.add(role);
+    }
+    setRoleOptions([...roles].sort((a, b) => a.localeCompare(b)));
+  };
+  const matchesHopFilter = (hop: number | undefined, filter: HopFilter) => {
+    if (filter === "all") return true;
+    if (hop === undefined) return false;
+    if (filter === "3plus") return hop >= 3;
+    return hop === Number(filter);
+  };
 
   useEffect(() => {
     routerRef.current = router;
@@ -116,7 +132,7 @@ export function useMapController({
         : undefined;
     const refreshNodes = (): void => {
       if (!alive) return;
-      const { search, role, sinceH, maxHop } = filtersRef.current;
+      const { search, role, sinceH, hopFilter } = filtersRef.current;
       const q = search.trim().toLowerCase();
       const minSeen = sinceH > 0 ? Date.now() - sinceH * 3600000 : 0;
       const features = [...nodesById.current.values()].filter((f) => {
@@ -130,9 +146,10 @@ export function useMapController({
           const hay = `${p.nodeId} ${p.longName} ${p.shortName}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
-        if (maxHop < 9 && p.isGateway !== true) {
+        if (hopFilter !== "all") {
+          if (hopFilter === "0" && p.isGateway === true) return true;
           const mh = minHopRef.current.get(p.nodeId as string);
-          if (mh === undefined || mh > maxHop) return false;
+          if (!matchesHopFilter(mh, hopFilter)) return false;
         }
         return true;
       });
@@ -157,9 +174,9 @@ export function useMapController({
     const drawMesh = (gatewayId: string, gw: LngLat): void => {
       const src = meshSource();
       if (!src) return;
-      const { maxHop } = filtersRef.current;
+      const { hopFilter } = filtersRef.current;
       const targets = (obsRef.current.get(gatewayId) ?? [])
-        .filter((e) => e.hop <= maxHop)
+        .filter((e) => matchesHopFilter(e.hop, hopFilter))
         .map((e) => ({ hop: e.hop, pos: posById(e.nodeId) }))
         .filter((t): t is { hop: number; pos: LngLat } => t.pos !== null);
       if (!targets.length) return;
@@ -373,6 +390,7 @@ export function useMapController({
       .then((r) => r.json() as Promise<PublicNode[]>)
       .then((nodes) => {
         nodes.forEach((n) => nodesById.current.set(n.nodeId, nodeFeature(n)));
+        updateRoleOptions();
         refreshNodes();
       })
       .catch(() => {});
@@ -387,6 +405,7 @@ export function useMapController({
           const p = existing.properties as Record<string, unknown>;
           p.longName = u.longName ?? p.longName;
           p.shortName = u.shortName ?? p.shortName;
+          p.role = u.role ?? p.role;
           p.label = shortLabel(
             u.nodeId,
             (u.shortName ?? p.shortName) as string,
@@ -395,6 +414,7 @@ export function useMapController({
         } else {
           nodesById.current.set(u.nodeId, nodeFeature(u));
         }
+        updateRoleOptions();
         refreshNodes();
       } catch {}
     });
@@ -408,4 +428,6 @@ export function useMapController({
       map.remove();
     };
   }, [bounds, containerRef, minZoom]);
+
+  return { roleOptions };
 }

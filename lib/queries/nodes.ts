@@ -37,6 +37,7 @@ const UPSERT_NODE = `
     node_id      AS "nodeId",
     long_name    AS "longName",
     short_name   AS "shortName",
+    role         AS "role",
     last_lat     AS "lat",
     last_lon     AS "lon",
     last_battery AS "batteryPct",
@@ -50,6 +51,7 @@ interface UpsertedNodeRow {
   nodeId: string;
   longName: string | null;
   shortName: string | null;
+  role: string | null;
   lat: number | null;
   lon: number | null;
   batteryPct: number | null;
@@ -105,6 +107,7 @@ export async function upsertNode(p: ParsedPacket): Promise<void> {
       nodeId: row.nodeId,
       longName: row.longName,
       shortName: row.shortName,
+      role: row.role,
       lat: pos.lat,
       lon: pos.lon,
       batteryPct: row.batteryPct,

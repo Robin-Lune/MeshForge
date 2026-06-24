@@ -201,6 +201,7 @@ export interface NodeUpdate {
   nodeId: string;
   longName: string | null;
   shortName: string | null;
+  role: string | null;
   lat: number;
   lon: number;
   batteryPct: number | null;

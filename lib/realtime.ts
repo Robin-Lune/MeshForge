@@ -26,6 +26,7 @@ export function parseNotification(payload: string): NodeUpdate | null {
     nodeId: o.nodeId,
     longName: typeof o.longName === "string" ? o.longName : null,
     shortName: typeof o.shortName === "string" ? o.shortName : null,
+    role: typeof o.role === "string" ? o.role : null,
     lat: o.lat,
     lon: o.lon,
     batteryPct: typeof o.batteryPct === "number" ? o.batteryPct : null,

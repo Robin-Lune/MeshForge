@@ -72,3 +72,14 @@ body > * {
   border-top-color: rgba(255, 255, 255, 0.82);
   border-bottom-color: rgba(255, 255, 255, 0.82);
 }
+
+.mf-map .maplibregl-ctrl-top-right {
+  top: 5.75rem;
+  right: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .mf-map .maplibregl-ctrl-top-right {
+    top: 4.5rem;
+  }
+}
