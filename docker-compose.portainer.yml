@@ -79,6 +79,8 @@ services:
       MQTT_URL: mqtt://mosquitto:1883
       MQTT_USERNAME: ${MQTT_USERNAME} # compte ADMIN (le worker doit SUBSCRIBE)
       MQTT_PASSWORD: ${MQTT_PASSWORD}
+      MESHTASTIC_CHANNEL_KEYS: ${MESHTASTIC_CHANNEL_KEYS:-}
+      MQTT_PROTO_DEBUG: ${MQTT_PROTO_DEBUG:-0}
     depends_on:
       timescaledb:
         condition: service_healthy
