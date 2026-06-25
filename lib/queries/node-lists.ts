@@ -47,6 +47,17 @@ interface NodeOverviewRow {
   packets24h: string | number;
 }
 
+interface NodeOverviewPageRow extends NodeOverviewRow {
+  totalCount: string;
+}
+
+export interface NodesOverviewPage {
+  rows: NodeListItem[];
+  total: number;
+}
+
+export type NodeOverviewView = "all" | "active" | "low-battery" | "misconfigured";
+
 // Normalise une ligne DB -> item d'affichage (logique pure, testée).
 export function toNodeListItem(
   row: NodeOverviewRow,
@@ -69,12 +80,10 @@ export function toNodeListItem(
   };
 }
 
-// Tous les nodes avec les champs dérivés nécessaires aux 3 vues. Un seul aller
-// DB pour les nodes : le filtrage par onglet (actifs / batterie / mal
-// configurés) se fait côté page. packets24h = transmissions DISTINCTES : un node
-// entendu par N gateways génère N lignes pour 1 émission ; on déduplique par id
-// (airtime réellement consommé). Le seuil « bavard » vient de la config DB.
-const SELECT_NODES_OVERVIEW = `
+// Champ dérivé commun aux listes nodes. packets24h = transmissions DISTINCTES :
+// un node entendu par N gateways génère N lignes pour 1 émission ; on déduplique
+// par id (airtime réellement consommé).
+const NODES_OVERVIEW_SELECT = `
   SELECT
     n.node_id      AS "nodeId",
     n.long_name    AS "longName",
@@ -99,11 +108,90 @@ const SELECT_NODES_OVERVIEW = `
     WHERE received_at > NOW() - INTERVAL '24 hours'
     GROUP BY node_id
   ) tx ON tx.node_id = n.node_id
-  ORDER BY n.last_seen DESC NULLS LAST
 `;
 
 export async function getNodesOverview(): Promise<NodeListItem[]> {
   const maxPackets24h = await getSetting("misconfig_max_packets_24h");
-  const { rows } = await pool.query<NodeOverviewRow>(SELECT_NODES_OVERVIEW);
+  const { rows } = await pool.query<NodeOverviewRow>(
+    `${NODES_OVERVIEW_SELECT} ORDER BY n.last_seen DESC NULLS LAST`,
+  );
   return rows.map((r) => toNodeListItem(r, maxPackets24h));
+}
+
+const SEARCH_WHERE = `
+  (
+    "nodeId" ILIKE $1
+    OR "longName" ILIKE $1
+    OR "shortName" ILIKE $1
+  )
+`;
+
+function searchPattern(search: string): string {
+  return `%${search.trim()}%`;
+}
+
+export async function getNodesOverviewPage({
+  limit,
+  offset,
+  search,
+  view,
+}: {
+  limit: number | null;
+  offset: number;
+  search: string;
+  view: NodeOverviewView;
+}): Promise<NodesOverviewPage> {
+  const maxPackets24h = await getSetting("misconfig_max_packets_24h");
+  const q = search.trim();
+  const predicates: string[] = [];
+  if (q) predicates.push(SEARCH_WHERE);
+  if (view === "active") {
+    predicates.push(`"active" = TRUE`);
+  } else if (view === "low-battery") {
+    predicates.push(`"batteryPct" IS NOT NULL AND "batteryPct" < ${LOW_BATTERY_THRESHOLD}`);
+  } else if (view === "misconfigured") {
+    predicates.push(
+      `(
+        "hasNodeinfo" = FALSE
+        OR "hasPosition" = FALSE
+        OR ("batteryPct" IS NOT NULL AND "batteryPct" < ${LOW_BATTERY_THRESHOLD})
+        OR "packets24h" > $${q ? 2 : 1}
+      )`,
+    );
+  }
+  const where = predicates.length > 0 ? `WHERE ${predicates.join(" AND ")}` : "";
+  const params: Array<string | number> = q ? [searchPattern(q)] : [];
+  if (view === "misconfigured") params.push(maxPackets24h);
+  const limitSql = limit === null ? "" : `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  if (limit !== null) params.push(limit, offset);
+
+  const { rows } = await pool.query<NodeOverviewPageRow>(
+    `
+      SELECT page_rows.*, COUNT(*) OVER() AS "totalCount"
+      FROM (${NODES_OVERVIEW_SELECT}) page_rows
+      ${where}
+      ORDER BY "lastSeen" DESC NULLS LAST
+      ${limitSql}
+    `,
+    params,
+  );
+
+  if (rows.length === 0) {
+    const countParams: Array<string | number> = q ? [searchPattern(q)] : [];
+    if (view === "misconfigured") countParams.push(maxPackets24h);
+    const count = await pool.query<{ count: string }>(
+      `
+        SELECT COUNT(*) AS count
+        FROM (${NODES_OVERVIEW_SELECT}) page_rows
+        ${where}
+      `,
+      countParams,
+    );
+    return { rows: [], total: Number(count.rows[0]?.count ?? 0) };
+  }
+
+  return {
+    rows: rows.map((r) => toNodeListItem(r, maxPackets24h)),
+    total: Number(rows[0].totalCount),
+  };
 }

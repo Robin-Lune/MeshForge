@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import AdminNav from "@/components/AdminNav";
 import { isAdmin } from "@/lib/admin";
 import { getRecentPackets, getGatewayOverview } from "@/lib/queries/packets";
 import { relativeTime } from "@/lib/format";
@@ -280,6 +281,7 @@ export default async function TramesPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader active="/admin/trames" />
+      <AdminNav active="/admin/trames" />
       {gateway ? <FramesView gateway={gateway} /> : <GatewayOverview />}
     </div>
   );

@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   canLogin,
+  canMutateContributor,
   isValidUsername,
   isValidEmail,
+  isValidNodeName,
+  isValidContributorPassword,
+  passwordResetTokenHash,
   generateUsername,
   generatePassword,
 } from "./contributors";
@@ -61,6 +65,46 @@ describe("isValidEmail", () => {
     expect(isValidEmail("robin@host")).toBe(false);
     expect(isValidEmail("a b@host.fr")).toBe(false);
     expect(isValidEmail("")).toBe(false);
+  });
+});
+
+describe("isValidNodeName", () => {
+  it("accepte un nom de relais entre 2 et 64 caractères", () => {
+    expect(isValidNodeName("Relais volcan")).toBe(true);
+    expect(isValidNodeName("ab")).toBe(true);
+    expect(isValidNodeName("x".repeat(64))).toBe(true);
+  });
+
+  it("refuse vide, trop court ou trop long", () => {
+    expect(isValidNodeName("")).toBe(false);
+    expect(isValidNodeName(" a ")).toBe(false);
+    expect(isValidNodeName("x".repeat(65))).toBe(false);
+  });
+});
+
+describe("canMutateContributor", () => {
+  it("protège les admins des mutations de gestion", () => {
+    expect(canMutateContributor({ role: "ADMIN" })).toBe(false);
+  });
+
+  it("autorise la gestion des comptes utilisateurs", () => {
+    expect(canMutateContributor({ role: "USER" })).toBe(true);
+  });
+});
+
+describe("password reset", () => {
+  it("valide uniquement les mots de passe 8 à 128 caractères", () => {
+    expect(isValidContributorPassword("1234567")).toBe(false);
+    expect(isValidContributorPassword("12345678")).toBe(true);
+    expect(isValidContributorPassword("x".repeat(128))).toBe(true);
+    expect(isValidContributorPassword("x".repeat(129))).toBe(false);
+  });
+
+  it("hash le token de reset sans stocker le token brut", () => {
+    const hash = passwordResetTokenHash("token-secret");
+    expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(hash).toBe(passwordResetTokenHash("token-secret"));
+    expect(hash).not.toBe("token-secret");
   });
 });
 

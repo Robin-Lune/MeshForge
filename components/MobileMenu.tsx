@@ -95,7 +95,7 @@ export default function MobileMenu({
                     onClick={close}
                     className={
                       "min-w-0 break-words rounded px-2 py-2 font-mono text-xs uppercase tracking-wider " +
-                      (active === l.href
+                      (active?.startsWith("/admin")
                         ? "text-accent-2"
                         : "text-muted hover:bg-white/5")
                     }

@@ -1,14 +1,22 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
+import AdminNav from "@/components/AdminNav";
 import { isAdmin } from "@/lib/admin";
+import { isSameOrigin } from "@/lib/security";
 import { getAllSettings, setSetting } from "@/lib/queries/settings";
 
 export const dynamic = "force-dynamic";
 
 async function requireAdmin() {
   if (!(await isAdmin())) redirect("/admin/login");
+}
+
+async function requireAdminMutation(doneFn: (error: string | null) => never) {
+  await requireAdmin();
+  if (!isSameOrigin(await headers())) doneFn("Origine refusée.");
 }
 
 function done(error: string | null): never {
@@ -37,7 +45,7 @@ function doneMqtt(error: string | null): never {
 
 async function saveThreshold(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(done);
   let error: string | null = null;
   try {
     await setSetting(
@@ -52,7 +60,7 @@ async function saveThreshold(formData: FormData) {
 
 async function saveChannels(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(done);
   const list = String(formData.get("channels") ?? "")
     .split(/[,\n]/)
     .map((s) => s.trim())
@@ -68,7 +76,7 @@ async function saveChannels(formData: FormData) {
 
 async function saveZoom(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(done);
   let error: string | null = null;
   try {
     await setSetting("map_min_zoom", String(formData.get("value") ?? ""));
@@ -80,7 +88,7 @@ async function saveZoom(formData: FormData) {
 
 async function saveBounds(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(done);
   let error: string | null = null;
   try {
     if (formData.get("open") === "on") {
@@ -102,7 +110,7 @@ async function saveBounds(formData: FormData) {
 
 async function saveLegal(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(doneLegal);
   let error: string | null = null;
   try {
     await setSetting("legal_info", {
@@ -121,7 +129,7 @@ async function saveLegal(formData: FormData) {
 
 async function saveMqttOnboarding(formData: FormData) {
   "use server";
-  await requireAdmin();
+  await requireAdminMutation(doneMqtt);
   let error: string | null = null;
   try {
     await setSetting("mqtt_onboarding", {
@@ -178,6 +186,7 @@ export default async function ConfigPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader active="/admin/config" />
+      <AdminNav active="/admin/config" />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6">
         <h2 className="mb-4 text-xl font-semibold">Configuration</h2>

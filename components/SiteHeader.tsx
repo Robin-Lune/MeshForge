@@ -12,8 +12,7 @@ const LINKS = [
 ];
 
 const ADMIN_LINKS = [
-  { href: "/admin/trames", label: "Trames" },
-  { href: "/admin/config", label: "Config" },
+  { href: "/admin/trames", label: "Admin" },
 ];
 
 const linkCls = (active: boolean) =>
@@ -62,7 +61,7 @@ export default async function SiteHeader({
               <Link
                 key={l.href}
                 href={l.href}
-                className={adminLinkCls(active === l.href)}
+                className={adminLinkCls(active?.startsWith("/admin") ?? false)}
               >
                 {l.label}
               </Link>

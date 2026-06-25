@@ -202,10 +202,10 @@ yarn create-admin
 
 - `DB_PASSWORD` est passé brut à Postgres, app, worker et broker. Les caractères
   spéciaux sont acceptés.
-- Si tu changes `DB_PASSWORD` sur une DB existante, aligne aussi Postgres :
+- Si on change `DB_PASSWORD` sur une DB existante, aligner aussi Postgres :
   `ALTER USER meshforge WITH PASSWORD 'NEW_PASSWORD'`.
 - Le broker prod utilise `mosquitto-go-auth`. Sa config est un template :
-  `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` au démarrage.
+  `mosquitto/entrypoint.sh` remplacer `__DB_PASSWORD__` au démarrage.
 - Les relais créent leurs identifiants MQTT via `/register`.
 - Canaux publics, bornes carte, zoom, seuils, mentions légales et onboarding MQTT
   se règlent dans `/admin/config`.

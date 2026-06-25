@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
-import { randomInt } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { pool } from "../db";
 
 // Compte (USER ou ADMIN). `password` = bcrypt. Sert à l'auth web (role=ADMIN)
@@ -13,6 +13,25 @@ export interface ContributorAuth {
 }
 
 export type Role = "ADMIN" | "USER";
+
+export interface ContributorAdminRow {
+  id: number;
+  username: string;
+  email: string | null;
+  nodeName: string | null;
+  role: Role;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface ContributorsAdminPage {
+  contributors: ContributorAdminRow[];
+  total: number;
+}
+
+interface ContributorAdminPageRow extends ContributorAdminRow {
+  totalCount: string;
+}
 
 // Autorisation : compte actif ET rôle requis (logique pure, testée). Volontaire-
 // ment séparé de la requête : isAdmin() ET le login s'appuient dessus.
@@ -29,6 +48,22 @@ export function isValidUsername(s: string): boolean {
 // Validation email basique.
 export function isValidEmail(s: string): boolean {
   return s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+export function isValidNodeName(s: string): boolean {
+  return s.trim().length >= 2 && s.trim().length <= 64;
+}
+
+export function isValidContributorPassword(s: string): boolean {
+  return s.length >= 8 && s.length <= 128;
+}
+
+export function passwordResetTokenHash(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export function canMutateContributor(row: { role: string }): boolean {
+  return row.role !== "ADMIN";
 }
 
 // Slug d'un nom de relais : sans accents, minuscules, [a-z0-9] seulement, ≤ 20.
@@ -123,4 +158,207 @@ export async function insertContributor(
     email,
     nodeName,
   ]);
+}
+
+const SELECT_ADMIN_PAGE = `
+  SELECT
+    id,
+    username,
+    email,
+    node_name AS "nodeName",
+    role,
+    is_active AS "isActive",
+    created_at AS "createdAt",
+    COUNT(*) OVER() AS "totalCount"
+  FROM contributors
+  ORDER BY created_at DESC, id DESC
+  LIMIT $1 OFFSET $2
+`;
+
+const COUNT_CONTRIBUTORS = `SELECT COUNT(*) AS count FROM contributors`;
+
+export async function getContributorsAdminPage(
+  limit: number,
+  offset: number,
+): Promise<ContributorsAdminPage> {
+  const { rows } = await pool.query<ContributorAdminPageRow>(
+    SELECT_ADMIN_PAGE,
+    [limit, offset],
+  );
+  if (rows.length === 0) {
+    const count = await pool.query<{ count: string }>(COUNT_CONTRIBUTORS);
+    return { contributors: [], total: Number(count.rows[0]?.count ?? 0) };
+  }
+  return {
+    contributors: rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      nodeName: row.nodeName,
+      role: row.role,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+    })),
+    total: Number(rows[0].totalCount),
+  };
+}
+
+const UPDATE_CONTRIBUTOR_PROFILE = `
+  UPDATE contributors
+  SET username = $2, node_name = $3
+  WHERE id = $1 AND role <> 'ADMIN'
+`;
+
+export async function updateContributorProfile(
+  id: number,
+  username: string,
+  nodeName: string,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(UPDATE_CONTRIBUTOR_PROFILE, [
+    id,
+    username,
+    nodeName,
+  ]);
+  return rowCount === 1;
+}
+
+const SET_CONTRIBUTOR_ACTIVE = `
+  UPDATE contributors
+  SET is_active = $2
+  WHERE id = $1 AND role <> 'ADMIN'
+`;
+
+export async function setContributorActive(
+  id: number,
+  isActive: boolean,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(SET_CONTRIBUTOR_ACTIVE, [
+    id,
+    isActive,
+  ]);
+  return rowCount === 1;
+}
+
+const DELETE_CONTRIBUTOR = `
+  DELETE FROM contributors
+  WHERE id = $1 AND role <> 'ADMIN'
+`;
+
+export async function deleteContributor(id: number): Promise<boolean> {
+  const { rowCount } = await pool.query(DELETE_CONTRIBUTOR, [id]);
+  return rowCount === 1;
+}
+
+const INVALIDATE_PASSWORD_RESETS = `
+  UPDATE contributor_password_resets
+  SET used_at = NOW()
+  WHERE contributor_id = $1 AND used_at IS NULL
+`;
+
+const INSERT_PASSWORD_RESET = `
+  INSERT INTO contributor_password_resets (
+    contributor_id,
+    token_hash,
+    expires_at,
+    created_by
+  )
+  SELECT id, $2, $3, $4
+  FROM contributors
+  WHERE id = $1 AND role <> 'ADMIN'
+`;
+
+export async function createContributorPasswordReset(
+  contributorId: number,
+  tokenHash: string,
+  expiresAt: Date,
+  createdBy: string,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(INVALIDATE_PASSWORD_RESETS, [contributorId]);
+    const { rowCount } = await client.query(INSERT_PASSWORD_RESET, [
+      contributorId,
+      tokenHash,
+      expiresAt,
+      createdBy,
+    ]);
+    await client.query("COMMIT");
+    return rowCount === 1;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export interface PasswordResetTarget {
+  username: string;
+  nodeName: string | null;
+}
+
+const SELECT_PASSWORD_RESET_TARGET = `
+  SELECT c.username, c.node_name AS "nodeName"
+  FROM contributor_password_resets r
+  JOIN contributors c ON c.id = r.contributor_id
+  WHERE r.token_hash = $1
+    AND r.used_at IS NULL
+    AND r.expires_at > NOW()
+    AND c.role <> 'ADMIN'
+`;
+
+export async function getPasswordResetTarget(
+  tokenHash: string,
+): Promise<PasswordResetTarget | null> {
+  const { rows } = await pool.query<PasswordResetTarget>(
+    SELECT_PASSWORD_RESET_TARGET,
+    [tokenHash],
+  );
+  return rows[0] ?? null;
+}
+
+const SELECT_PASSWORD_RESET_FOR_UPDATE = `
+  SELECT r.id, r.contributor_id
+  FROM contributor_password_resets r
+  JOIN contributors c ON c.id = r.contributor_id
+  WHERE r.token_hash = $1
+    AND r.used_at IS NULL
+    AND r.expires_at > NOW()
+    AND c.role <> 'ADMIN'
+  FOR UPDATE
+`;
+
+export async function completeContributorPasswordReset(
+  tokenHash: string,
+  passwordHash: string,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{
+      id: number;
+      contributor_id: number;
+    }>(SELECT_PASSWORD_RESET_FOR_UPDATE, [tokenHash]);
+    const reset = rows[0];
+    if (!reset) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    await client.query("UPDATE contributors SET password = $1 WHERE id = $2", [
+      passwordHash,
+      reset.contributor_id,
+    ]);
+    await client.query(
+      "UPDATE contributor_password_resets SET used_at = NOW() WHERE id = $1",
+      [reset.id],
+    );
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

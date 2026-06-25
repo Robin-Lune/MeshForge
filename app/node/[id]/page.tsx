@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import NodeCharts from "@/components/NodeCharts";
 import { isAdmin } from "@/lib/admin";
+import { isSameOrigin } from "@/lib/security";
 import {
   getNodeById,
   setNodeExcluded,
@@ -64,47 +66,52 @@ export default async function NodePage({
   const wasMobile = node.isMobile;
   const gatewayOverride = node.gatewayOverride;
 
+  async function requireAdminMutation() {
+    if (!(await isAdmin())) redirect("/admin/login");
+    if (!isSameOrigin(await headers())) redirect(here);
+  }
+
   // Server Actions RGPD — chacune re-vérifie isAdmin() (endpoint à part entière).
   async function toggleExcluded() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await setNodeExcluded(nodeId, !wasExcluded);
     redirect(here);
   }
   // Précision position : bascule mobile (flou ~500 m) ↔ fixe (position exacte).
   async function toggleMobile() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await setNodeMobile(nodeId, !wasMobile);
     redirect(here);
   }
   async function forceGateway() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await setNodeGatewayOverride(nodeId, true);
     redirect(here);
   }
   async function forceNotGateway() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await setNodeGatewayOverride(nodeId, false);
     redirect(here);
   }
   async function resetGatewayAuto() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await setNodeGatewayOverride(nodeId, null);
     redirect(here);
   }
   async function anonymize() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await anonymizeNode(nodeId);
     redirect(here);
   }
   async function remove() {
     "use server";
-    if (!(await isAdmin())) redirect("/admin/login");
+    await requireAdminMutation();
     await deleteNode(nodeId);
     redirect("/");
   }

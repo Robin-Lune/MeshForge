@@ -103,6 +103,25 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- contributor_password_resets — liens temporaires de changement de mot de passe.
+-- Le token brut n'est jamais stocké : seule son empreinte SHA-256 est en DB.
+-- Le username n'est PAS concerné par ce flux ; seul contributors.password change.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS contributor_password_resets (
+    id             SERIAL PRIMARY KEY,
+    contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+    token_hash     TEXT UNIQUE NOT NULL,
+    expires_at     TIMESTAMPTZ NOT NULL,
+    used_at        TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_contributor_password_resets_valid
+    ON contributor_password_resets (token_hash, expires_at)
+    WHERE used_at IS NULL;
+
+-- ---------------------------------------------------------------------------
 -- settings — configuration runtime éditable par les admins (/admin/config).
 -- 1 clé = 1 réglage (value JSONB typée). Clés allowlistées côté code
 -- (lib/queries/settings.ts) : aucune clé dynamique issue du client.
