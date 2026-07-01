@@ -127,6 +127,19 @@ export interface NodeGatewayLink {
   distanceKm: number | null; // distance node ↔ gateway (null si position inconnue)
 }
 
+// Node entendu par le node sujet (qui agit comme relais/gateway). Miroir de
+// NodeGatewayLink : ici le node sujet est le récepteur. hasPosition = false ->
+// node jamais localisé (aucun paquet position) mais bel et bien entendu.
+export interface NodeHeardLink {
+  nodeId: string;
+  nodeName: string | null;
+  snr: number | null;
+  bestHop: number | null; // 0 = lien radio direct
+  packets: number;
+  lastHeard: string; // ISO 8601 — dernier paquet capté de ce node
+  hasPosition: boolean;
+}
+
 // Dernières métriques "device" d'un node (déjà captées en colonnes packets).
 export interface NodeDeviceMetrics {
   voltage: number | null; // tension batterie (V)

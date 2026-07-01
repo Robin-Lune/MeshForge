@@ -5,6 +5,7 @@ import { haversineKm } from "../geo";
 import type {
   NodeHistoryPoint,
   NodeGatewayLink,
+  NodeHeardLink,
   NodeDeviceMetrics,
 } from "../../types";
 
@@ -56,6 +57,31 @@ export function toGatewayLinks(
         : null,
     };
   });
+}
+
+interface HeardNodeRow {
+  nodeId: string;
+  nodeName: string | null;
+  snr: string | number | null;
+  bestHop: string | number | null;
+  packets: string | number;
+  lastHeard: Date;
+  hasPosition: boolean;
+}
+
+// Nodes que ce node a entendus (il agit alors en gateway). L'appartenance à la
+// liste ne dépend QUE de la réception d'un paquet — un node sans position (qui
+// n'a jamais émis de trame position) y figure aussi, d'où hasPosition.
+export function toHeardNodes(rows: HeardNodeRow[]): NodeHeardLink[] {
+  return rows.map((r) => ({
+    nodeId: r.nodeId,
+    nodeName: r.nodeName,
+    snr: r.snr == null ? null : Math.round(Number(r.snr) * 10) / 10,
+    bestHop: r.bestHop == null ? null : Number(r.bestHop),
+    packets: Number(r.packets),
+    lastHeard: r.lastHeard.toISOString(),
+    hasPosition: r.hasPosition,
+  }));
 }
 
 // pg renvoie REAL en number, mais on coerce par robustesse (string possible).
@@ -126,6 +152,36 @@ export async function getNodeGateways(
 ): Promise<NodeGatewayLink[]> {
   const { rows } = await pool.query<GatewayLinkRow>(SELECT_GATEWAYS, [nodeId]);
   return toGatewayLinks(rows, nodeLat, nodeLon);
+}
+
+// Miroir de SELECT_GATEWAYS : les nodes que CE node a captés (gateway_id = $1).
+// LEFT JOIN nodes -> nom si connu ; aucun filtre sur la position, donc un node
+// jamais localisé apparaît quand même (hasPosition = false). SNR/hop moyens et
+// meilleur hop vus DE ce node vers chaque émetteur.
+const SELECT_HEARD_NODES = `
+  SELECT
+    p.node_id                             AS "nodeId",
+    COALESCE(n.long_name, n.short_name)   AS "nodeName",
+    AVG(p.snr)                            AS snr,
+    MIN(p.hop_count)                      AS "bestHop",
+    COUNT(*)                              AS packets,
+    MAX(p.received_at)                    AS "lastHeard",
+    (n.last_lat IS NOT NULL AND n.last_lon IS NOT NULL) AS "hasPosition"
+  FROM packets p
+  LEFT JOIN nodes n ON n.node_id = p.node_id
+  WHERE p.gateway_id = $1
+    AND p.node_id IS NOT NULL
+    AND p.node_id <> p.gateway_id
+    AND p.received_at > NOW() - INTERVAL '30 days'
+  GROUP BY p.node_id, n.long_name, n.short_name, n.last_lat, n.last_lon
+  ORDER BY "lastHeard" DESC
+`;
+
+export async function getNodeHeardNodes(
+  nodeId: string,
+): Promise<NodeHeardLink[]> {
+  const { rows } = await pool.query<HeardNodeRow>(SELECT_HEARD_NODES, [nodeId]);
+  return toHeardNodes(rows);
 }
 
 // Dernière valeur non-nulle de chaque métrique device sur 30j (les métriques

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   toHistoryPoints,
   toGatewayLinks,
+  toHeardNodes,
   toDeviceMetrics,
 } from "./node-detail";
 
@@ -108,6 +109,55 @@ describe("toGatewayLinks", () => {
       },
     ])[0];
     expect(l.distanceKm).toBeNull();
+  });
+});
+
+// Nodes entendus par ce node (il agit en gateway). Miroir de toGatewayLinks :
+// un node sans position y figure quand même (hasPosition = false).
+describe("toHeardNodes", () => {
+  it("coerce snr/bestHop/packets, remonte lastHeard en ISO + le nom", () => {
+    expect(
+      toHeardNodes([
+        {
+          nodeId: "!src1",
+          nodeName: "Balise Sud",
+          snr: "4.25",
+          bestHop: "0",
+          packets: "7",
+          lastHeard: new Date("2026-06-30T08:15:00Z"),
+          hasPosition: true,
+        },
+      ]),
+    ).toEqual([
+      {
+        nodeId: "!src1",
+        nodeName: "Balise Sud",
+        snr: 4.3,
+        bestHop: 0,
+        packets: 7,
+        lastHeard: "2026-06-30T08:15:00.000Z",
+        hasPosition: true,
+      },
+    ]);
+  });
+
+  it("garde un node sans nom, sans position et hop null", () => {
+    const h = toHeardNodes([
+      {
+        nodeId: "!src2",
+        nodeName: null,
+        snr: null,
+        bestHop: null,
+        packets: "1",
+        lastHeard: new Date("2026-06-29T00:00:00Z"),
+        hasPosition: false,
+      },
+    ])[0];
+    expect(h.nodeName).toBeNull();
+    expect(h.snr).toBeNull();
+    expect(h.bestHop).toBeNull();
+    expect(h.hasPosition).toBe(false);
+    expect(h.nodeId).toBe("!src2");
   });
 });
 
