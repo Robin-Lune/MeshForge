@@ -16,6 +16,7 @@ import {
 import {
   getNodeHistory,
   getNodeGateways,
+  getNodeHeardNodes,
   getNodeDeviceMetrics,
 } from "@/lib/queries/node-detail";
 
@@ -50,12 +51,14 @@ export default async function NodePage({
   // node chargé d'abord : sa position alimente le calcul de distance vers les gateways.
   const node = await getNodeById(nodeId);
   if (!node) notFound();
-  const [history, gateways, deviceMetrics, admin] = await Promise.all([
-    getNodeHistory(nodeId),
-    getNodeGateways(nodeId, node.lat, node.lon),
-    getNodeDeviceMetrics(nodeId),
-    isAdmin(),
-  ]);
+  const [history, gateways, heardNodes, deviceMetrics, admin] =
+    await Promise.all([
+      getNodeHistory(nodeId),
+      getNodeGateways(nodeId, node.lat, node.lon),
+      getNodeHeardNodes(nodeId),
+      getNodeDeviceMetrics(nodeId),
+      isAdmin(),
+    ]);
   // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
   // pour le gérer/réintégrer).
   if (node.excluded && !admin) notFound();
@@ -180,6 +183,49 @@ export default async function NodePage({
                       </span>
                     )}
                     <span className="text-zinc-400">{g.packets} pqts</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <h3 className="mb-3 text-sm font-semibold">
+            Nœuds entendus par ce nœud{" "}
+            <span className="font-normal text-zinc-500">(30 j)</span>
+          </h3>
+          {heardNodes.length === 0 ? (
+            <p className="text-sm text-zinc-400">
+              Ce nœud n&apos;a relayé aucun autre nœud sur 30 j.
+            </p>
+          ) : (
+            <ul className="divide-y divide-black/5 rounded-lg border border-black/10 dark:divide-white/10 dark:border-white/15">
+              {heardNodes.map((h) => (
+                <li
+                  key={h.nodeId}
+                  className="flex flex-col gap-1 px-4 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/node/${encodeURIComponent(h.nodeId)}`}
+                      className="font-medium hover:underline"
+                    >
+                      {h.nodeName ?? h.nodeId}
+                    </Link>
+                    {!h.hasPosition && (
+                      <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-xs text-zinc-500">
+                        sans position
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex flex-wrap gap-x-4 gap-y-0.5 font-mono text-zinc-600 dark:text-zinc-300">
+                    <span>{fmt(h.snr, " dB")}</span>
+                    <span className={h.bestHop === 0 ? "text-emerald-600" : ""}>
+                      {hopLabel(h.bestHop)}
+                    </span>
+                    <span className="text-zinc-400">{h.packets} pqts</span>
+                    <span className="text-zinc-400">{date(h.lastHeard)}</span>
                   </span>
                 </li>
               ))}
