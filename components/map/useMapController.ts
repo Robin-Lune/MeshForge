@@ -11,6 +11,7 @@ import {
   lineFeature,
 } from "@/components/map/map-data";
 import type { LngLat } from "@/components/map/map-data";
+import { resolvePillSpread } from "@/components/map/pill-spread";
 import {
   clusterElement,
   hoverCard,
@@ -115,7 +116,7 @@ export function useMapController({
     const openNodePopup = (
       nodeId: string,
       p: Record<string, unknown>,
-      c: maplibregl.LngLat,
+      m: maplibregl.Marker,
     ): void => {
       const card = hoverCard(p);
       card.style.cursor = "pointer";
@@ -123,7 +124,14 @@ export function useMapController({
         event.stopPropagation();
         routerRef.current.push(`/node/${encodeURIComponent(nodeId)}`);
       });
-      hoverPopup.setLngLat(c).setDOMContent(card).addTo(map);
+      // spreadPills écarte les pastilles empilées en pixels (setOffset) sans
+      // toucher leur position géo : on ancre le popup sur la position VISUELLE
+      // de la pastille survolée, sinon il se centre sur le milieu de la pile
+      // (chevauche le pointeur -> flickering).
+      const base = map.project(m.getLngLat());
+      const off = m.getOffset();
+      const anchor = map.unproject([base.x + off.x, base.y + off.y]);
+      hoverPopup.setLngLat(anchor).setDOMContent(card).addTo(map);
     };
 
     const nodesSource = (): maplibregl.GeoJSONSource | undefined =>
@@ -200,48 +208,19 @@ export function useMapController({
     let onScreen: Record<string, maplibregl.Marker> = {};
 
     const spreadPills = (): void => {
-      const items = Object.keys(onScreen)
-        .filter((id) => id.startsWith("n"))
-        .map((id) => {
-          const el = onScreen[id].getElement();
-          const pt = map.project(onScreen[id].getLngLat());
-          return {
-            m: onScreen[id],
-            x: pt.x,
-            y: pt.y,
-            w: Number(el.dataset.w) || 40,
-            h: Number(el.dataset.h) || 22,
-            dx: 0,
-            dy: 0,
-          };
-        });
-      const PAD = 4;
-      for (let iter = 0; iter < 12; iter++) {
-        let moved = false;
-        for (let i = 0; i < items.length; i++) {
-          for (let j = i + 1; j < items.length; j++) {
-            const a = items[i];
-            const b = items[j];
-            const dx = b.x + b.dx - (a.x + a.dx);
-            const dy = b.y + b.dy - (a.y + a.dy);
-            const ox = (a.w + b.w) / 2 + PAD - Math.abs(dx);
-            const oy = (a.h + b.h) / 2 + PAD - Math.abs(dy);
-            if (ox <= 0 || oy <= 0) continue;
-            moved = true;
-            if (ox < oy) {
-              const push = ox * (dx < 0 ? -1 : 1);
-              a.dx -= push / 2;
-              b.dx += push / 2;
-            } else {
-              const push = oy * (dy < 0 ? -1 : 1);
-              a.dy -= push / 2;
-              b.dy += push / 2;
-            }
-          }
-        }
-        if (!moved) break;
-      }
-      for (const it of items) it.m.setOffset([it.dx, it.dy]);
+      const ids = Object.keys(onScreen).filter((id) => id.startsWith("n"));
+      const boxes = ids.map((id) => {
+        const el = onScreen[id].getElement();
+        const pt = map.project(onScreen[id].getLngLat());
+        return {
+          x: pt.x,
+          y: pt.y,
+          w: Number(el.dataset.w) || 40,
+          h: Number(el.dataset.h) || 22,
+        };
+      });
+      const offsets = resolvePillSpread(boxes);
+      ids.forEach((id, i) => onScreen[id].setOffset([offsets[i].dx, offsets[i].dy]));
     };
 
     const applyBridge = (): void => {
@@ -293,7 +272,7 @@ export function useMapController({
               if (tapToPreview) return;
               if (pinnedNodeId) return;
               const c = m.getLngLat();
-              openNodePopup(nodeId, p, c);
+              openNodePopup(nodeId, p, m);
               if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
             });
             el.addEventListener("mouseleave", () => {
@@ -310,7 +289,7 @@ export function useMapController({
               }
               pinnedNodeId = nodeId;
               const c = m.getLngLat();
-              openNodePopup(nodeId, p, c);
+              openNodePopup(nodeId, p, m);
               clearMesh();
               if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
             });
