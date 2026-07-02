@@ -184,6 +184,35 @@ describe("jsonMeshEdges — NeighborInfo", () => {
   it("renvoie [] pour un type non concerné", () => {
     expect(jsonMeshEdges(raw({ type: "position" }), "Fr_Balise")).toEqual([]);
   });
+
+  it("renvoie [] si `from` n'est pas numérique", () => {
+    expect(
+      jsonMeshEdges({ type: "neighborinfo" } as RawMeshtasticPacket, "Fr_Balise"),
+    ).toEqual([]);
+  });
+
+  it("renvoie [] si le reporter est invalide (NodeNum 0)", () => {
+    const edges = jsonMeshEdges(
+      raw({ from: 0, type: "neighborinfo", payload: { neighbors: [{ node_id: 1, snr: 1 }] } }),
+      "Fr_Balise",
+    );
+    expect(edges).toEqual([]);
+  });
+
+  it("renvoie [] si `neighbors` n'est pas un tableau", () => {
+    expect(jsonMeshEdges(raw({ type: "neighborinfo", payload: {} }), "Fr_Balise")).toEqual([]);
+  });
+
+  it("ignore un voisin sans node_id numérique", () => {
+    const edges = jsonMeshEdges(
+      raw({
+        type: "neighborinfo",
+        payload: { neighbors: [{ snr: 5 }, { node_id: 0x44444444, snr: 3 }] },
+      }),
+      "Fr_Balise",
+    );
+    expect(edges.map((e) => e.nodeId)).toEqual(["!44444444"]);
+  });
 });
 
 describe("jsonMeshEdges — Traceroute", () => {
@@ -220,5 +249,39 @@ describe("jsonMeshEdges — Traceroute", () => {
     expect(
       edges.some((e) => e.gatewayId === "!f669cf14" || e.gatewayId === "!0a0a0a0a"),
     ).toBe(false);
+  });
+
+  it("ignore un nœud broadcast dans la route (saut non tracé)", () => {
+    const edges = jsonMeshEdges(
+      raw({
+        type: "traceroute",
+        to: 0x0a0a0a0a,
+        want_response: false,
+        payload: { route: [0xffffffff] },
+      } as Partial<RawMeshtasticPacket>),
+      "Fr_Balise",
+    );
+    // aller = [origine, broadcast, dest] : les 2 sauts touchant broadcast sont ignorés.
+    expect(edges).toEqual([]);
+  });
+
+  it("renvoie [] si `route` est absente", () => {
+    expect(
+      jsonMeshEdges(raw({ type: "traceroute", to: 0x0a0a0a0a, payload: {} }), "Fr_Balise"),
+    ).toEqual([]);
+  });
+
+  it("réponse sans `to` : retombe sur `from` comme extrémité", () => {
+    const edges = jsonMeshEdges(
+      raw({
+        type: "traceroute",
+        want_response: false,
+        payload: { route: [0x0b0b0b0b] },
+      } as Partial<RawMeshtasticPacket>),
+      "Fr_Balise",
+    );
+    // aller = [from, relay, from] : les 2 sauts relient from et le relais.
+    expect(edges).toHaveLength(2);
+    expect(edges.map((e) => e.gatewayId).sort()).toEqual(["!0b0b0b0b", "!f669cf14"]);
   });
 });
