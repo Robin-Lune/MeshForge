@@ -37,7 +37,10 @@ export default function MapView({
 
   return (
     <div className="mf-map relative h-full w-full">
-      <div ref={containerRef} className="h-full w-full" />
+      {/* isolate : cantonne les marqueurs MapLibre (z-index interne) dans leur
+          propre contexte d'empilement -> ils ne passent plus au-dessus des
+          panneaux (filtres, légende) posés après dans le DOM. */}
+      <div ref={containerRef} className="isolate h-full w-full" />
       <MapLegend
         open={legendOpen}
         onToggle={() => setLegendOpen((open) => !open)}
