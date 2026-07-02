@@ -35,6 +35,7 @@ import {
   LINKS_LINE_LAYER,
   LINKS_BADGE_LAYER,
 } from "@/components/map/map-layers";
+import { signalColor } from "@/components/map/signal-color";
 import type { HopFilter } from "@/components/map/MapFilters";
 
 // Amplitude (px) de la courbure d'un lien direct : assez pour rendre visible un
@@ -296,11 +297,13 @@ export function useMapController({
           return [ll.lng, ll.lat];
         });
         const dim = focus !== null && l.aId !== focus && l.bId !== focus;
-        const props: Record<string, unknown> = { packets: l.packets, dim };
-        if (l.snr !== null) props.snr = l.snr;
         features.push({
           type: "Feature",
-          properties: props,
+          properties: {
+            packets: l.packets,
+            dim,
+            color: signalColor(l.snr, l.rssi),
+          },
           geometry: { type: "LineString", coordinates: coords },
         });
         if (l.packets > 0) {

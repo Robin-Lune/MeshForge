@@ -3,14 +3,6 @@ import type {
   SymbolLayerSpecification,
 } from "maplibre-gl";
 
-// Barème SNR IDENTIQUE à la carte officielle Meshtastic (meshtastic/web,
-// getSignalColor) : > -7 dB bon (vert), > -15 dB moyen (jaune), sinon faible
-// (orange). Lien sans SNR connu (ex: traceroute JSON) -> gris neutre.
-export const SNR_GOOD = "#00ff00";
-export const SNR_FAIR = "#ffe600";
-export const SNR_BAD = "#f7931a";
-export const SNR_UNKNOWN_COLOR = "#9ca3af";
-
 export const MESH_DIRECT_LAYER: LineLayerSpecification = {
   id: "mesh-direct",
   type: "line",
@@ -44,8 +36,9 @@ export const MESH_RELAY_LAYER: LineLayerSpecification = {
   },
 };
 
-// Vue persistante "liens directs" (hop 0) colorés par qualité SNR (barème
-// Meshtastic). `dim` = estompé quand un autre node est survolé (focus).
+// Vue persistante "liens directs" (hop 0). La couleur (barème SNR+RSSI
+// Meshtastic) est précalculée par lien (cf. signalColor) et portée par la
+// propriété `color`. `dim` = estompé quand un autre node est survolé (focus).
 export const LINKS_LINE_LAYER: LineLayerSpecification = {
   id: "links-line",
   type: "line",
@@ -53,12 +46,7 @@ export const LINKS_LINE_LAYER: LineLayerSpecification = {
   filter: ["==", ["geometry-type"], "LineString"],
   layout: { "line-cap": "round", "line-join": "round" },
   paint: {
-    "line-color": [
-      "case",
-      ["has", "snr"],
-      ["step", ["get", "snr"], SNR_BAD, -15, SNR_FAIR, -7, SNR_GOOD],
-      SNR_UNKNOWN_COLOR,
-    ],
+    "line-color": ["get", "color"],
     "line-width": ["case", ["get", "dim"], 1.5, 2.75],
     "line-opacity": ["case", ["get", "dim"], 0.12, 0.9],
   },

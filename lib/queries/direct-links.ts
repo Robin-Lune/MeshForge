@@ -8,15 +8,17 @@ interface DirectLinkRow {
   aId: string;
   bId: string;
   snr: string | number | null;
+  rssi: string | number | null;
   packets: string | number;
 }
 
-// Normalise les liens directs (snr arrondi 0,1 dB, packets en number).
+// Normalise les liens directs (snr arrondi 0,1 dB, rssi arrondi entier, packets number).
 export function toDirectLinks(rows: DirectLinkRow[]): DirectLink[] {
   return rows.map((r) => ({
     aId: r.aId,
     bId: r.bId,
     snr: r.snr == null ? null : Math.round(Number(r.snr) * 10) / 10,
+    rssi: r.rssi == null ? null : Math.round(Number(r.rssi)),
     packets: Number(r.packets),
   }));
 }
@@ -33,6 +35,7 @@ const SELECT_DIRECT_LINKS = `
       LEAST(gateway_id, node_id)    AS a_id,
       GREATEST(gateway_id, node_id) AS b_id,
       snr,
+      rssi,
       packet_type
     FROM packets
     WHERE hop_count = 0
@@ -43,7 +46,8 @@ const SELECT_DIRECT_LINKS = `
   SELECT
     d.a_id AS "aId",
     d.b_id AS "bId",
-    percentile_cont(0.5) WITHIN GROUP (ORDER BY d.snr) AS snr,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY d.snr)  AS snr,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY d.rssi) AS rssi,
     COUNT(*) FILTER (
       WHERE d.packet_type IS DISTINCT FROM 'neighbor'
         AND d.packet_type IS DISTINCT FROM 'traceroute_hop'

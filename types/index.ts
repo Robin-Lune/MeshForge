@@ -124,6 +124,7 @@ export interface DirectLink {
   aId: string;
   bId: string;
   snr: number | null;
+  rssi: number | null; // médiane RSSI, critère secondaire couleur (Meshtastic)
   packets: number;
 }
 
