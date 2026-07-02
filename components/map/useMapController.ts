@@ -45,6 +45,10 @@ import type { HopFilter } from "@/components/map/MapFilters";
 // lien entre pastilles empilées, sans encombrer les liens longs.
 const LINK_ARC_PX = 16;
 
+// Rayon (px) pour rattacher un node regroupé au rond de cluster le plus proche
+// (≈ clusterRadius de la source) quand on dézoome.
+const CLUSTER_SNAP_PX = 60;
+
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
@@ -269,15 +273,42 @@ export function useMapController({
     const linksSource = (): maplibregl.GeoJSONSource | undefined =>
       map.getSource("links") as maplibregl.GeoJSONSource | undefined;
 
-    // Position VISUELLE d'une pastille (géo + offset de spreadPills, en pixels).
-    // null si le node n'a pas de marqueur individuel à l'écran (en cluster ou
-    // filtré) -> son lien est masqué (réduit le fouillis, garantit une ancre).
-    const visualAnchor = (nodeId: string): Pt | null => {
+    // Positions écran des clusters visibles (pastille ronde "N nœuds").
+    const clusterPoints = (): Pt[] => {
+      const pts: Pt[] = [];
+      for (const id in onScreen) {
+        if (!id.startsWith("c")) continue;
+        const p = map.project(onScreen[id].getLngLat());
+        pts.push({ x: p.x, y: p.y });
+      }
+      return pts;
+    };
+
+    // Ancre écran d'un node pour tracer ses liens :
+    //  - pastille individuelle -> sa position visuelle (géo + offset spreadPills) ;
+    //  - node REGROUPÉ (dézoom) -> le cluster le plus proche de sa position, pour
+    //    que le lien rejoigne le rond "N nœuds" au lieu d'être masqué ;
+    //  - sinon (hors écran) -> null.
+    const visualAnchor = (nodeId: string, clusters: Pt[]): Pt | null => {
       const marker = onScreen[`n${nodeId}`];
-      if (!marker) return null;
-      const base = map.project(marker.getLngLat());
-      const off = marker.getOffset();
-      return { x: base.x + off.x, y: base.y + off.y };
+      if (marker) {
+        const base = map.project(marker.getLngLat());
+        const off = marker.getOffset();
+        return { x: base.x + off.x, y: base.y + off.y };
+      }
+      const pos = posById(nodeId);
+      if (!pos) return null;
+      const p = map.project(pos);
+      let best: Pt | null = null;
+      let bestD = CLUSTER_SNAP_PX * CLUSTER_SNAP_PX;
+      for (const c of clusters) {
+        const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best;
     };
 
     // (Re)construit la couche des liens directs à partir des positions visuelles
@@ -291,13 +322,15 @@ export function useMapController({
         return;
       }
       const focus = focusRef.current;
+      const clusters = clusterPoints();
       const features: GeoJSON.Feature[] = [];
       let pileIndex = 0;
       for (const l of linksRef.current) {
-        const a = visualAnchor(l.aId);
-        const b = visualAnchor(l.bId);
+        const a = visualAnchor(l.aId, clusters);
+        const b = visualAnchor(l.bId, clusters);
         if (!a || !b) continue;
         const chord = Math.hypot(b.x - a.x, b.y - a.y);
+        if (chord < 0.5) continue; // mêmes extrémités (ex: nœuds d'un même cluster)
         const c = controlPoint(a, b, LINK_ARC_PX, chord < 1 ? pileIndex++ : 0);
         const coords = quadBezier(a, c, b).map((p) => {
           const ll = map.unproject([p.x, p.y]);
