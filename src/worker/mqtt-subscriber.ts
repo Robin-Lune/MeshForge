@@ -46,18 +46,24 @@ client.on("message", async (topic, message) => {
     // est pris en compte sans redémarrer le worker. DB indispo -> getSetting
     // jette -> message droppé (fail-closed, sûr pour la privacy).
     const publicChannels = await getSetting("public_channels");
-    const parsed = parseMqttPacket(
+    const parsedList = parseMqttPacket(
       topic,
       message,
       publicChannels,
       PROTO_DEBUG ? (msg) => log(`[proto] ${msg}`) : undefined,
     );
-    if (!parsed) return; // bruit, canal privé filtré, ou émetteur inconnu
+    if (parsedList.length === 0) return; // bruit, canal privé filtré, émetteur inconnu
 
-    await insertPacket(parsed);
-    await upsertNode(parsed);
-    await upsertGatewayNode(parsed);
-    log(`[pkt] ${parsed.channel} ${parsed.packetType} ${parsed.nodeId}`);
+    for (const parsed of parsedList) {
+      await insertPacket(parsed);
+      // Arête synthétique (NeighborInfo/Traceroute) : trame insérée, mais pas
+      // d'upsert node — l'émetteur d'une arête ne relaie pas forcément vers MQTT.
+      if (!parsed.edgeOnly) {
+        await upsertNode(parsed);
+        await upsertGatewayNode(parsed);
+      }
+      log(`[pkt] ${parsed.channel} ${parsed.packetType} ${parsed.nodeId}`);
+    }
   } catch (err) {
     // Silencieux : le mesh envoie du bruit / JSON malformé, erreur DB ponctuelle.
     // Ne jamais crasher le worker (il doit tourner indéfiniment).

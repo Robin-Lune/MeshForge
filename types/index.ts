@@ -55,6 +55,11 @@ export interface ParsedPacket {
   hwModel: string | null;
   firmware: string | null;
   role: string | null;
+  // Arête synthétique reconstruite (NeighborInfo/Traceroute) : "gateway a entendu
+  // node" en direct. Le worker l'INSÈRE dans packets mais n'upsert pas de node
+  // (l'émetteur d'une arête ne relaie pas forcément vers MQTT). Absent/false sur
+  // les trames captées normalement.
+  edgeOnly?: boolean;
   raw: RawMeshtasticPacket;
 }
 

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import type { RawMeshtasticPacket, ParsedPacket } from "../../../types";
 import { hardwareModelName, deviceRoleName } from "../meshtastic/enums";
+import { neighborInfoEdges, tracerouteEdges } from "./mesh-links";
 
 // NodeNum entier -> NodeID hex Meshtastic. Ex: 4134129428 -> "!f669cf14".
 // `>>> 0` force l'interprétation non signée (NodeNum va jusqu'à 0xFFFFFFFF).
@@ -61,4 +62,48 @@ export function parseMessage(
     role: isNodeInfo ? deviceRoleName(payload.role) : null,
     raw,
   };
+}
+
+// Arêtes "toile mesh" dérivées d'un paquet JSON NeighborInfo/Traceroute (en plus
+// de la trame de base renvoyée par parseMessage). Le compositeur (parsers/index)
+// appelle ceci sur le même canal validé. Renvoie [] pour tout autre type.
+// Nuance JSON : le champ want_response n'est pas garanti (sens req/rép parfois
+// inconnu -> arêtes conservatrices), et le barème SNR des traceroute JSON n'est
+// pas fiable -> on n'y attache PAS de SNR (l'arête, elle, reste correcte).
+export function jsonMeshEdges(
+  raw: RawMeshtasticPacket,
+  channel: string,
+): ParsedPacket[] {
+  if (typeof raw.from !== "number") return [];
+  const payload = raw.payload ?? {};
+
+  if (raw.type === "neighborinfo") {
+    return neighborInfoEdges(raw.from, asNeighbors(payload.neighbors), channel);
+  }
+
+  if (raw.type === "traceroute") {
+    return tracerouteEdges(
+      {
+        from: raw.from,
+        to: numOrNull(raw.to),
+        route: asNumArray(payload.route),
+        snrTowards: [],
+        routeBack: asNumArray(payload.route_back),
+        snrBack: [],
+        isRequest:
+          typeof raw.want_response === "boolean" ? raw.want_response : undefined,
+      },
+      channel,
+    );
+  }
+
+  return [];
+}
+
+function asNeighbors(v: unknown): { node_id?: number; snr?: number }[] | undefined {
+  return Array.isArray(v) ? (v as { node_id?: number; snr?: number }[]) : undefined;
+}
+
+function asNumArray(v: unknown): number[] {
+  return Array.isArray(v) ? v.map(Number) : [];
 }

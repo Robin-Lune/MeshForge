@@ -2,11 +2,14 @@ import { createCipheriv, createDecipheriv } from "crypto";
 import protobuf from "protobufjs";
 import type { ParsedPacket, RawMeshtasticPacket } from "../../../types";
 import { deviceRoleName, hardwareModelName } from "../meshtastic/enums";
+import { decodeTraceSnr, neighborInfoEdges, tracerouteEdges } from "./mesh-links";
 
 const PORTNUM = {
   TEXT_MESSAGE_APP: 1,
   POSITION_APP: 3,
   NODEINFO_APP: 4,
+  TRACEROUTE_APP: 70,
+  NEIGHBORINFO_APP: 71,
   TELEMETRY_APP: 67,
 } as const;
 
@@ -77,6 +80,27 @@ message Telemetry {
   fixed32 time = 1;
   DeviceMetrics device_metrics = 2;
 }
+
+message NeighborInfo {
+  uint32 node_id = 1;
+  uint32 last_sent_by_id = 2;
+  uint32 node_broadcast_interval_secs = 3;
+  repeated Neighbor neighbors = 4;
+}
+
+message Neighbor {
+  uint32 node_id = 1;
+  float snr = 2;
+  fixed32 last_rx_time = 3;
+  uint32 node_broadcast_interval_secs = 4;
+}
+
+message RouteDiscovery {
+  repeated fixed32 route = 1;
+  repeated int32 snr_towards = 2;
+  repeated fixed32 route_back = 3;
+  repeated int32 snr_back = 4;
+}
 `;
 
 const root = protobuf.parse(PROTO, { keepCase: true }).root;
@@ -85,6 +109,8 @@ const Data = root.lookupType("meshtastic.Data");
 const Position = root.lookupType("meshtastic.Position");
 const User = root.lookupType("meshtastic.User");
 const Telemetry = root.lookupType("meshtastic.Telemetry");
+const NeighborInfo = root.lookupType("meshtastic.NeighborInfo");
+const RouteDiscovery = root.lookupType("meshtastic.RouteDiscovery");
 
 type ChannelKeys = Record<string, string>;
 type DebugLog = (message: string) => void;
@@ -113,6 +139,19 @@ type DecodedEnvelope = {
 type DecodedData = {
   portnum?: number;
   payload?: Uint8Array;
+  want_response?: boolean;
+};
+
+type DecodedNeighborInfo = {
+  node_id?: number;
+  neighbors?: { node_id?: number; snr?: number }[];
+};
+
+type DecodedRouteDiscovery = {
+  route?: number[];
+  snr_towards?: number[];
+  route_back?: number[];
+  snr_back?: number[];
 };
 
 type DecodedPosition = {
@@ -251,7 +290,7 @@ export function parseEncryptedPacket(
   publicChannels: string[],
   channelKeys: ChannelKeys,
   debug?: DebugLog,
-): ParsedPacket | null {
+): ParsedPacket | ParsedPacket[] | null {
   if (!topic.includes("/e/")) return null;
 
   debug?.(`rx topic=${topic} bytes=${message.length}`);
@@ -318,6 +357,16 @@ export function parseEncryptedPacket(
   if (data.portnum === PORTNUM.TELEMETRY_APP) {
     const telemetry = Telemetry.toObject(Telemetry.decode(data.payload)) as DecodedTelemetry;
     return packetFromTelemetry(packet, envelope, channel, baseRaw, telemetry);
+  }
+
+  if (data.portnum === PORTNUM.NEIGHBORINFO_APP) {
+    const info = NeighborInfo.toObject(NeighborInfo.decode(data.payload)) as DecodedNeighborInfo;
+    return packetsFromNeighborInfo(packet, envelope, channel, baseRaw, info);
+  }
+
+  if (data.portnum === PORTNUM.TRACEROUTE_APP) {
+    const route = RouteDiscovery.toObject(RouteDiscovery.decode(data.payload)) as DecodedRouteDiscovery;
+    return packetsFromTraceroute(packet, envelope, channel, baseRaw, data, route);
   }
 
   debug?.(`drop: portnum ignoré (${data.portnum ?? "absent"})`);
@@ -399,6 +448,51 @@ function packetFromTelemetry(
     channelUtil: numOrNull(metrics.channel_utilization),
     airUtilTx: numOrNull(metrics.air_util_tx),
   });
+}
+
+// NeighborInfo : le node émetteur diffuse la liste de ses voisins DIRECTS (0 hop)
+// avec le SNR de réception. On renvoie [trame de base "gateway a entendu reporter",
+// ...arêtes reporter -> voisins] (cf. mesh-links).
+function packetsFromNeighborInfo(
+  packet: NonNullable<DecodedEnvelope["packet"]>,
+  envelope: DecodedEnvelope,
+  channel: string,
+  raw: RawMeshtasticPacket,
+  info: DecodedNeighborInfo,
+): ParsedPacket[] {
+  const base = basePacket(packet, envelope, channel, { ...raw, type: "neighborinfo" }, {
+    packetType: "neighborinfo",
+  });
+  return [base, ...neighborInfoEdges(packet.from as number, info.neighbors, channel)];
+}
+
+// Traceroute (RouteDiscovery) : révèle des liens radio DIRECTS le long d'une
+// route. `want_response` distingue requête/réponse (cf. tracerouteEdges).
+function packetsFromTraceroute(
+  packet: NonNullable<DecodedEnvelope["packet"]>,
+  envelope: DecodedEnvelope,
+  channel: string,
+  raw: RawMeshtasticPacket,
+  data: DecodedData,
+  rd: DecodedRouteDiscovery,
+): ParsedPacket[] {
+  const base = basePacket(packet, envelope, channel, { ...raw, type: "traceroute" }, {
+    packetType: "traceroute",
+  });
+
+  const edges = tracerouteEdges(
+    {
+      from: packet.from as number,
+      to: numOrNull(packet.to),
+      route: (rd.route ?? []).map(Number),
+      snrTowards: decodeTraceSnr(rd.snr_towards),
+      routeBack: (rd.route_back ?? []).map(Number),
+      snrBack: decodeTraceSnr(rd.snr_back),
+      isRequest: data.want_response === true,
+    },
+    channel,
+  );
+  return [base, ...edges];
 }
 
 function basePacket(

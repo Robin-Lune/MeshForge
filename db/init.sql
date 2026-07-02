@@ -16,7 +16,10 @@ CREATE TABLE IF NOT EXISTS packets (
     received_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     gateway_id    TEXT,             -- relais qui a capté le paquet (ex: !gateway01)
     node_id       TEXT,             -- émetteur (NodeID, ex: !a1b2c3d4)
-    packet_type   TEXT,             -- position / telemetry / nodeinfo / neighborinfo / rangetest
+    packet_type   TEXT,             -- position / telemetry / nodeinfo / neighborinfo / traceroute / rangetest
+                                     --   'neighbor' / 'traceroute_hop' = arêtes SYNTHÉTIQUES
+                                     --   (lien radio direct reconstruit) : PAS un relais MQTT,
+                                     --   exclues de la détection isGateway (cf. lib/queries/nodes.ts)
     channel       TEXT,             -- nom ou index du canal (ex: Fr_Balise)
     lat           DOUBLE PRECISION,
     lon           DOUBLE PRECISION,
