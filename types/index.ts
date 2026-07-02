@@ -55,6 +55,15 @@ export interface ParsedPacket {
   hwModel: string | null;
   firmware: string | null;
   role: string | null;
+  // Arête synthétique reconstruite (NeighborInfo/Traceroute) : "gateway a entendu
+  // node" en direct. Le worker l'INSÈRE dans packets mais n'upsert pas de node
+  // (l'émetteur d'une arête ne relaie pas forcément vers MQTT). Absent/false sur
+  // les trames captées normalement.
+  edgeOnly?: boolean;
+  // Traceroute (réponse complète uniquement) : extrémités logiques du trajet
+  // A↔D et nombre de sauts. Porté par la trame de base 'traceroute' ; le worker
+  // l'enregistre dans traceroute_paths (pour tracer le lien logique A↔D au survol).
+  pathEndpoints?: { aId: string; bId: string; hops: number };
   raw: RawMeshtasticPacket;
 }
 
@@ -107,6 +116,29 @@ export interface Observation {
   nodeId: string;
   bestHop: number | null;
   snr: number | null;
+}
+
+// Lien radio DIRECT (hop 0) agrégé sur une fenêtre (API /api/links).
+// Non-orienté : la paire {aId, bId} combine les deux sens. snr = MÉDIANE des SNR
+// des paquets directs de la fenêtre (null si aucun SNR, ex: traceroute JSON).
+// packets = nb de paquets RÉELS échangés (les arêtes synthétiques NeighborInfo/
+// Traceroute révèlent le lien mais ne comptent pas comme échange). Positions
+// résolues côté client (mêmes marqueurs -> respecte le floutage des mobiles).
+export interface DirectLink {
+  aId: string;
+  bId: string;
+  snr: number | null;
+  rssi: number | null; // médiane RSSI, critère secondaire couleur (Meshtastic)
+  packets: number;
+}
+
+// Trajet LOGIQUE bout-à-bout d'un traceroute (A atteint D via `hops` sauts).
+// N'est PAS un lien radio direct : tracé en pointillé au survol de A ou D quand
+// "Liens directs" est désactivé. Positions résolues côté client.
+export interface TraceroutePath {
+  aId: string;
+  bId: string;
+  hops: number | null;
 }
 
 // Page détail node — point de la série journalière (courbes 30j).

@@ -49,6 +49,33 @@ export function MapLegend({ open, onToggle }: MapLegendProps) {
                 Lien via relais 3+ hops
               </span>
             </div>
+            <div className="mt-1 border-t border-black/10 pt-1 font-medium dark:border-white/15">
+              Liens directs — qualité (SNR)
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-1 w-10 flex-none rounded bg-[#00ff00]" />
+              <span className="min-w-0 break-words">Bon (&gt; −7 dB)</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-1 w-10 flex-none rounded bg-[#ffe600]" />
+              <span className="min-w-0 break-words">Moyen (−15 à −7 dB)</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-1 w-10 flex-none rounded bg-[#f7931a]" />
+              <span className="min-w-0 break-words">Faible (&lt; −15 dB)</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-4 min-w-5 flex-none items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-zinc-900 ring-1 ring-black/20">
+                12
+              </span>
+              <span className="min-w-0 break-words">Paquets échangés</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-10 flex-none border-t-2 border-dashed border-[#a855f7]" />
+              <span className="min-w-0 break-words">
+                Trajet traceroute A↔D (survol)
+              </span>
+            </div>
           </div>
         </div>
       )}

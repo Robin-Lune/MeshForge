@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
-import type { PublicNode, NodeUpdate, Observation, MapBounds } from "@/types";
+import type {
+  PublicNode,
+  NodeUpdate,
+  Observation,
+  DirectLink,
+  TraceroutePath,
+  MapBounds,
+} from "@/types";
 import {
   nodeFeature,
   shortLabel,
@@ -13,6 +20,12 @@ import {
 import type { LngLat } from "@/components/map/map-data";
 import { resolvePillSpread } from "@/components/map/pill-spread";
 import {
+  bezierApex,
+  controlPoint,
+  quadBezier,
+  type Pt,
+} from "@/components/map/link-geometry";
+import {
   clusterElement,
   hoverCard,
   pillElement,
@@ -20,8 +33,21 @@ import {
 import {
   MESH_DIRECT_LAYER,
   MESH_RELAY_LAYER,
+  LINKS_LINE_LAYER,
+  LINKS_BADGE_LAYER,
+  TRACEPATHS_LAYER,
+  TRACEPATHS_BADGE_LAYER,
 } from "@/components/map/map-layers";
+import { signalColor } from "@/components/map/signal-color";
 import type { HopFilter } from "@/components/map/MapFilters";
+
+// Amplitude (px) de la courbure d'un lien direct : assez pour rendre visible un
+// lien entre pastilles empilées, sans encombrer les liens longs.
+const LINK_ARC_PX = 16;
+
+// Rayon (px) pour rattacher un node regroupé au rond de cluster le plus proche
+// (≈ clusterRadius de la source) quand on dézoome.
+const CLUSTER_SNAP_PX = 60;
 
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -31,6 +57,8 @@ type MapFiltersState = {
   role: string;
   sinceH: number;
   hopFilter: HopFilter;
+  linksEnabled: boolean;
+  linksSinceH: number;
 };
 
 type UseMapControllerProps = {
@@ -53,6 +81,14 @@ export function useMapController({
   );
   const minHopRef = useRef<Map<string, number>>(new Map());
   const bridgeRef = useRef<Set<string>>(new Set());
+  const linksRef = useRef<DirectLink[]>([]);
+  // Trajets logiques traceroute indexés par node (chaque extrémité -> partenaires).
+  const tracePathsRef = useRef<Map<string, { partnerId: string; hops: number | null }[]>>(
+    new Map(),
+  );
+  const focusRef = useRef<string | null>(null);
+  const linksKeyRef = useRef<string>("");
+  const linksSyncRef = useRef<() => void>(() => {});
   const filtersRef = useRef(filters);
   const refreshRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -79,6 +115,7 @@ export function useMapController({
   useEffect(() => {
     filtersRef.current = filters;
     refreshRef.current();
+    linksSyncRef.current();
   }, [filters]);
 
   useEffect(() => {
@@ -233,6 +270,189 @@ export function useMapController({
       }
     };
 
+    const linksSource = (): maplibregl.GeoJSONSource | undefined =>
+      map.getSource("links") as maplibregl.GeoJSONSource | undefined;
+
+    // Positions écran des clusters visibles (pastille ronde "N nœuds").
+    const clusterPoints = (): Pt[] => {
+      const pts: Pt[] = [];
+      for (const id in onScreen) {
+        if (!id.startsWith("c")) continue;
+        const p = map.project(onScreen[id].getLngLat());
+        pts.push({ x: p.x, y: p.y });
+      }
+      return pts;
+    };
+
+    // Ancre écran d'un node pour tracer ses liens :
+    //  - pastille individuelle -> sa position visuelle (géo + offset spreadPills) ;
+    //  - node REGROUPÉ (dézoom) -> le cluster le plus proche de sa position, pour
+    //    que le lien rejoigne le rond "N nœuds" au lieu d'être masqué ;
+    //  - sinon (hors écran) -> null.
+    const visualAnchor = (nodeId: string, clusters: Pt[]): Pt | null => {
+      const marker = onScreen[`n${nodeId}`];
+      if (marker) {
+        const base = map.project(marker.getLngLat());
+        const off = marker.getOffset();
+        return { x: base.x + off.x, y: base.y + off.y };
+      }
+      const pos = posById(nodeId);
+      if (!pos) return null;
+      const p = map.project(pos);
+      let best: Pt | null = null;
+      let bestD = CLUSTER_SNAP_PX * CLUSTER_SNAP_PX;
+      for (const c of clusters) {
+        const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best;
+    };
+
+    // (Re)construit la couche des liens directs à partir des positions visuelles
+    // courantes : arcs courbés (bézier) ancrés sur les pastilles + badge au
+    // sommet. Appelé à chaque updateMarkers pour rester synchro pan/zoom/spread.
+    const renderLinks = (): void => {
+      const src = linksSource();
+      if (!src) return;
+      if (!filtersRef.current.linksEnabled) {
+        src.setData({ type: "FeatureCollection", features: [] });
+        return;
+      }
+      const focus = focusRef.current;
+      const clusters = clusterPoints();
+      const features: GeoJSON.Feature[] = [];
+      let pileIndex = 0;
+      for (const l of linksRef.current) {
+        const a = visualAnchor(l.aId, clusters);
+        const b = visualAnchor(l.bId, clusters);
+        if (!a || !b) continue;
+        const chord = Math.hypot(b.x - a.x, b.y - a.y);
+        if (chord < 0.5) continue; // mêmes extrémités (ex: nœuds d'un même cluster)
+        const c = controlPoint(a, b, LINK_ARC_PX, chord < 1 ? pileIndex++ : 0);
+        const coords = quadBezier(a, c, b).map((p) => {
+          const ll = map.unproject([p.x, p.y]);
+          return [ll.lng, ll.lat];
+        });
+        const dim = focus !== null && l.aId !== focus && l.bId !== focus;
+        features.push({
+          type: "Feature",
+          properties: {
+            packets: l.packets,
+            dim,
+            color: signalColor(l.snr, l.rssi),
+          },
+          geometry: { type: "LineString", coordinates: coords },
+        });
+        if (l.packets > 0) {
+          const ap = bezierApex(a, c, b);
+          const apex = map.unproject([ap.x, ap.y]);
+          features.push({
+            type: "Feature",
+            properties: { packets: l.packets, dim },
+            geometry: { type: "Point", coordinates: [apex.lng, apex.lat] },
+          });
+        }
+      }
+      src.setData({ type: "FeatureCollection", features });
+    };
+
+    const loadLinks = (): void => {
+      const { linksEnabled, linksSinceH } = filtersRef.current;
+      linksKeyRef.current = `${linksEnabled}|${linksSinceH}`;
+      if (!linksEnabled) {
+        linksRef.current = [];
+        renderLinks();
+        return;
+      }
+      fetch(`/api/links?sinceH=${linksSinceH}`)
+        .then((r) => r.json() as Promise<DirectLink[]>)
+        .then((ls) => {
+          linksRef.current = ls;
+          renderLinks();
+        })
+        .catch(() => {});
+    };
+
+    // Recharge les liens uniquement quand le mode ou la fenêtre change (pas à
+    // chaque frappe dans la recherche). Branché sur l'effet [filters].
+    linksSyncRef.current = () => {
+      const { linksEnabled, linksSinceH } = filtersRef.current;
+      const key = `${linksEnabled}|${linksSinceH}`;
+      if (key === linksKeyRef.current) return;
+      linksKeyRef.current = key;
+      loadLinks();
+    };
+
+    // Focus : met en avant les liens du node survolé, estompe les autres.
+    const setFocus = (nodeId: string | null): void => {
+      if (!filtersRef.current.linksEnabled) return;
+      if (focusRef.current === nodeId) return;
+      focusRef.current = nodeId;
+      renderLinks();
+    };
+
+    const tracePathsSource = (): maplibregl.GeoJSONSource | undefined =>
+      map.getSource("tracepaths") as maplibregl.GeoJSONSource | undefined;
+    const clearTracePaths = (): void => {
+      tracePathsSource()?.setData({ type: "FeatureCollection", features: [] });
+    };
+
+    // Trace les trajets LOGIQUES A↔D du node survolé (pointillé + nb de sauts).
+    // Trajet multi-sauts (pas un lien direct) -> ligne droite pointillée.
+    const drawTracePaths = (nodeId: string): void => {
+      const src = tracePathsSource();
+      if (!src) return;
+      const partners = tracePathsRef.current.get(nodeId) ?? [];
+      const from = posById(nodeId);
+      if (!from || partners.length === 0) {
+        clearTracePaths();
+        return;
+      }
+      const features: GeoJSON.Feature[] = [];
+      for (const { partnerId, hops } of partners) {
+        const to = posById(partnerId);
+        if (!to) continue;
+        features.push({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [from, to] },
+        });
+        if (hops !== null) {
+          features.push({
+            type: "Feature",
+            properties: { hops },
+            geometry: {
+              type: "Point",
+              coordinates: [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2],
+            },
+          });
+        }
+      }
+      src.setData({ type: "FeatureCollection", features });
+    };
+
+    const loadTracePaths = (): void => {
+      fetch("/api/traceroute-paths")
+        .then((r) => r.json() as Promise<TraceroutePath[]>)
+        .then((paths) => {
+          const idx = new Map<string, { partnerId: string; hops: number | null }[]>();
+          const add = (a: string, b: string, hops: number | null) => {
+            const arr = idx.get(a) ?? [];
+            arr.push({ partnerId: b, hops });
+            idx.set(a, arr);
+          };
+          for (const p of paths) {
+            add(p.aId, p.bId, p.hops);
+            add(p.bId, p.aId, p.hops);
+          }
+          tracePathsRef.current = idx;
+        })
+        .catch(() => {});
+    };
+
     const updateMarkers = (): void => {
       if (!map.getSource("nodes") || !map.isSourceLoaded("nodes")) return;
       const next: Record<string, maplibregl.Marker> = {};
@@ -273,13 +493,22 @@ export function useMapController({
               if (pinnedNodeId) return;
               const c = m.getLngLat();
               openNodePopup(nodeId, p, m);
-              if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+              // Mode "liens directs" actif : focus (estompe les autres liens) ;
+              // sinon animation historique de la portée du gateway.
+              if (filtersRef.current.linksEnabled) {
+                setFocus(nodeId);
+              } else {
+                if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+                drawTracePaths(nodeId); // trajet(s) logique(s) A↔D
+              }
             });
             el.addEventListener("mouseleave", () => {
               if (tapToPreview) return;
               if (pinnedNodeId) return;
               hoverPopup.remove();
+              setFocus(null);
               clearMesh();
+              clearTracePaths();
             });
             el.addEventListener("click", (event) => {
               event.stopPropagation();
@@ -291,7 +520,12 @@ export function useMapController({
               const c = m.getLngLat();
               openNodePopup(nodeId, p, m);
               clearMesh();
-              if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+              if (filtersRef.current.linksEnabled) {
+                setFocus(nodeId);
+              } else {
+                if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+                drawTracePaths(nodeId);
+              }
             });
           }
         } else {
@@ -306,6 +540,7 @@ export function useMapController({
       onScreen = next;
       spreadPills();
       applyBridge();
+      renderLinks();
     };
 
     const loadObservations = (): void => {
@@ -357,6 +592,14 @@ export function useMapController({
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+      map.addSource("links", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addSource("tracepaths", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
 
       map.addLayer({
         id: "nodes-hit",
@@ -364,10 +607,16 @@ export function useMapController({
         source: "nodes",
         paint: { "circle-radius": 1, "circle-opacity": 0 },
       });
+      map.addLayer(LINKS_LINE_LAYER);
+      map.addLayer(TRACEPATHS_LAYER);
       map.addLayer(MESH_DIRECT_LAYER);
       map.addLayer(MESH_RELAY_LAYER);
+      map.addLayer(LINKS_BADGE_LAYER);
+      map.addLayer(TRACEPATHS_BADGE_LAYER);
       refreshNodes();
       loadObservations();
+      loadLinks();
+      loadTracePaths();
     });
 
     map.on("data", (e) => {
@@ -377,7 +626,9 @@ export function useMapController({
     map.on("click", () => {
       pinnedNodeId = null;
       hoverPopup.remove();
+      setFocus(null);
       clearMesh();
+      clearTracePaths();
     });
     map.on("move", updateMarkers);
     map.on("moveend", updateMarkers);

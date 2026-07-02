@@ -8,10 +8,14 @@ type MapFiltersProps = {
   roleOptions: string[];
   sinceH: number;
   hopFilter: HopFilter;
+  linksEnabled: boolean;
+  linksSinceH: number;
   onSearchChange: (value: string) => void;
   onRoleChange: (value: string) => void;
   onSinceHChange: (value: number) => void;
   onHopFilterChange: (value: HopFilter) => void;
+  onLinksEnabledChange: (value: boolean) => void;
+  onLinksSinceHChange: (value: number) => void;
 };
 
 export function MapFilters({
@@ -20,10 +24,14 @@ export function MapFilters({
   roleOptions,
   sinceH,
   hopFilter,
+  linksEnabled,
+  linksSinceH,
   onSearchChange,
   onRoleChange,
   onSinceHChange,
   onHopFilterChange,
+  onLinksEnabledChange,
+  onLinksSinceHChange,
 }: MapFiltersProps) {
   const selectClass =
     "min-w-0 flex-1 rounded border border-black/10 bg-transparent px-2 py-1 sm:flex-none dark:border-white/20";
@@ -100,6 +108,32 @@ export function MapFilters({
         <option value="1">1 hop</option>
         <option value="2">2 hops</option>
         <option value="3plus">3 hops+</option>
+      </select>
+      <button
+        type="button"
+        aria-pressed={linksEnabled}
+        onClick={() => onLinksEnabledChange(!linksEnabled)}
+        className={`flex-none rounded border px-2 py-1 font-medium ${
+          linksEnabled
+            ? "border-emerald-500 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+            : "border-black/10 dark:border-white/20"
+        }`}
+      >
+        Liens directs
+      </button>
+      <select
+        value={linksSinceH}
+        disabled={!linksEnabled}
+        onChange={(e) => onLinksSinceHChange(Number(e.target.value))}
+        className={`${selectClass} disabled:opacity-40`}
+        aria-label="Fenêtre des liens directs"
+      >
+        <option value={1}>1 h</option>
+        <option value={6}>6 h</option>
+        <option value={24}>24 h</option>
+        <option value={72}>3 j</option>
+        <option value={168}>7 j</option>
+        <option value={720}>30 j</option>
       </select>
     </div>
   );
