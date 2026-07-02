@@ -114,3 +114,13 @@ SELECT
 FROM demo_edges e CROSS JOIN LATERAL generate_series(1, e.cnt) g;
 
 DROP TABLE demo_edges;
+
+-- Trajet LOGIQUE du traceroute A↔D (survol hors mode "Liens directs").
+-- (CREATE IF NOT EXISTS pour les bases de dev créées avant cette table.)
+CREATE TABLE IF NOT EXISTS traceroute_paths (
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    a_id TEXT NOT NULL, b_id TEXT NOT NULL, hops SMALLINT
+);
+DELETE FROM traceroute_paths WHERE a_id LIKE '!r%' OR b_id LIKE '!r%';
+INSERT INTO traceroute_paths (a_id, b_id, hops)
+VALUES (LEAST('!rta','!rtd'), GREATEST('!rta','!rtd'), 3);

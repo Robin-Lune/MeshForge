@@ -387,6 +387,8 @@ describe("parseEncryptedPacket", () => {
     expect(edges[0].nodeId).toBe("!f669cf14"); // from entendu par relay
     expect(edges[0].gatewayId).toBe("!0b0b0b0b");
     expect(edges[0].snr).toBeCloseTo(5);
+    // Requête en vol : pas de trajet logique (destination pas atteinte).
+    expect(parsed[0].pathEndpoints).toBeUndefined();
     expect(
       edges.some((e) => e.nodeId === "!0c0c0c0c" || e.gatewayId === "!0c0c0c0c"),
     ).toBe(false);
@@ -417,7 +419,7 @@ describe("parseEncryptedPacket", () => {
     const A = 0x0a0a0a0a; // origine (= to dans la réponse)
     const B = 0x0b0b0b0b;
     const C = 0x0c0c0c0c;
-    const D = 0xf669cf14; // destination = from (fixé par envelope())
+    // destination D = from = 0xf669cf14 (fixé par envelope()).
     const payload = RouteDiscovery.encode(
       RouteDiscovery.create({
         route: [B, C], // intermédiaires A->D
@@ -444,6 +446,12 @@ describe("parseEncryptedPacket", () => {
     expect(edges.every((e) => e.hopCount === 0 && e.packetType === "traceroute_hop")).toBe(true);
     // Surtout PAS de lien direct A-D (ce sont 3 sauts, pas un lien radio direct).
     expect(pairs.has("!0a0a0a0a~!f669cf14")).toBe(false);
+    // Trajet LOGIQUE A↔D mémorisé sur la trame de base (3 sauts).
+    expect(parsed[0].pathEndpoints).toEqual({
+      aId: "!0a0a0a0a",
+      bId: "!f669cf14",
+      hops: 3,
+    });
   });
 
   // Scénario : E entend F, G, H et transmet son NeighborInfo. Une gateway le

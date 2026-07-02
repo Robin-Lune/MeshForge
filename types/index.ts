@@ -60,6 +60,10 @@ export interface ParsedPacket {
   // (l'émetteur d'une arête ne relaie pas forcément vers MQTT). Absent/false sur
   // les trames captées normalement.
   edgeOnly?: boolean;
+  // Traceroute (réponse complète uniquement) : extrémités logiques du trajet
+  // A↔D et nombre de sauts. Porté par la trame de base 'traceroute' ; le worker
+  // l'enregistre dans traceroute_paths (pour tracer le lien logique A↔D au survol).
+  pathEndpoints?: { aId: string; bId: string; hops: number };
   raw: RawMeshtasticPacket;
 }
 
@@ -126,6 +130,15 @@ export interface DirectLink {
   snr: number | null;
   rssi: number | null; // médiane RSSI, critère secondaire couleur (Meshtastic)
   packets: number;
+}
+
+// Trajet LOGIQUE bout-à-bout d'un traceroute (A atteint D via `hops` sauts).
+// N'est PAS un lien radio direct : tracé en pointillé au survol de A ou D quand
+// "Liens directs" est désactivé. Positions résolues côté client.
+export interface TraceroutePath {
+  aId: string;
+  bId: string;
+  hops: number | null;
 }
 
 // Page détail node — point de la série journalière (courbes 30j).

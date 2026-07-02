@@ -70,6 +70,12 @@ export function MapLegend({ open, onToggle }: MapLegendProps) {
               </span>
               <span className="min-w-0 break-words">Paquets échangés</span>
             </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-10 flex-none border-t-2 border-dashed border-[#a855f7]" />
+              <span className="min-w-0 break-words">
+                Trajet traceroute A↔D (survol)
+              </span>
+            </div>
           </div>
         </div>
       )}

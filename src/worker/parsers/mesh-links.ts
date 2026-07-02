@@ -99,6 +99,25 @@ export function neighborInfoEdges(
   return edges;
 }
 
+// Extrémités LOGIQUES d'un traceroute (trajet A↔D via le mesh) + nb de sauts.
+// Uniquement pour une RÉPONSE complète (isRequest === false) : origine = `to`,
+// destination = `from`, sauts = intermédiaires + 1. Sinon (requête en vol, sens
+// inconnu, extrémité invalide) -> null (pas de trajet fiable). Sert à tracer le
+// lien logique A↔D au survol quand "Liens directs" est désactivé.
+export function traceroutePathEndpoints(opts: {
+  from: number;
+  to: number | null;
+  routeLen: number;
+  isRequest: boolean | undefined;
+}): { aId: string; bId: string; hops: number } | null {
+  const { from, to, routeLen, isRequest } = opts;
+  if (isRequest !== false) return null;
+  if (to === null || !isRealNode(to) || !isRealNode(from) || (to >>> 0) === (from >>> 0)) {
+    return null;
+  }
+  return { aId: toNodeId(to), bId: toNodeId(from), hops: routeLen + 1 };
+}
+
 // Traceroute (RouteDiscovery) : révèle des liens radio DIRECTS le long d'une
 // route. On ne trace QUE les sauts réellement parcourus. Le sens (aller/retour)
 // détermine le rattachement des extrémités :

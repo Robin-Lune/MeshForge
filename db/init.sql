@@ -36,6 +36,21 @@ CREATE TABLE IF NOT EXISTS packets (
 
 SELECT create_hypertable('packets', 'received_at', if_not_exists => TRUE);
 
+-- ---------------------------------------------------------------------------
+-- traceroute_paths — trajet LOGIQUE bout-à-bout d'un traceroute (A atteint D
+-- via N sauts). Distinct des arêtes 'traceroute_hop' (sauts directs, table
+-- packets) : ici on garde le couple d'extrémités pour tracer le lien logique
+-- A↔D au survol (mode "Liens directs" désactivé). a_id/b_id normalisés
+-- (LEAST/GREATEST) à l'insertion -> paire non-orientée.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS traceroute_paths (
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    a_id        TEXT NOT NULL,
+    b_id        TEXT NOT NULL,
+    hops        SMALLINT
+);
+CREATE INDEX IF NOT EXISTS idx_tracepaths_recent ON traceroute_paths (received_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_packets_node    ON packets (node_id,     received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_packets_type    ON packets (packet_type, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_packets_gateway ON packets (gateway_id,  received_at DESC);

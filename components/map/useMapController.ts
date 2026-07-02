@@ -8,6 +8,7 @@ import type {
   NodeUpdate,
   Observation,
   DirectLink,
+  TraceroutePath,
   MapBounds,
 } from "@/types";
 import {
@@ -34,6 +35,8 @@ import {
   MESH_RELAY_LAYER,
   LINKS_LINE_LAYER,
   LINKS_BADGE_LAYER,
+  TRACEPATHS_LAYER,
+  TRACEPATHS_BADGE_LAYER,
 } from "@/components/map/map-layers";
 import { signalColor } from "@/components/map/signal-color";
 import type { HopFilter } from "@/components/map/MapFilters";
@@ -75,6 +78,10 @@ export function useMapController({
   const minHopRef = useRef<Map<string, number>>(new Map());
   const bridgeRef = useRef<Set<string>>(new Set());
   const linksRef = useRef<DirectLink[]>([]);
+  // Trajets logiques traceroute indexés par node (chaque extrémité -> partenaires).
+  const tracePathsRef = useRef<Map<string, { partnerId: string; hops: number | null }[]>>(
+    new Map(),
+  );
   const focusRef = useRef<string | null>(null);
   const linksKeyRef = useRef<string>("");
   const linksSyncRef = useRef<() => void>(() => {});
@@ -354,6 +361,65 @@ export function useMapController({
       renderLinks();
     };
 
+    const tracePathsSource = (): maplibregl.GeoJSONSource | undefined =>
+      map.getSource("tracepaths") as maplibregl.GeoJSONSource | undefined;
+    const clearTracePaths = (): void => {
+      tracePathsSource()?.setData({ type: "FeatureCollection", features: [] });
+    };
+
+    // Trace les trajets LOGIQUES A↔D du node survolé (pointillé + nb de sauts).
+    // Trajet multi-sauts (pas un lien direct) -> ligne droite pointillée.
+    const drawTracePaths = (nodeId: string): void => {
+      const src = tracePathsSource();
+      if (!src) return;
+      const partners = tracePathsRef.current.get(nodeId) ?? [];
+      const from = posById(nodeId);
+      if (!from || partners.length === 0) {
+        clearTracePaths();
+        return;
+      }
+      const features: GeoJSON.Feature[] = [];
+      for (const { partnerId, hops } of partners) {
+        const to = posById(partnerId);
+        if (!to) continue;
+        features.push({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [from, to] },
+        });
+        if (hops !== null) {
+          features.push({
+            type: "Feature",
+            properties: { hops },
+            geometry: {
+              type: "Point",
+              coordinates: [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2],
+            },
+          });
+        }
+      }
+      src.setData({ type: "FeatureCollection", features });
+    };
+
+    const loadTracePaths = (): void => {
+      fetch("/api/traceroute-paths")
+        .then((r) => r.json() as Promise<TraceroutePath[]>)
+        .then((paths) => {
+          const idx = new Map<string, { partnerId: string; hops: number | null }[]>();
+          const add = (a: string, b: string, hops: number | null) => {
+            const arr = idx.get(a) ?? [];
+            arr.push({ partnerId: b, hops });
+            idx.set(a, arr);
+          };
+          for (const p of paths) {
+            add(p.aId, p.bId, p.hops);
+            add(p.bId, p.aId, p.hops);
+          }
+          tracePathsRef.current = idx;
+        })
+        .catch(() => {});
+    };
+
     const updateMarkers = (): void => {
       if (!map.getSource("nodes") || !map.isSourceLoaded("nodes")) return;
       const next: Record<string, maplibregl.Marker> = {};
@@ -396,8 +462,12 @@ export function useMapController({
               openNodePopup(nodeId, p, m);
               // Mode "liens directs" actif : focus (estompe les autres liens) ;
               // sinon animation historique de la portée du gateway.
-              if (filtersRef.current.linksEnabled) setFocus(nodeId);
-              else if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+              if (filtersRef.current.linksEnabled) {
+                setFocus(nodeId);
+              } else {
+                if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+                drawTracePaths(nodeId); // trajet(s) logique(s) A↔D
+              }
             });
             el.addEventListener("mouseleave", () => {
               if (tapToPreview) return;
@@ -405,6 +475,7 @@ export function useMapController({
               hoverPopup.remove();
               setFocus(null);
               clearMesh();
+              clearTracePaths();
             });
             el.addEventListener("click", (event) => {
               event.stopPropagation();
@@ -416,8 +487,12 @@ export function useMapController({
               const c = m.getLngLat();
               openNodePopup(nodeId, p, m);
               clearMesh();
-              if (filtersRef.current.linksEnabled) setFocus(nodeId);
-              else if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+              if (filtersRef.current.linksEnabled) {
+                setFocus(nodeId);
+              } else {
+                if (p.isGateway === true) drawMesh(nodeId, [c.lng, c.lat]);
+                drawTracePaths(nodeId);
+              }
             });
           }
         } else {
@@ -488,6 +563,10 @@ export function useMapController({
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+      map.addSource("tracepaths", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
 
       map.addLayer({
         id: "nodes-hit",
@@ -496,12 +575,15 @@ export function useMapController({
         paint: { "circle-radius": 1, "circle-opacity": 0 },
       });
       map.addLayer(LINKS_LINE_LAYER);
+      map.addLayer(TRACEPATHS_LAYER);
       map.addLayer(MESH_DIRECT_LAYER);
       map.addLayer(MESH_RELAY_LAYER);
       map.addLayer(LINKS_BADGE_LAYER);
+      map.addLayer(TRACEPATHS_BADGE_LAYER);
       refreshNodes();
       loadObservations();
       loadLinks();
+      loadTracePaths();
     });
 
     map.on("data", (e) => {
@@ -513,6 +595,7 @@ export function useMapController({
       hoverPopup.remove();
       setFocus(null);
       clearMesh();
+      clearTracePaths();
     });
     map.on("move", updateMarkers);
     map.on("moveend", updateMarkers);

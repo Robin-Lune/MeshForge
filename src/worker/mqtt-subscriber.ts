@@ -4,6 +4,7 @@ import "./env"; // charge .env.local AVANT lib/db (qui lit DATABASE_URL)
 import mqtt from "mqtt";
 import { pool } from "../../lib/db";
 import { insertPacket } from "../../lib/queries/packets";
+import { insertTraceroutePath } from "../../lib/queries/traceroute-paths";
 import { upsertGatewayNode, upsertNode } from "../../lib/queries/nodes";
 import { getSetting } from "../../lib/queries/settings";
 import { parseMqttPacket } from "./parsers";
@@ -61,6 +62,12 @@ client.on("message", async (topic, message) => {
       if (!parsed.edgeOnly) {
         await upsertNode(parsed);
         await upsertGatewayNode(parsed);
+      }
+      // Traceroute (réponse) : mémorise le trajet logique A↔D (survol hors mode
+      // "Liens directs").
+      if (parsed.pathEndpoints) {
+        const { aId, bId, hops } = parsed.pathEndpoints;
+        await insertTraceroutePath(aId, bId, hops);
       }
       log(`[pkt] ${parsed.channel} ${parsed.packetType} ${parsed.nodeId}`);
     }

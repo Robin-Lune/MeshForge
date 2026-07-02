@@ -52,6 +52,42 @@ export const LINKS_LINE_LAYER: LineLayerSpecification = {
   },
 };
 
+// Trajet LOGIQUE A↔D d'un traceroute (pas un lien radio direct) : pointillé
+// violet tracé au survol de A ou D quand "Liens directs" est désactivé.
+export const TRACEPATHS_LAYER: LineLayerSpecification = {
+  id: "tracepaths-line",
+  type: "line",
+  source: "tracepaths",
+  filter: ["==", ["geometry-type"], "LineString"],
+  layout: { "line-cap": "round" },
+  paint: {
+    "line-color": "#a855f7",
+    "line-width": 2,
+    "line-dasharray": [2, 2],
+    "line-opacity": 0.9,
+  },
+};
+
+// Badge nombre de sauts du trajet logique (au milieu du pointillé).
+export const TRACEPATHS_BADGE_LAYER: SymbolLayerSpecification = {
+  id: "tracepaths-badge",
+  type: "symbol",
+  source: "tracepaths",
+  filter: ["==", ["geometry-type"], "Point"],
+  minzoom: 10,
+  layout: {
+    "text-field": ["concat", ["to-string", ["get", "hops"]], " sauts"],
+    "text-font": ["Noto Sans Bold"],
+    "text-size": 10,
+    "text-allow-overlap": false,
+  },
+  paint: {
+    "text-color": "#6b21a8",
+    "text-halo-color": "#ffffff",
+    "text-halo-width": 1.6,
+  },
+};
+
 // Badge compteur de paquets, au sommet de l'arc (point). Masqué au dézoom pour
 // éviter le fouillis ; halo blanc pour rester lisible sur le fond.
 export const LINKS_BADGE_LAYER: SymbolLayerSpecification = {

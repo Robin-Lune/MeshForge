@@ -2,7 +2,12 @@ import { createCipheriv, createDecipheriv } from "crypto";
 import protobuf from "protobufjs";
 import type { ParsedPacket, RawMeshtasticPacket } from "../../../types";
 import { deviceRoleName, hardwareModelName } from "../meshtastic/enums";
-import { decodeTraceSnr, neighborInfoEdges, tracerouteEdges } from "./mesh-links";
+import {
+  decodeTraceSnr,
+  neighborInfoEdges,
+  tracerouteEdges,
+  traceroutePathEndpoints,
+} from "./mesh-links";
 
 const PORTNUM = {
   TEXT_MESSAGE_APP: 1,
@@ -480,15 +485,24 @@ function packetsFromTraceroute(
     packetType: "traceroute",
   });
 
+  const from = packet.from as number;
+  const to = numOrNull(packet.to);
+  const isRequest = data.want_response === true;
+  const route = (rd.route ?? []).map(Number);
+
+  // Trajet logique A↔D (réponse complète) -> enregistré par le worker.
+  const path = traceroutePathEndpoints({ from, to, routeLen: route.length, isRequest });
+  if (path) base.pathEndpoints = path;
+
   const edges = tracerouteEdges(
     {
-      from: packet.from as number,
-      to: numOrNull(packet.to),
-      route: (rd.route ?? []).map(Number),
+      from,
+      to,
+      route,
       snrTowards: decodeTraceSnr(rd.snr_towards),
       routeBack: (rd.route_back ?? []).map(Number),
       snrBack: decodeTraceSnr(rd.snr_back),
-      isRequest: data.want_response === true,
+      isRequest,
     },
     channel,
   );
