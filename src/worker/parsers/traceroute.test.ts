@@ -25,12 +25,13 @@ describe("tracerouteInfo", () => {
     expect(info.sourceNode).toBe("!0a0a0a0a");
     expect(info.targetNode).toBe("!0d0d0d0d");
     expect(info.packetId).toBe(42);
-    // Aller = [A, B, C, D] ; retour = [D, C] (route_back partiel).
+    // Aller = [A, B, C, D] ; retour COMPLET = [D, C, A] (fermé sur l'origine).
     expect(info.segments.map(seg)).toEqual([
       "forward:!0a0a0a0a->!0b0b0b0b@9",
       "forward:!0b0b0b0b->!0c0c0c0c@6",
       "forward:!0c0c0c0c->!0d0d0d0d@3",
       "back:!0d0d0d0d->!0c0c0c0c@8",
+      "back:!0c0c0c0c->!0a0a0a0a@4",
     ]);
   });
 
@@ -77,21 +78,34 @@ describe("tracerouteInfo", () => {
     ).toBeNull();
   });
 
-  it("saut vers broadcast dans la route -> segment ignoré (null si plus aucun)", () => {
-    // route contient un broadcast : les sauts le touchant sont sautés.
+  it("saut vers broadcast dans l'aller -> aller ignoré, retour direct conservé", () => {
     const info = tracerouteInfo({
       from: D, to: A, packetId: 1, route: [0xffffffff],
-      snrTowards: [6, 3], routeBack: [], snrBack: [], isRequest: false,
-    });
-    // Aller = [A, broadcast, D] -> les 2 sauts touchant broadcast sont ignorés -> null.
-    expect(info).toBeNull();
+      snrTowards: [6, 3], routeBack: [], snrBack: [5], isRequest: false,
+    })!;
+    // Aller = [A, broadcast, D] -> sauts touchant broadcast ignorés.
+    // Retour = [D, A] -> saut direct conservé (le fix ne le perd plus).
+    expect(info.segments.map(seg)).toEqual(["back:!0d0d0d0d->!0a0a0a0a@5"]);
   });
 
-  it("réponse directe (route vide) : un seul saut A→D", () => {
+  it("broadcast des deux côtés -> aucun segment exploitable -> null", () => {
+    expect(
+      tracerouteInfo({
+        from: D, to: A, packetId: 1, route: [0xffffffff],
+        snrTowards: [6, 3], routeBack: [0xffffffff], snrBack: [5, 2], isRequest: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("réponse directe (route vide) : aller A→D + retour direct D→A", () => {
     const info = tracerouteInfo({
       from: D, to: A, packetId: 1, route: [],
       snrTowards: [7], routeBack: [], snrBack: [], isRequest: false,
     })!;
-    expect(info.segments.map(seg)).toEqual(["forward:!0a0a0a0a->!0d0d0d0d@7"]);
+    // Retour complet [D, A] : le saut direct de retour est émis lui aussi.
+    expect(info.segments.map(seg)).toEqual([
+      "forward:!0a0a0a0a->!0d0d0d0d@7",
+      "back:!0d0d0d0d->!0a0a0a0a@null",
+    ]);
   });
 });

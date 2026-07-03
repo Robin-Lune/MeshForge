@@ -22,7 +22,7 @@ export function signalColor(
   snr: number | null,
   rssi: number | null = null,
 ): string {
-  if (snr === null) return SNR_UNKNOWN_COLOR;
+  if (snr === null || Number.isNaN(snr)) return SNR_UNKNOWN_COLOR;
   if (snr > SNR_GOOD_THRESHOLD && (rssi === null || rssi > RSSI_GOOD_THRESHOLD)) {
     return SNR_GOOD;
   }

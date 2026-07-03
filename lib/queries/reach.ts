@@ -28,7 +28,13 @@ const SELECT_REACH = `
       (ARRAY[(array_agg(from_node ORDER BY step))[1]] || array_agg(to_node ORDER BY step)) AS path
     FROM traceroute_segments
     WHERE received_at > NOW() - INTERVAL '30 days'
-    GROUP BY packet_id, direction
+      -- packet_id NULL (ex: traceroute JSON sans id) : NULL est fusionné par
+      -- GROUP BY -> concatène des relevés distincts en un chemin fantôme. On
+      -- exclut ces segments de la reconstruction d'atteignabilité.
+      AND packet_id IS NOT NULL
+    -- On groupe aussi par extrémités : deux relevés partageant un packet_id
+    -- (collision 32 bits sur 30 j) ne peuvent plus se mélanger.
+    GROUP BY packet_id, direction, source_node, target_node
   ),
   edges AS (
     SELECT p.path[i] AS a, p.path[j] AS b, (j - i - 1) AS hop

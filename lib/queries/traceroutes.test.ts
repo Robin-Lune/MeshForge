@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { query } = vi.hoisted(() => ({ query: vi.fn() }));
-vi.mock("../db", () => ({ pool: { query } }));
+const { query, connect, clientQuery, release } = vi.hoisted(() => {
+  const clientQuery = vi.fn();
+  const release = vi.fn();
+  return {
+    query: vi.fn(),
+    clientQuery,
+    release,
+    connect: vi.fn(async () => ({ query: clientQuery, release })),
+  };
+});
+vi.mock("../db", () => ({ pool: { query, connect } }));
 
 import {
   toNodeTraceroutes,
@@ -37,10 +46,13 @@ describe("toNodeTraceroutes", () => {
 });
 
 describe("insertTracerouteSegments", () => {
-  beforeEach(() => query.mockReset());
+  beforeEach(() => {
+    clientQuery.mockReset();
+    clientQuery.mockResolvedValue({});
+    release.mockReset();
+  });
 
-  it("insère une ligne par segment (raw sérialisé)", async () => {
-    query.mockResolvedValue({});
+  it("insère chaque segment dans une transaction (raw sérialisé)", async () => {
     const info: TracerouteInfo = {
       sourceNode: "!a",
       targetNode: "!d",
@@ -49,10 +61,31 @@ describe("insertTracerouteSegments", () => {
     };
     const raw = { from: 1 } as RawMeshtasticPacket;
     await insertTracerouteSegments(info, "!gw", "Fr_Balise", raw);
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0][1]).toEqual([
+    // BEGIN + 1 INSERT + COMMIT, un client relâché en fin de course.
+    expect(clientQuery).toHaveBeenCalledWith("BEGIN");
+    expect(clientQuery).toHaveBeenCalledWith("COMMIT");
+    const insertCall = clientQuery.mock.calls.find((c) => Array.isArray(c[1]));
+    expect(insertCall?.[1]).toEqual([
       7, "Fr_Balise", "!a", "!d", "!gw", "forward", 0, "!a", "!b", 6, JSON.stringify(raw),
     ]);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("ROLLBACK et relâche le client si un INSERT échoue", async () => {
+    clientQuery.mockImplementation((sql: string) =>
+      sql.includes("INSERT INTO") ? Promise.reject(new Error("boom")) : Promise.resolve({}),
+    );
+    const info: TracerouteInfo = {
+      sourceNode: "!a",
+      targetNode: "!d",
+      packetId: 7,
+      segments: [{ direction: "forward", step: 0, fromNode: "!a", toNode: "!b", snr: 6 }],
+    };
+    await expect(
+      insertTracerouteSegments(info, "!gw", "Fr_Balise", { from: 1 } as RawMeshtasticPacket),
+    ).rejects.toThrow("boom");
+    expect(clientQuery).toHaveBeenCalledWith("ROLLBACK");
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });
 

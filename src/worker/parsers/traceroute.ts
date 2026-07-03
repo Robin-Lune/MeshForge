@@ -28,7 +28,7 @@ export interface RawRouteDiscovery {
 //   - Requête (isRequest true)  : origine = `from`, dest = `to` (pas atteinte) ;
 //     aller = [from, ...route] ; pas de retour.
 //   - Réponse (isRequest false) : origine = `to`, dest = `from` ; aller complet
-//     = [to, ...route, from] ; retour = [from, ...route_back] (peut être partiel).
+//     = [to, ...route, from] ; retour complet = [from, ...route_back, to].
 export function tracerouteInfo(rd: RawRouteDiscovery): TracerouteInfo | null {
   const { from, to, packetId, route, snrTowards, routeBack, snrBack, isRequest } = rd;
   if (isRequest === undefined) return null;
@@ -49,7 +49,10 @@ export function tracerouteInfo(rd: RawRouteDiscovery): TracerouteInfo | null {
   const forward = isRequest ? [origin, ...route] : [origin, ...route, dest];
   pushSegments(segments, forward, snrTowards, "forward");
   if (!isRequest) {
-    pushSegments(segments, [dest, ...routeBack], snrBack, "back");
+    // Retour COMPLET dest → …route_back… → origin : on ferme le chemin sur
+    // `origin`, sinon le dernier saut retour (dont le cas direct dest→origin,
+    // route_back vide) est perdu et l'atteignabilité orientée retour disparaît.
+    pushSegments(segments, [dest, ...routeBack, origin], snrBack, "back");
   }
   if (segments.length === 0) return null;
 

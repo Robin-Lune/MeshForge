@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { query } = vi.hoisted(() => ({ query: vi.fn() }));
-vi.mock("../db", () => ({ pool: { query } }));
+const { query, connect, clientQuery, release } = vi.hoisted(() => {
+  const clientQuery = vi.fn();
+  const release = vi.fn();
+  return {
+    query: vi.fn(),
+    clientQuery,
+    release,
+    connect: vi.fn(async () => ({ query: clientQuery, release })),
+  };
+});
+vi.mock("../db", () => ({ pool: { query, connect } }));
 
 import { toNodeNeighbors, getNodeNeighbors, insertNodeNeighbors } from "./neighbors";
 
@@ -39,19 +48,26 @@ describe("toNodeNeighbors", () => {
 });
 
 describe("insertNodeNeighbors", () => {
-  beforeEach(() => query.mockReset());
+  beforeEach(() => {
+    clientQuery.mockReset();
+    clientQuery.mockResolvedValue({});
+    release.mockReset();
+  });
 
-  it("insère une ligne par voisin avec reporter/gateway/canal", async () => {
-    query.mockResolvedValue({});
+  it("insère chaque voisin dans une transaction (reporter/gateway/canal)", async () => {
     await insertNodeNeighbors(
       "!rep",
       [{ neighborId: "!a", snr: 5 }, { neighborId: "!b", snr: null }],
       "!gw",
       "Fr_Balise",
     );
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(query).toHaveBeenNthCalledWith(1, expect.any(String), ["!rep", "!a", 5, "!gw", "Fr_Balise"]);
-    expect(query).toHaveBeenNthCalledWith(2, expect.any(String), ["!rep", "!b", null, "!gw", "Fr_Balise"]);
+    expect(clientQuery).toHaveBeenCalledWith("BEGIN");
+    expect(clientQuery).toHaveBeenCalledWith("COMMIT");
+    const inserts = clientQuery.mock.calls.filter((c) => Array.isArray(c[1]));
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0][1]).toEqual(["!rep", "!a", 5, "!gw", "Fr_Balise"]);
+    expect(inserts[1][1]).toEqual(["!rep", "!b", null, "!gw", "Fr_Balise"]);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });
 

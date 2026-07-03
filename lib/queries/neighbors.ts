@@ -10,14 +10,26 @@ const INSERT_NEIGHBOR = `
 `;
 
 // Enregistre les voisins directs déclarés par un node (paquet NeighborInfo).
+// Insertion atomique : tous les voisins d'un même paquet dans une transaction
+// (pas de liste tronquée si un INSERT échoue, received_at homogène).
 export async function insertNodeNeighbors(
   nodeId: string,
   neighbors: NeighborReport[],
   gatewayId: string | null,
   channel: string,
 ): Promise<void> {
-  for (const n of neighbors) {
-    await pool.query(INSERT_NEIGHBOR, [nodeId, n.neighborId, n.snr, gatewayId, channel]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const n of neighbors) {
+      await client.query(INSERT_NEIGHBOR, [nodeId, n.neighborId, n.snr, gatewayId, channel]);
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 

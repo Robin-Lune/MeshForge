@@ -15,6 +15,11 @@ const INSERT_SEGMENT = `
 `;
 
 // Enregistre chaque saut d'un traceroute (aller + retour) -> reconstruction fine.
+// Tous les segments d'un même traceroute sont insérés dans UNE transaction :
+//  - atomicité (pas de trajet tronqué si un INSERT échoue) ;
+//  - received_at (DEFAULT NOW() = transaction_timestamp()) IDENTIQUE pour tous
+//    les segments, sinon le regroupement par instant (toNodeTraceroutes) peut
+//    fragmenter un même relevé si les INSERT chevauchent une bordure de ms.
 export async function insertTracerouteSegments(
   info: TracerouteInfo,
   gatewayId: string | null,
@@ -22,20 +27,30 @@ export async function insertTracerouteSegments(
   raw: RawMeshtasticPacket,
 ): Promise<void> {
   const rawJson = JSON.stringify(raw);
-  for (const s of info.segments) {
-    await pool.query(INSERT_SEGMENT, [
-      info.packetId,
-      channel,
-      info.sourceNode,
-      info.targetNode,
-      gatewayId,
-      s.direction,
-      s.step,
-      s.fromNode,
-      s.toNode,
-      s.snr,
-      rawJson,
-    ]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const s of info.segments) {
+      await client.query(INSERT_SEGMENT, [
+        info.packetId,
+        channel,
+        info.sourceNode,
+        info.targetNode,
+        gatewayId,
+        s.direction,
+        s.step,
+        s.fromNode,
+        s.toNode,
+        s.snr,
+        rawJson,
+      ]);
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 

@@ -148,9 +148,11 @@ export default async function NodePage({
 
   const title = node.longName ?? node.shortName ?? node.nodeId;
   const isBridge = gateways.length >= 2;
-  // PRIVACY : position du sujet snappée si mobile (cohérent avec la carte publique).
+  // PRIVACY : position du sujet snappée sauf relais fixe explicite (is_mobile
+  // FALSE). Défaut prudent TRUE/NULL -> floutée, cohérent avec neighbors.ts /
+  // node-map-links.ts (r.isMobile !== false) et la carte publique.
   const subjectPos =
-    node.lat != null && node.lon != null && node.isMobile
+    node.lat != null && node.lon != null && node.isMobile !== false
       ? snapToGrid(node.lat, node.lon)
       : { lat: node.lat, lon: node.lon };
 
