@@ -398,7 +398,11 @@ export function useMapController({
     };
     bridgeSyncRef.current = computeBridges;
 
-    // Index NON-orienté pour le survol : observations (2 sens) + reach.
+    // Index ORIENTÉ pour le survol (from -> to). Au survol d'un nœud X on lit
+    // h[X] = liens sortants, coloriés au MEILLEUR hop du sens X->Y sur la fenêtre.
+    //  - Observations : réception ~symétrique, ajoutée dans les deux sens.
+    //  - Reach (NeighborInfo/Traceroute) : déjà orientée. Le traceroute donne
+    //    l'asymétrie (A->C 1 hop via un relais, C->A 0 hop en direct).
     const rebuildHover = (): void => {
       const h = new Map<string, { nodeId: string; hop: number; packets: number }[]>();
       const add = (a: string, b: string, hop: number, packets: number): void => {
@@ -414,8 +418,7 @@ export function useMapController({
       }
       for (const e of reachEdgesRef.current) {
         // NeighborInfo / Traceroute : révèlent le lien, pas un compte de paquets.
-        add(e.aId, e.bId, e.hop, 0);
-        add(e.bId, e.aId, e.hop, 0);
+        add(e.fromId, e.toId, e.hop, 0);
       }
       hoverLinkRef.current = h;
     };

@@ -129,4 +129,10 @@ INSERT INTO traceroute_segments (packet_id, channel, source_node, target_node, g
  (2003,'Fr_Balise','!r10','!r06','!r10','forward',2,'!r18','!r06', -9.0),
  (2003,'Fr_Balise','!r10','!r06','!r10','back',   0,'!r06','!r18', -8.0),
  (2003,'Fr_Balise','!r10','!r06','!r10','back',   1,'!r18','!r19', -5.0),
- (2003,'Fr_Balise','!r10','!r06','!r10','back',   2,'!r19','!r10',  3.0);
+ (2003,'Fr_Balise','!r10','!r06','!r10','back',   2,'!r19','!r10',  3.0),
+ -- Liaison ASYMÉTRIQUE r07 <-> r05 : à l'aller r07 n'atteint r05 qu'en passant
+ -- par r06 (relais), mais au retour r05 est entendu EN DIRECT par r07. Donne,
+ -- au survol : r07->r05 pointillé 1 hop, r05->r07 vert 0 hop.
+ (2004,'Fr_Balise','!r07','!r05','!r07','forward',0,'!r07','!r06', 3.0),
+ (2004,'Fr_Balise','!r07','!r05','!r07','forward',1,'!r06','!r05', 5.0),
+ (2004,'Fr_Balise','!r07','!r05','!r07','back',   0,'!r05','!r07',-2.0);

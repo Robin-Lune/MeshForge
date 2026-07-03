@@ -4,40 +4,47 @@ import { pool } from "../db";
 import type { ReachEdge } from "../../types";
 
 interface ReachRow {
-  aId: string;
-  bId: string;
+  fromId: string;
+  toId: string;
   hop: string | number;
 }
 
 export function toReachEdges(rows: ReachRow[]): ReachEdge[] {
-  return rows.map((r) => ({ aId: r.aId, bId: r.bId, hop: Number(r.hop) }));
+  return rows.map((r) => ({ fromId: r.fromId, toId: r.toId, hop: Number(r.hop) }));
 }
 
-// Arêtes d'atteignabilité pour enrichir le survol d'un nœud sur la carte :
-//  - NeighborInfo : reporter ↔ voisin, 0 hop (lien radio direct) ;
-//  - Traceroute   : origine ↔ destination, hop = nb de sauts aller (min).
-// Paire non-orientée (LEAST/GREATEST), MIN hop toutes sources confondues.
+// Arêtes d'atteignabilité ORIENTÉES pour enrichir le survol d'un nœud.
+//  - Traceroute : on reconstruit le chemin ordonné de chaque relevé (aller ET
+//    retour), puis pour chaque paire pᵢ -> pⱼ (i<j, sens de circulation) on émet
+//    un lien orienté avec hop = nb de relais entre eux (j-i-1). D'où l'asymétrie :
+//    A→C peut être 1 hop (via B à l'aller) alors que C→A est 0 hop (direct au retour).
+//  - NeighborInfo : lien radio DIRECT (0 hop), émis dans les deux sens.
+// On garde le hop MIN par couple orienté (meilleure liaison de la fenêtre).
 // PRIVACY : uniquement entre nodes affichables (localisés, non exclus).
 const SELECT_REACH = `
-  WITH edges AS (
-    SELECT node_id AS a, neighbor_id AS b, 0 AS hop
-    FROM node_neighbors
+  WITH tr_paths AS (
+    SELECT
+      packet_id, direction,
+      (ARRAY[(array_agg(from_node ORDER BY step))[1]] || array_agg(to_node ORDER BY step)) AS path
+    FROM traceroute_segments
     WHERE received_at > NOW() - INTERVAL '30 days'
+    GROUP BY packet_id, direction
+  ),
+  edges AS (
+    SELECT p.path[i] AS a, p.path[j] AS b, (j - i - 1) AS hop
+    FROM tr_paths p,
+         LATERAL generate_subscripts(p.path, 1) AS i,
+         LATERAL generate_subscripts(p.path, 1) AS j
+    WHERE i < j
     UNION ALL
-    SELECT t.source_node AS a, t.target_node AS b, t.fwd AS hop
-    FROM (
-      SELECT source_node, target_node, packet_id, received_at,
-             COUNT(*) FILTER (WHERE direction = 'forward') AS fwd
-      FROM traceroute_segments
-      WHERE received_at > NOW() - INTERVAL '30 days'
-      GROUP BY source_node, target_node, packet_id, received_at
-    ) t
-    WHERE t.fwd > 0
+    SELECT node_id, neighbor_id, 0 FROM node_neighbors WHERE received_at > NOW() - INTERVAL '30 days'
+    UNION ALL
+    SELECT neighbor_id, node_id, 0 FROM node_neighbors WHERE received_at > NOW() - INTERVAL '30 days'
   )
   SELECT
-    LEAST(e.a, e.b)    AS "aId",
-    GREATEST(e.a, e.b) AS "bId",
-    MIN(e.hop)         AS "hop"
+    e.a       AS "fromId",
+    e.b       AS "toId",
+    MIN(e.hop) AS "hop"
   FROM edges e
   JOIN nodes na ON na.node_id = e.a
   JOIN nodes nb ON nb.node_id = e.b
@@ -45,7 +52,7 @@ const SELECT_REACH = `
     AND na.last_lat IS NOT NULL AND na.last_lon IS NOT NULL
     AND nb.last_lat IS NOT NULL AND nb.last_lon IS NOT NULL
     AND NOT na.excluded AND NOT nb.excluded
-  GROUP BY LEAST(e.a, e.b), GREATEST(e.a, e.b)
+  GROUP BY e.a, e.b
 `;
 
 export async function getNodeReach(): Promise<ReachEdge[]> {

@@ -141,12 +141,14 @@ export interface Observation {
   packets: number; // nb de paquets (toutes catégories) captés pour cette paire
 }
 
-// Arête d'ATTEIGNABILITÉ (API /api/reach), pour enrichir le survol d'un nœud :
-// A atteint B en `hop` sauts. Union NeighborInfo (0 hop, voisin direct) +
-// Traceroute (nb de sauts du chemin). Paire non-orientée, MIN hop.
+// Arête d'ATTEIGNABILITÉ ORIENTÉE (API /api/reach), pour enrichir le survol :
+// `fromId` atteint `toId` en `hop` sauts. Union NeighborInfo (0 hop, voisin
+// direct, émis dans les deux sens) + Traceroute (paires ordonnées du chemin,
+// hop = nb de relais entre les deux). Orientée car le hop dépend du sens :
+// A→C peut être 1 hop (via un relais) alors que C→A est 0 hop (direct). MIN hop.
 export interface ReachEdge {
-  aId: string;
-  bId: string;
+  fromId: string;
+  toId: string;
   hop: number;
 }
 
