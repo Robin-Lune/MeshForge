@@ -34,7 +34,9 @@ INSERT INTO nodes (node_id,long_name,short_name,hw_model,role,is_mobile,
  ('!r20','Salazie','Sal','RAK4631','CLIENT',          FALSE,-21.0300,55.5400, 27, NOW()-INTERVAL '2 days', NOW()-INTERVAL '12 days', NULL),
  -- Pile : 2 relais quasi superposés (~3 m) près de Saint-Pierre (arc courbé).
  ('!r21','Relais SP-A','SP-A','HELTEC_V4','CLIENT',   FALSE,-21.3400,55.4770, 84, NOW()-INTERVAL '3 min',  NOW()-INTERVAL '20 days', NULL),
- ('!r22','Relais SP-B','SP-B','HELTEC_V4','CLIENT',   FALSE,-21.34003,55.47703,79,NOW()-INTERVAL '7 min',  NOW()-INTERVAL '20 days', NULL);
+ ('!r22','Relais SP-B','SP-B','HELTEC_V4','CLIENT',   FALSE,-21.34003,55.47703,79,NOW()-INTERVAL '7 min',  NOW()-INTERVAL '20 days', NULL),
+ -- Relais sur la descente de Cilaos : entend Cilaos en direct, relaie vers le sud.
+ ('!r23','Bras-Sec','BrS','RAK4631','CLIENT',         FALSE,-21.2000, 55.4800,  62,NOW()-INTERVAL '9 min',  NOW()-INTERVAL '15 days', NULL);
 
 -- ── Paquets du maillage (carte principale). (gw,nd) = qui a entendu qui ;
 --    base_snr/base_rssi = qualité moyenne ; hop (0 direct, >0 relais) ; cnt =
@@ -64,10 +66,15 @@ INSERT INTO demo_edges VALUES
  ('!r10','!r19', -3,-106, 0, 10,'position', 24),   -- r19 vu par 2 gateways (bridge)
  ('!r01','!r04', -5,-107, 0,  7,'position', 24),   -- r04 vu par r01 ET r06 (bridge)
  ('!r19','!r18',-12,-116, 0,  4,'position', 24),
- ('!r10','!r17',-14,-119, 0,  3,'position', 24),   -- Cilaos, très faible
+ -- Cilaos (cirque isolé) rejoint le mesh via le relais Bras-Sec (r23), PAS en
+ -- direct sur 23 km : Bras-Sec l'entend en direct, puis relaie vers le sud.
+ ('!r23','!r17',  3,-100, 0, 12,'position', 24),   -- Cilaos entendu EN DIRECT par Bras-Sec (~7 km)
+ ('!r10','!r23',  1,-103, 0, 10,'position', 24),   -- Bras-Sec entendu par Saint-Pierre (gateway)
+ ('!r12','!r23',  4, -95, 0, 14,'position', 24),   -- Bras-Sec entendu par Saint-Louis
+ ('!r10','!r17', -8,-110, 1,  6,'position', 24),   -- Cilaos vu par Saint-Pierre à 1 hop (via Bras-Sec)
  -- Relais (multi-hop) : alimentent la couche "relais" + filtre hops.
  ('!r06','!r18',  0, -99, 2, 12,'position', 24),
- ('!r15','!r17',  0, -99, 2,  8,'position', 24),
+ ('!r11','!r17',-11,-115, 2,  4,'position', 24),   -- Cilaos vu par Le Tampon (gateway) à 2 hops (~16 km)
  ('!r10','!r07',  0, -99, 3,  5,'position', 24),
  ('!r06','!r20',  0, -99, 1,  6,'position', 48),
  -- Pile Saint-Pierre (positions quasi identiques) : liens directs r21/r22.
