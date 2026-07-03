@@ -108,7 +108,27 @@ INSERT INTO demo_edges VALUES
  ('!r15','!r13', -4, -108, 1, 10,'position', 24),
  ('!r15','!r14', -9, -122, 0,  8,'position', 24),
  ('!r15','!r16',  1, -100, 0, 20,'position', 24),
- ('!r15','!r23',-13, -121, 3,  4,'position', 48);
+ ('!r15','!r23',-13, -121, 3,  4,'position', 48),
+ ('!r10','!r11',  1, -100, 0,  3,'text', 24),
+ ('!r10','!r12',  0, -102, 0,  4,'text', 24),
+ ('!r11','!r19', -1, -104, 0,  5,'text', 24),
+ ('!r10','!r09', -6, -116, 0,  6,'text', 24),
+ ('!r01','!r02', -1, -105, 0,  7,'text', 24),
+ ('!r15','!r16',  1, -100, 0,  3,'text', 24),
+ ('!r05','!r06',  4,  -93, 0,  4,'text', 24),
+ ('!r12','!r13',  3,  -95, 0,  5,'text', 24),
+ ('!r17','!r23',  2,  -98, 0,  6,'text', 24),
+ ('!r10','!r11',  1, -100, 0,  8,'telemetry', 24),
+ ('!r11','!r19', -1, -104, 0,  9,'telemetry', 24),
+ ('!r15','!r16',  1, -100, 0, 10,'telemetry', 24),
+ ('!r06','!r18', -5, -112, 0, 11,'telemetry', 24),
+ ('!r10','!r23', -7, -116, 0,  8,'telemetry', 24),
+ ('!r12','!r13',  3,  -95, 0,  9,'telemetry', 24),
+ ('!r09','!r10', -6, -116, 0, 10,'telemetry', 24),
+ ('!r11','!r10',  1, -100, 0,  2,'traceroute', 24),
+ ('!r12','!r10',  0, -102, 0,  3,'traceroute', 24),
+ ('!r09','!r10', -6, -116, 0,  4,'traceroute', 24),
+ ('!r06','!r07', -4, -111, 0,  2,'traceroute', 24);
 
 -- Développe chaque arête en `cnt` paquets, avec SNR/RSSI/date jittérés.
 INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel, snr, rssi, hop_count)
