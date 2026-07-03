@@ -1,14 +1,17 @@
--- Démo réaliste : maillage étalé sur toute La Réunion (villes réelles),
--- topologie en anneau côtier + liaisons intérieures (pas une étoile), plusieurs
--- gateways, et variations de qualité SNR/RSSI, nombre de paquets, dates de
--- dernière réception (last_seen + received_at). Base de dev uniquement.
+-- Démo réaliste et COHÉRENTE : maillage étalé sur toute La Réunion (villes
+-- réelles). Les liens directs (0 hop) ne relient que des nœuds réellement à
+-- portée (< 20 km, ligne de vue crédible) ; le massif central isole les cirques
+-- (Cilaos, Salazie) et coupe le sud-est (gap volcan Sainte-Rose <-> St-Philippe).
+-- Les observations multi-hop (hop 1/2/3) sont CALCULÉES par plus court chemin sur
+-- ce graphe : chaque saut correspond à un vrai relais, lui-même visible (vert)
+-- via NeighborInfo. => aucune arête « dans le vide », aucune incohérence visuelle.
+-- Base de dev uniquement. Fichier généré (scratchpad/gen_full_seed.py).
 
--- Repart propre (anciens jeux de démo).
 DELETE FROM packets WHERE gateway_id LIKE '!r%' OR node_id LIKE '!r%'
                        OR gateway_id LIKE '!demo%' OR node_id LIKE '!demo%';
 DELETE FROM nodes WHERE node_id LIKE '!r%' OR node_id LIKE '!demo%';
 
--- ── Nœuds : villes réelles, last_seen ÉTALÉ (min -> jours), batteries variées.
+-- ── Nœuds : villes réelles, last_seen ÉTALÉ, batteries variées.
 --    gateway_override TRUE = passerelle MQTT (5, réparties N/E/S/O/centre-sud).
 INSERT INTO nodes (node_id,long_name,short_name,hw_model,role,is_mobile,
                    last_lat,last_lon,last_battery,last_seen,first_seen,gateway_override) VALUES
@@ -38,49 +41,74 @@ INSERT INTO nodes (node_id,long_name,short_name,hw_model,role,is_mobile,
  -- Relais sur la descente de Cilaos : entend Cilaos en direct, relaie vers le sud.
  ('!r23','Bras-Sec','BrS','RAK4631','CLIENT',         FALSE,-21.2000, 55.4800,  62,NOW()-INTERVAL '9 min',  NOW()-INTERVAL '15 days', NULL);
 
--- ── Paquets du maillage (carte principale). (gw,nd) = qui a entendu qui ;
---    base_snr/base_rssi = qualité moyenne ; hop (0 direct, >0 relais) ; cnt =
---    nb de paquets ; max_age_h = fraîcheur (paquets étalés sur cette fenêtre).
+-- ── Observations (carte principale). (gw,nd) = quelle gateway a entendu quel
+--    node ; hop = nb de relais du PLUS COURT CHEMIN (0 direct). base_snr/base_rssi
+--    = qualité ; cnt = nb de paquets ; max_age_h = fraîcheur. Bloc généré : les
+--    hops et les liens directs sont dérivés du graphe de portée (cf. en-tête).
 CREATE TEMP TABLE demo_edges(gw text, nd text, base_snr real, base_rssi int,
                              hop smallint, cnt int, ptype text, max_age_h int);
 INSERT INTO demo_edges VALUES
- -- Anneau côtier (direct), qualité dégradée avec la distance.
- ('!r01','!r02',  8, -82, 0, 34,'position', 24),
- ('!r02','!r03',  6, -90, 0, 22,'position', 24),
- ('!r03','!r04',  3, -98, 0, 15,'position', 24),
- ('!r04','!r05', -2,-104, 0, 11,'position', 24),
- ('!r05','!r06',  5, -92, 0, 26,'position', 12),
- ('!r06','!r07', -9,-112, 0,  7,'position', 24),
- ('!r07','!r08',-16,-121, 0,  3,'position',168),  -- très faible, ancien (voir en 7j)
- ('!r08','!r09', -6,-108, 0,  6,'position', 72),
- ('!r09','!r10',  2,-100, 0, 18,'position', 24),
- ('!r10','!r11',  9, -80, 0, 40,'position',  1),   -- proche, très récent
- ('!r10','!r12',  4, -95, 0, 20,'position', 24),
- ('!r12','!r13', -1,-103, 0,  9,'position', 24),
- ('!r13','!r14', -8,-110, 0,  8,'position', 48),
- ('!r14','!r15',  1,-101, 0, 14,'position', 24),
- ('!r15','!r16',  7, -85, 0, 28,'position', 24),
- ('!r16','!r01',  0,-102, 0, 12,'position', 24),   -- ferme l'anneau
- -- Liaisons intérieures (faibles) + multi-gateway (bridge).
- ('!r11','!r19',  3, -97, 0, 16,'position', 24),
- ('!r10','!r19', -3,-106, 0, 10,'position', 24),   -- r19 vu par 2 gateways (bridge)
- ('!r01','!r04', -5,-107, 0,  7,'position', 24),   -- r04 vu par r01 ET r06 (bridge)
- ('!r19','!r18',-12,-116, 0,  4,'position', 24),
- -- Cilaos (cirque isolé) rejoint le mesh via le relais Bras-Sec (r23), PAS en
- -- direct sur 23 km : Bras-Sec l'entend en direct, puis relaie vers le sud.
- ('!r23','!r17',  3,-100, 0, 12,'position', 24),   -- Cilaos entendu EN DIRECT par Bras-Sec (~7 km)
- ('!r10','!r23',  1,-103, 0, 10,'position', 24),   -- Bras-Sec entendu par Saint-Pierre (gateway)
- ('!r12','!r23',  4, -95, 0, 14,'position', 24),   -- Bras-Sec entendu par Saint-Louis
- ('!r10','!r17', -8,-110, 1,  6,'position', 24),   -- Cilaos vu par Saint-Pierre à 1 hop (via Bras-Sec)
- -- Relais (multi-hop) : alimentent la couche "relais" + filtre hops.
- ('!r06','!r18',  0, -99, 2, 12,'position', 24),
- ('!r11','!r17',-11,-115, 2,  4,'position', 24),   -- Cilaos vu par Le Tampon (gateway) à 2 hops (~16 km)
- ('!r10','!r07',  0, -99, 3,  5,'position', 24),
- ('!r06','!r20',  0, -99, 1,  6,'position', 48),
- -- Pile Saint-Pierre (positions quasi identiques) : liens directs r21/r22.
- ('!r21','!r22',  6, -88, 0, 13,'position', 24),
- ('!r10','!r21',  5, -90, 0, 21,'position', 24),
- ('!r10','!r22',  4, -93, 0, 17,'position', 24);
+ ('!r01','!r02', -1, -105, 0, 18,'position', 24),
+ ('!r01','!r03', -4, -108, 1, 10,'position', 24),
+ ('!r01','!r04', -9, -116, 2,  6,'position', 48),
+ ('!r01','!r05',-13, -121, 3,  4,'position', 48),
+ ('!r01','!r13',-13, -121, 3,  4,'position', 48),
+ ('!r01','!r14', -9, -116, 2,  6,'position', 48),
+ ('!r01','!r15', -4, -108, 1, 10,'position', 24),
+ ('!r01','!r16', -9, -121, 0,  9,'position', 24),
+ ('!r01','!r20',-13, -121, 3,  4,'position', 48),
+ ('!r06','!r02',-13, -121, 3,  4,'position', 48),
+ ('!r06','!r03', -9, -116, 2,  6,'position', 48),
+ ('!r06','!r04', -4, -108, 1, 10,'position', 24),
+ ('!r06','!r05',  4,  -93, 0, 24,'position', 24),
+ ('!r06','!r07', -4, -111, 0, 14,'position', 24),
+ ('!r06','!r09',-13, -121, 3,  4,'position', 48),
+ ('!r06','!r10',-13, -121, 3,  4,'position', 48),
+ ('!r06','!r11', -9, -116, 2,  6,'position', 48),
+ ('!r06','!r12',-13, -121, 3,  4,'position', 48),
+ ('!r06','!r18', -5, -112, 0, 14,'position', 24),
+ ('!r06','!r19', -4, -108, 1, 10,'position', 24),
+ ('!r06','!r20', -9, -116, 2,  6,'position', 48),
+ ('!r10','!r06',-13, -121, 3,  4,'position', 48),
+ ('!r10','!r08', -4, -108, 1, 10,'position', 24),
+ ('!r10','!r09', -6, -116, 0, 11,'position', 24),
+ ('!r10','!r11',  1, -100, 0, 20,'position', 24),
+ ('!r10','!r12',  0, -102, 0, 19,'position', 24),
+ ('!r10','!r13', -4, -108, 1, 10,'position', 24),
+ ('!r10','!r14', -9, -116, 2,  6,'position', 48),
+ ('!r10','!r15',-13, -121, 3,  4,'position', 48),
+ ('!r10','!r17', -4, -108, 1, 10,'position', 24),
+ ('!r10','!r18', -9, -116, 2,  6,'position', 48),
+ ('!r10','!r19', -4, -108, 1, 10,'position', 24),
+ ('!r10','!r21',  9,  -82, 0, 30,'position', 24),
+ ('!r10','!r22',  9,  -82, 0, 30,'position', 24),
+ ('!r10','!r23', -7, -116, 0, 11,'position', 24),
+ ('!r11','!r05',-13, -121, 3,  4,'position', 48),
+ ('!r11','!r06', -9, -116, 2,  6,'position', 48),
+ ('!r11','!r07',-13, -121, 3,  4,'position', 48),
+ ('!r11','!r08', -4, -108, 1, 10,'position', 24),
+ ('!r11','!r09', -7, -117, 0, 11,'position', 24),
+ ('!r11','!r10',  1, -100, 0, 20,'position', 24),
+ ('!r11','!r12', -2, -106, 0, 17,'position', 24),
+ ('!r11','!r13', -4, -108, 1, 10,'position', 24),
+ ('!r11','!r14', -9, -116, 2,  6,'position', 48),
+ ('!r11','!r15',-13, -121, 3,  4,'position', 48),
+ ('!r11','!r17', -9, -116, 2,  6,'position', 48),
+ ('!r11','!r18', -4, -108, 1, 10,'position', 24),
+ ('!r11','!r19', -1, -104, 0, 18,'position', 24),
+ ('!r11','!r21', -4, -108, 1, 10,'position', 24),
+ ('!r11','!r22', -4, -108, 1, 10,'position', 24),
+ ('!r11','!r23', -4, -108, 1, 10,'position', 24),
+ ('!r15','!r01', -4, -108, 1, 10,'position', 24),
+ ('!r15','!r02', -9, -116, 2,  6,'position', 48),
+ ('!r15','!r03',-13, -121, 3,  4,'position', 48),
+ ('!r15','!r10',-13, -121, 3,  4,'position', 48),
+ ('!r15','!r11',-13, -121, 3,  4,'position', 48),
+ ('!r15','!r12', -9, -116, 2,  6,'position', 48),
+ ('!r15','!r13', -4, -108, 1, 10,'position', 24),
+ ('!r15','!r14', -9, -122, 0,  8,'position', 24),
+ ('!r15','!r16',  1, -100, 0, 20,'position', 24),
+ ('!r15','!r23',-13, -121, 3,  4,'position', 48);
 
 -- Développe chaque arête en `cnt` paquets, avec SNR/RSSI/date jittérés.
 INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel, snr, rssi, hop_count)
@@ -108,31 +136,100 @@ CREATE TABLE IF NOT EXISTS traceroute_segments (
 DELETE FROM node_neighbors WHERE node_id LIKE '!r%';
 DELETE FROM traceroute_segments WHERE source_node LIKE '!r%';
 
--- NeighborInfo : voisins directs déclarés par r10 (SNR variés -> couleurs).
+-- NeighborInfo : chaque node déclare ses voisins DIRECTS (émis des deux côtés, si
+-- bien que chaque fiche node est peuplée). SNR selon la distance. Bloc généré.
 INSERT INTO node_neighbors (node_id, neighbor_id, snr) VALUES
- ('!r10','!r11', 8.5), ('!r10','!r09', 3.0), ('!r10','!r12', 4.2),
- ('!r10','!r19', -10.0), ('!r10','!r21', 5.0), ('!r10','!r13', -16.0);
+ ('!r01','!r02', -1.4),
+ ('!r02','!r01', -1.4),
+ ('!r02','!r03',  3.0),
+ ('!r03','!r02',  3.0),
+ ('!r03','!r04',  1.0),
+ ('!r04','!r03',  1.0),
+ ('!r04','!r05',  4.0),
+ ('!r05','!r04',  4.0),
+ ('!r05','!r06',  3.8),
+ ('!r06','!r05',  3.8),
+ ('!r06','!r07', -4.1),
+ ('!r07','!r06', -4.1),
+ ('!r08','!r09', -6.5),
+ ('!r09','!r08', -6.5),
+ ('!r09','!r10', -6.4),
+ ('!r10','!r09', -6.4),
+ ('!r10','!r12', -0.2),
+ ('!r12','!r10', -0.2),
+ ('!r12','!r13',  3.3),
+ ('!r13','!r12',  3.3),
+ ('!r13','!r14', -3.9),
+ ('!r14','!r13', -3.9),
+ ('!r14','!r15', -9.0),
+ ('!r15','!r14', -9.0),
+ ('!r15','!r16',  0.9),
+ ('!r16','!r15',  0.9),
+ ('!r16','!r01', -8.7),
+ ('!r01','!r16', -8.7),
+ ('!r10','!r11',  1.0),
+ ('!r11','!r10',  1.0),
+ ('!r11','!r12', -1.8),
+ ('!r12','!r11', -1.8),
+ ('!r11','!r19', -1.1),
+ ('!r19','!r11', -1.1),
+ ('!r09','!r11', -6.9),
+ ('!r11','!r09', -6.9),
+ ('!r19','!r18', -1.1),
+ ('!r18','!r19', -1.1),
+ ('!r18','!r06', -4.7),
+ ('!r06','!r18', -4.7),
+ ('!r17','!r23',  1.7),
+ ('!r23','!r17',  1.7),
+ ('!r23','!r12', -2.9),
+ ('!r12','!r23', -2.9),
+ ('!r23','!r10', -6.7),
+ ('!r10','!r23', -6.7),
+ ('!r20','!r04', -4.7),
+ ('!r04','!r20', -4.7),
+ ('!r10','!r21',  8.8),
+ ('!r21','!r10',  8.8),
+ ('!r10','!r22',  8.9),
+ ('!r22','!r10',  8.9),
+ ('!r21','!r22',  9.0),
+ ('!r22','!r21',  9.0);
 
--- Traceroute : r10 -> r19 via r12 (montre un intermédiaire + SNR par saut,
--- aller/retour) ; et r10 <-> r11 direct.
+-- Traceroute : chemins cohérents avec le graphe (chaque segment est un lien direct).
 INSERT INTO traceroute_segments (packet_id, channel, source_node, target_node, gateway_id, direction, step, from_node, to_node, snr) VALUES
- (2001,'Fr_Balise','!r10','!r19','!r10','forward',0,'!r10','!r12', 6.0),
- (2001,'Fr_Balise','!r10','!r19','!r10','forward',1,'!r12','!r19', 2.0),
- (2001,'Fr_Balise','!r10','!r19','!r10','back',   0,'!r19','!r12', 1.0),
- (2001,'Fr_Balise','!r10','!r19','!r10','back',   1,'!r12','!r10', 5.5),
+ -- r10 -> r19 via r11 (montre un intermédiaire + SNR par saut, aller/retour).
+ (2001,'Fr_Balise','!r10','!r19','!r10','forward',0,'!r10','!r11', 6.0),
+ (2001,'Fr_Balise','!r10','!r19','!r10','forward',1,'!r11','!r19', 2.0),
+ (2001,'Fr_Balise','!r10','!r19','!r10','back',   0,'!r19','!r11', 1.0),
+ (2001,'Fr_Balise','!r10','!r19','!r10','back',   1,'!r11','!r10', 5.5),
+ -- r10 <-> r11 direct.
  (2002,'Fr_Balise','!r10','!r11','!r10','forward',0,'!r10','!r11', 8.0),
  (2002,'Fr_Balise','!r10','!r11','!r10','back',   0,'!r11','!r10', 7.5),
- -- r10 -> r06 (Saint-Benoît, PAS un voisin) via r19,r18 : 3 sauts -> arête reach
- -- en pointillé (hop 3) au survol, distincte des liens directs.
- (2003,'Fr_Balise','!r10','!r06','!r10','forward',0,'!r10','!r19', 4.0),
- (2003,'Fr_Balise','!r10','!r06','!r10','forward',1,'!r19','!r18', -6.0),
- (2003,'Fr_Balise','!r10','!r06','!r10','forward',2,'!r18','!r06', -9.0),
+ -- r10 -> r06 (Saint-Benoît) via r11,r19,r18 : 3 sauts -> arête reach pointillée
+ -- (hop 3) au survol, distincte des liens directs. Chemin réel du graphe.
+ (2003,'Fr_Balise','!r10','!r06','!r10','forward',0,'!r10','!r11', 5.0),
+ (2003,'Fr_Balise','!r10','!r06','!r10','forward',1,'!r11','!r19', 4.0),
+ (2003,'Fr_Balise','!r10','!r06','!r10','forward',2,'!r19','!r18', -6.0),
+ (2003,'Fr_Balise','!r10','!r06','!r10','forward',3,'!r18','!r06', -9.0),
  (2003,'Fr_Balise','!r10','!r06','!r10','back',   0,'!r06','!r18', -8.0),
  (2003,'Fr_Balise','!r10','!r06','!r10','back',   1,'!r18','!r19', -5.0),
- (2003,'Fr_Balise','!r10','!r06','!r10','back',   2,'!r19','!r10',  3.0),
+ (2003,'Fr_Balise','!r10','!r06','!r10','back',   2,'!r19','!r11',  2.0),
+ (2003,'Fr_Balise','!r10','!r06','!r10','back',   3,'!r11','!r10',  3.0),
  -- Liaison ASYMÉTRIQUE r07 <-> r05 : à l'aller r07 n'atteint r05 qu'en passant
  -- par r06 (relais), mais au retour r05 est entendu EN DIRECT par r07. Donne,
- -- au survol : r07->r05 pointillé 1 hop, r05->r07 vert 0 hop.
+ -- au survol : r07->r05 pointillé 1 hop, r05->r07 vert 0 hop. (r05-r07 n'est
+ -- volontairement pas un lien direct du graphe : 18 km marginal.)
  (2004,'Fr_Balise','!r07','!r05','!r07','forward',0,'!r07','!r06', 3.0),
  (2004,'Fr_Balise','!r07','!r05','!r07','forward',1,'!r06','!r05', 5.0),
  (2004,'Fr_Balise','!r07','!r05','!r07','back',   0,'!r05','!r07',-2.0);
+
+-- Anneau « pont » attendu (nodes captés par >=2 gateways dans les 20 km) :
+--   !r03 (Sainte-Suzanne)
+--   !r09 (Saint-Joseph)
+--   !r12 (Saint-Louis)
+--   !r13 (Étang-Salé)
+--   !r16 (Le Port)
+--   !r19 (Plaine-des-Cafres)
+--   !r20 (Salazie)
+--   !r21 (Relais SP-A)
+--   !r22 (Relais SP-B)
+--   !r23 (Bras-Sec)
