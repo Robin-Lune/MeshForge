@@ -165,6 +165,19 @@ export interface NodeNeighbor {
   lastSeen: string | null; // ISO 8601 — dernier NeighborInfo le mentionnant
 }
 
+// Un nœud CONNECTÉ au nœud consulté (mini-carte « Voisinage réseau ») : union
+// des paquets réels captés (2 sens) + voisins NeighborInfo. hop MIN, SNR médian,
+// et le détail des paquets par TYPE (pour le filtre). Position pour la carte.
+export interface NodeMapLink {
+  nodeId: string;
+  name: string | null;
+  snr: number | null;
+  hop: number | null;
+  lat: number | null;
+  lon: number | null;
+  types: Record<string, number>; // type de paquet -> nb (ex: {position:12, neighborinfo:2})
+}
+
 // Un traceroute complet impliquant le node consulté : chemin ordonné par saut,
 // dans chaque sens, avec le SNR par saut (pour colorer + flécher au survol).
 export interface NodeTraceroute {

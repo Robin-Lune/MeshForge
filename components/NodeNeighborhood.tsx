@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { NodeNeighbor, NodeTraceroute, TracerouteHop } from "@/types";
+import type { NodeMapLink, NodeTraceroute, TracerouteHop } from "@/types";
 import { signalColor } from "@/components/map/signal-color";
 import {
   SUBJECT_COLOR,
@@ -17,26 +17,56 @@ import {
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
+const TYPE_LABELS: Record<string, string> = {
+  position: "Position",
+  nodeinfo: "NodeInfo",
+  telemetry: "Télémétrie",
+  neighborinfo: "NeighborInfo",
+  traceroute: "Traceroute",
+  text: "Texte",
+  map_report: "Map report",
+  autre: "Autre",
+};
+const typeLabel = (t: string) => TYPE_LABELS[t] ?? t;
+const hopLabel = (h: number | null) => (h === 0 ? "direct" : h == null ? "—" : `${h} hop${h > 1 ? "s" : ""}`);
+
 type Props = {
   node: { nodeId: string; name: string; lat: number | null; lon: number | null };
-  neighbors: NodeNeighbor[];
+  links: NodeMapLink[];
   traceroutes: NodeTraceroute[];
 };
 
-export default function NodeNeighborhood({ node, neighbors, traceroutes }: Props) {
+export default function NodeNeighborhood({ node, links, traceroutes }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [ready, setReady] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [type, setType] = useState<string>("all");
 
-  const located = locatedNeighbors(neighbors);
-  const canMap = node.lat != null && node.lon != null && located.length > 0;
+  const availableTypes = [...new Set(links.flatMap((l) => Object.keys(l.types)))].sort();
+  const filtered = type === "all" ? links : links.filter((l) => l.types[type]);
+  const located = locatedNeighbors(filtered);
+  const hasPos = node.lat != null && node.lon != null;
+  const locatedKey = located.map((l) => l.nodeId).join(",");
 
-  const buildLinks = (hoveredId: string | null) => buildLinkFeatures(node, located, hoveredId);
+  const buildLinks = (h: string | null) => buildLinkFeatures(node, located, h);
   const buildNodes = () => buildNodeFeatures(node, located);
+  const fit = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (located.length === 0) {
+      map.jumpTo({ center: [node.lon as number, node.lat as number], zoom: 11 });
+      return;
+    }
+    const b = new maplibregl.LngLatBounds();
+    b.extend([node.lon as number, node.lat as number]);
+    located.forEach((n) => b.extend([n.lon as number, n.lat as number]));
+    map.fitBounds(b, { padding: 48, maxZoom: 14, duration: 0 });
+  };
 
-  // Init carte (une fois). fitBounds sur sujet + voisins localisés.
+  // Init de la carte (une fois). Sources/couches ajoutées au 'load'.
   useEffect(() => {
-    if (!containerRef.current || !canMap) return;
+    if (!containerRef.current || !hasPos) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
@@ -47,10 +77,9 @@ export default function NodeNeighborhood({ node, neighbors, traceroutes }: Props
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }));
-
     map.on("load", () => {
-      map.addSource("nb-links", { type: "geojson", data: buildLinks(null) });
-      map.addSource("nb-nodes", { type: "geojson", data: buildNodes() });
+      map.addSource("nb-links", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource("nb-nodes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: "nb-links",
         type: "line",
@@ -86,12 +115,6 @@ export default function NodeNeighborhood({ node, neighbors, traceroutes }: Props
         },
         paint: { "text-color": "#111827", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
       });
-
-      const bounds = new maplibregl.LngLatBounds();
-      bounds.extend([node.lon as number, node.lat as number]);
-      located.forEach((n) => bounds.extend([n.lon as number, n.lat as number]));
-      map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 0 });
-
       map.on("mousemove", "nb-nodes", (e) => {
         const p = e.features?.[0]?.properties;
         if (p?.kind === "neighbor" && typeof p.nodeId === "string") {
@@ -103,93 +126,127 @@ export default function NodeNeighborhood({ node, neighbors, traceroutes }: Props
         map.getCanvas().style.cursor = "";
         setHovered(null);
       });
+      setReady(true);
     });
-
     return () => {
       map.remove();
       mapRef.current = null;
+      setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canMap]);
+  }, [hasPos]);
 
-  // Survol -> estompe les liens non concernés.
+  // Données + cadrage : au chargement et quand le filtre change la liste.
   useEffect(() => {
-    const src = mapRef.current?.getSource("nb-links") as maplibregl.GeoJSONSource | undefined;
-    src?.setData(buildLinks(hovered));
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    (map.getSource("nb-nodes") as maplibregl.GeoJSONSource | undefined)?.setData(buildNodes());
+    (map.getSource("nb-links") as maplibregl.GeoJSONSource | undefined)?.setData(buildLinks(hovered));
+    fit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, locatedKey]);
+
+  // Survol -> estompe les autres liens.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    (map.getSource("nb-links") as maplibregl.GeoJSONSource | undefined)?.setData(buildLinks(hovered));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hovered]);
 
-  if (neighbors.length === 0) {
+  if (links.length === 0) {
     return (
       <p className="text-sm text-zinc-400">
-        Aucun voisin direct connu (aucun paquet NeighborInfo reçu sur 30 j).
+        Aucun lien connu (ce nœud n&apos;a capté aucun autre nœud et n&apos;a émis aucun NeighborInfo sur 30 j).
       </p>
     );
   }
 
-  const trace =
-    hovered != null
-      ? traceroutes.find((t) => t.otherNode === hovered) ?? null
-      : null;
+  const trace = hovered != null ? traceroutes.find((t) => t.otherNode === hovered) ?? null : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-      <div>
-        {canMap ? (
-          <div
-            ref={containerRef}
-            className="isolate h-64 w-full overflow-hidden rounded-lg border border-black/10 sm:h-80 dark:border-white/15"
-          />
-        ) : (
-          <p className="rounded-lg border border-black/10 p-4 text-sm text-zinc-400 dark:border-white/15">
-            Carte indisponible : ce nœud ou ses voisins n&apos;ont pas de position connue.
-          </p>
-        )}
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
-          <LegendDot color={SUBJECT_COLOR} text="Ce nœud" />
-          <LegendDot color="#00ff00" text="Bon (> −7 dB)" />
-          <LegendDot color="#ffe600" text="Moyen" />
-          <LegendDot color="#f7931a" text="Faible (< −15 dB)" />
-          <LegendDot color="#9ca3af" text="SNR inconnu" />
-        </div>
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+        <label htmlFor="nb-type" className="text-zinc-500">
+          Type de paquet
+        </label>
+        <select
+          id="nb-type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="rounded border border-black/10 bg-transparent px-2 py-1 dark:border-white/20"
+        >
+          <option value="all">Tous</option>
+          {availableTypes.map((t) => (
+            <option key={t} value={t}>
+              {typeLabel(t)}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-zinc-400">{filtered.length} lien(s)</span>
       </div>
 
-      <div className="min-w-0">
-        <ul className="divide-y divide-black/5 rounded-lg border border-black/10 dark:divide-white/10 dark:border-white/15">
-          {neighbors.map((n) => (
-            <li
-              key={n.nodeId}
-              onMouseEnter={() => setHovered(n.nodeId)}
-              onMouseLeave={() => setHovered(null)}
-              className={`flex items-center justify-between gap-3 px-3 py-1.5 text-sm ${
-                hovered === n.nodeId ? "bg-black/5 dark:bg-white/10" : ""
-              }`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 flex-none rounded-full ring-1 ring-black/20"
-                  style={{ background: signalColor(n.snr) }}
-                />
-                <a href={`/node/${encodeURIComponent(n.nodeId)}`} className="truncate hover:underline">
-                  {label(n.nodeId, n.name)}
-                </a>
-              </span>
-              <span className="flex-none font-mono text-xs text-zinc-500">{fmtSnr(n.snr)}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-3 rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
-          <h4 className="mb-2 text-xs font-semibold text-zinc-500">Traceroute</h4>
-          {trace ? (
-            <TraceroutePath trace={trace} />
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div>
+          {hasPos ? (
+            <div
+              ref={containerRef}
+              className="isolate h-64 w-full overflow-hidden rounded-lg border border-black/10 sm:h-80 dark:border-white/15"
+            />
           ) : (
-            <p className="text-xs text-zinc-400">
-              {hovered
-                ? "Aucun traceroute disponible pour ce voisin (traceroute passif : dépend des relevés qui ont circulé)."
-                : "Survolez un voisin pour voir le chemin traceroute (si disponible)."}
+            <p className="rounded-lg border border-black/10 p-4 text-sm text-zinc-400 dark:border-white/15">
+              Carte indisponible : ce nœud n&apos;a pas de position connue.
             </p>
           )}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+            <LegendDot color={SUBJECT_COLOR} text="Ce nœud" />
+            <LegendDot color="#00ff00" text="Bon (> −7 dB)" />
+            <LegendDot color="#ffe600" text="Moyen" />
+            <LegendDot color="#f7931a" text="Faible (< −15 dB)" />
+            <LegendDot color="#9ca3af" text="SNR inconnu" />
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <ul className="max-h-72 divide-y divide-black/5 overflow-auto rounded-lg border border-black/10 dark:divide-white/10 dark:border-white/15">
+            {filtered.map((l) => (
+              <li
+                key={l.nodeId}
+                onMouseEnter={() => setHovered(l.nodeId)}
+                onMouseLeave={() => setHovered(null)}
+                className={`flex items-center justify-between gap-3 px-3 py-1.5 text-sm ${
+                  hovered === l.nodeId ? "bg-black/5 dark:bg-white/10" : ""
+                }`}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 flex-none rounded-full ring-1 ring-black/20"
+                    style={{ background: signalColor(l.snr) }}
+                  />
+                  <a href={`/node/${encodeURIComponent(l.nodeId)}`} className="truncate hover:underline">
+                    {label(l.nodeId, l.name)}
+                  </a>
+                </span>
+                <span className="flex flex-none items-center gap-2 font-mono text-xs text-zinc-500">
+                  <span className={l.hop === 0 ? "text-emerald-600" : ""}>{hopLabel(l.hop)}</span>
+                  <span>{fmtSnr(l.snr)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-3 rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <h4 className="mb-2 text-xs font-semibold text-zinc-500">Traceroute</h4>
+            {trace ? (
+              <TraceroutePath trace={trace} />
+            ) : (
+              <p className="text-xs text-zinc-400">
+                {hovered
+                  ? "Aucun traceroute disponible pour ce nœud (traceroute passif)."
+                  : "Survolez un nœud pour voir le chemin traceroute (si disponible)."}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

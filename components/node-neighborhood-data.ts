@@ -4,7 +4,7 @@
 // Fonctions PURES du diagnostic « Voisinage réseau » (fiche node) : mise en
 // forme et construction des features GeoJSON de la mini-carte. Extraites du
 // composant React pour être testables sans DOM ni MapLibre.
-import type { NodeNeighbor, TracerouteHop } from "../types";
+import type { TracerouteHop } from "../types";
 import { signalColor } from "./map/signal-color";
 
 export const SUBJECT_COLOR = "#2563eb"; // couleur du node consulté
@@ -12,6 +12,15 @@ export const SUBJECT_COLOR = "#2563eb"; // couleur du node consulté
 export type SubjectNode = {
   nodeId: string;
   name: string | null;
+  lat: number | null;
+  lon: number | null;
+};
+
+// Forme minimale d'un nœud tracé sur la mini-carte (voisin OU lien).
+export type MapNode = {
+  nodeId: string;
+  name: string | null;
+  snr: number | null;
   lat: number | null;
   lon: number | null;
 };
@@ -26,14 +35,14 @@ export const nodeLabel = (id: string, name: string | null): string =>
 export const fmtSnr = (s: number | null): string => (s == null ? "— dB" : `${s} dB`);
 
 // Voisins avec position (les seuls traçables sur la carte).
-export const locatedNeighbors = (neighbors: NodeNeighbor[]): NodeNeighbor[] =>
-  neighbors.filter((n) => n.lat != null && n.lon != null);
+export const locatedNeighbors = (links: MapNode[]): MapNode[] =>
+  links.filter((n) => n.lat != null && n.lon != null);
 
 // Liens sujet -> voisin, colorés par SNR ; `dim` = estompé si un AUTRE voisin
 // est survolé (hoveredId non null et différent).
 export function buildLinkFeatures(
   node: SubjectNode,
-  located: NodeNeighbor[],
+  located: MapNode[],
   hoveredId: string | null,
 ): GeoJSON.FeatureCollection {
   return {
@@ -58,7 +67,7 @@ export function buildLinkFeatures(
 // Points : le sujet (kind 'subject') + chaque voisin localisé (kind 'neighbor').
 export function buildNodeFeatures(
   node: SubjectNode,
-  located: NodeNeighbor[],
+  located: MapNode[],
 ): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",

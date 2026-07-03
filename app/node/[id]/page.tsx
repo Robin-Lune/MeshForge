@@ -21,7 +21,7 @@ import {
   getNodeHeardNodes,
   getNodeDeviceMetrics,
 } from "@/lib/queries/node-detail";
-import { getNodeNeighbors } from "@/lib/queries/neighbors";
+import { getNodeMapLinks } from "@/lib/queries/node-map-links";
 import { getNodeTraceroutes } from "@/lib/queries/traceroutes";
 
 // Request-time : interroge la DB.
@@ -82,13 +82,13 @@ export default async function NodePage({
   // node chargé d'abord : sa position alimente le calcul de distance vers les gateways.
   const node = await getNodeById(nodeId);
   if (!node) notFound();
-  const [history, gateways, heardNodes, deviceMetrics, neighbors, traceroutes, admin] =
+  const [history, gateways, heardNodes, deviceMetrics, mapLinks, traceroutes, admin] =
     await Promise.all([
       getNodeHistory(nodeId),
       getNodeGateways(nodeId, node.lat, node.lon),
       getNodeHeardNodes(nodeId),
       getNodeDeviceMetrics(nodeId),
-      getNodeNeighbors(nodeId),
+      getNodeMapLinks(nodeId),
       getNodeTraceroutes(nodeId),
       isAdmin(),
     ]);
@@ -271,8 +271,8 @@ export default async function NodePage({
         <section className="mt-8">
           <SectionTitle
             title="Voisinage réseau"
-            meta="(NeighborInfo · 30 j)"
-            desc="Voisins directs déclarés par ce nœud (module NeighborInfo). Survolez un voisin pour le chemin traceroute (nœuds intermédiaires + SNR par saut)."
+            meta="(30 j)"
+            desc="Tout ce à quoi ce nœud est lié (paquets captés + NeighborInfo), sur une mini-carte. Filtrez par type de paquet ; survolez un nœud pour le chemin traceroute (intermédiaires + SNR par saut)."
           />
           <NodeNeighborhood
             node={{
@@ -281,7 +281,7 @@ export default async function NodePage({
               lat: subjectPos.lat,
               lon: subjectPos.lon,
             }}
-            neighbors={neighbors}
+            links={mapLinks}
             traceroutes={traceroutes}
           />
         </section>
