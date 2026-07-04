@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import NodeCharts from "@/components/NodeCharts";
-import NodeNeighborhood from "@/components/NodeNeighborhood";
+import NodeNeighborhood from "@/components/node-neighborhood/NodeNeighborhood";
 import NodeLinksTables from "@/components/NodeLinksTables";
 import { isAdmin } from "@/lib/admin";
 import { isSameOrigin } from "@/lib/security";
@@ -81,7 +81,12 @@ export default async function NodePage({
   // node chargé d'abord : sa position alimente le calcul de distance vers les gateways.
   const node = await getNodeById(nodeId);
   if (!node) notFound();
-  const [history, gateways, heardNodes, deviceMetrics, mapLinks, traceroutes, admin] =
+  const admin = await isAdmin();
+  // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
+  // pour le gérer/réintégrer). On bloque avant de charger les données associées.
+  if (node.excluded && !admin) notFound();
+
+  const [history, gateways, heardNodes, deviceMetrics, mapLinks, traceroutes] =
     await Promise.all([
       getNodeHistory(nodeId),
       getNodeGateways(nodeId, node.lat, node.lon),
@@ -89,11 +94,7 @@ export default async function NodePage({
       getNodeDeviceMetrics(nodeId),
       getNodeMapLinks(nodeId),
       getNodeTraceroutes(nodeId),
-      isAdmin(),
     ]);
-  // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
-  // pour le gérer/réintégrer).
-  if (node.excluded && !admin) notFound();
 
   const { confirm } = await searchParams;
   const here = `/node/${encodeURIComponent(nodeId)}`;
@@ -198,24 +199,6 @@ export default async function NodePage({
 
         <section className="mt-8">
           <SectionTitle
-            title="Voisinage réseau"
-            meta="(30 j)"
-            desc="Tout ce à quoi ce nœud est lié (paquets captés + NeighborInfo), sur une mini-carte. Filtrez par type de paquet ; survolez un nœud pour le chemin traceroute (intermédiaires + SNR par saut)."
-          />
-          <NodeNeighborhood
-            node={{
-              nodeId: node.nodeId,
-              name: title,
-              lat: subjectPos.lat,
-              lon: subjectPos.lon,
-            }}
-            links={mapLinks}
-            traceroutes={traceroutes}
-          />
-        </section>
-
-        <section className="mt-8">
-          <SectionTitle
             title="Télémétrie appareil"
             desc="Dernières mesures internes de l'appareil : tension, utilisation du canal, temps d'antenne (air time)."
           />
@@ -248,6 +231,24 @@ export default async function NodePage({
             desc="Évolution sur 30 jours : SNR moyen, batterie et nombre de paquets par jour."
           />
           <NodeCharts data={history} />
+        </section>
+
+        <section className="mt-8">
+          <SectionTitle
+            title="Voisinage réseau"
+            meta="(30 j)"
+            desc="Voisins radio directs issus des NeighborInfo et des paquets directs. Survolez un voisin pour afficher le traceroute réel si disponible."
+          />
+          <NodeNeighborhood
+            node={{
+              nodeId: node.nodeId,
+              name: node.shortName,
+              lat: subjectPos.lat,
+              lon: subjectPos.lon,
+            }}
+            links={mapLinks}
+            traceroutes={traceroutes}
+          />
         </section>
 
         {admin && (

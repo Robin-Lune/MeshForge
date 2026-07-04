@@ -2,6 +2,7 @@ import type {
   LineLayerSpecification,
   SymbolLayerSpecification,
 } from "maplibre-gl";
+import { SNR_GOOD } from "./signal-color";
 
 export const MESH_DIRECT_LAYER: LineLayerSpecification = {
   id: "mesh-direct",
@@ -9,7 +10,7 @@ export const MESH_DIRECT_LAYER: LineLayerSpecification = {
   source: "mesh",
   filter: ["==", ["get", "hop"], 0],
   layout: { "line-cap": "round" },
-  paint: { "line-color": "#22c55e", "line-width": 3, "line-opacity": 0.9 },
+  paint: { "line-color": SNR_GOOD, "line-width": 3, "line-opacity": 0.9 },
 };
 
 export const MESH_RELAY_LAYER: LineLayerSpecification = {

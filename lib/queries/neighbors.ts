@@ -33,7 +33,7 @@ export async function insertNodeNeighbors(
   }
 }
 
-// pg : AVG(snr) en number|string, date -> Date.
+// pg : REAL en number|string, date -> Date.
 interface NeighborRow {
   nodeId: string;
   name: string | null;
@@ -62,25 +62,33 @@ export function toNodeNeighbors(rows: NeighborRow[]): NodeNeighbor[] {
   });
 }
 
-// Voisins directs d'un node sur 30 j : dernier SNR moyen + position (pour la
-// mini-carte). LEFT JOIN nodes -> nom + position ; un voisin sans position
-// (jamais localisé) sort quand même (lat/lon null -> non tracé côté carte).
+// Voisins directs d'un node sur 30 j : dernier SNR connu par voisin + position.
+// LEFT JOIN nodes -> nom + position ; un voisin sans position (jamais localisé)
+// sort quand même (lat/lon null -> non tracé côté carte).
 // PRIVACY : les voisins exclus (opt-out) sont retirés.
 const SELECT_NEIGHBORS = `
+  WITH latest AS (
+    SELECT DISTINCT ON (nn.neighbor_id)
+      nn.neighbor_id,
+      nn.snr,
+      nn.received_at
+    FROM node_neighbors nn
+    WHERE nn.node_id = $1
+      AND nn.received_at > NOW() - INTERVAL '30 days'
+    ORDER BY nn.neighbor_id, nn.received_at DESC
+  )
   SELECT
-    nn.neighbor_id                        AS "nodeId",
+    l.neighbor_id                         AS "nodeId",
     COALESCE(n.long_name, n.short_name)   AS "name",
-    AVG(nn.snr)                           AS "snr",
+    l.snr                                 AS "snr",
     n.last_lat                            AS "lat",
     n.last_lon                            AS "lon",
     n.is_mobile                           AS "isMobile",
-    MAX(nn.received_at)                   AS "lastSeen"
-  FROM node_neighbors nn
-  LEFT JOIN nodes n ON n.node_id = nn.neighbor_id
-  WHERE nn.node_id = $1
-    AND nn.received_at > NOW() - INTERVAL '30 days'
+    l.received_at                         AS "lastSeen"
+  FROM latest l
+  LEFT JOIN nodes n ON n.node_id = l.neighbor_id
+  WHERE TRUE
     AND (n.node_id IS NULL OR NOT n.excluded)
-  GROUP BY nn.neighbor_id, n.long_name, n.short_name, n.last_lat, n.last_lon, n.is_mobile
   ORDER BY "lastSeen" DESC
 `;
 

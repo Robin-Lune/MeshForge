@@ -78,6 +78,148 @@ body > * {
   right: 0.75rem;
 }
 
+.mf-neighborhood-map {
+  position: relative;
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 234, 148, 0.12),
+    inset 0 0 38px rgba(103, 234, 148, 0.08),
+    0 14px 40px rgba(0, 0, 0, 0.22);
+}
+
+.mf-neighborhood-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(103, 234, 148, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.mf-trace-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.mf-trace-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(5, 7, 10, 0.12),
+    0 6px 18px rgba(5, 7, 10, 0.18);
+  color: #05070a;
+  font: 400 11px/1.05 var(--font-mono);
+  padding: 3px 6px;
+  white-space: nowrap;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.mf-trace-label strong {
+  font-weight: 800;
+}
+
+.mf-trace-label span {
+  font-weight: 400;
+}
+
+.mf-trace-label-tx {
+  border-color: rgba(103, 234, 148, 0.88);
+}
+
+.mf-trace-label-rx {
+  border-color: rgba(167, 139, 250, 0.88);
+}
+
+.mf-trace-packet {
+  --packet-color: #67ea94;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px var(--packet-color));
+}
+
+.mf-trace-packet span,
+.mf-trace-packet i,
+.mf-trace-packet b {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: block;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.mf-trace-packet span {
+  width: 9px;
+  height: 9px;
+  background: #fff;
+  box-shadow:
+    0 0 8px #fff,
+    0 0 18px var(--packet-color),
+    0 0 34px var(--packet-color);
+}
+
+.mf-trace-packet i {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--packet-color);
+  box-shadow: inset 0 0 10px var(--packet-color), 0 0 12px var(--packet-color);
+  opacity: 0.72;
+  animation: mf-packet-pulse 920ms ease-out infinite;
+}
+
+.mf-trace-packet b {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  opacity: 0.42;
+  animation: mf-packet-orbit 1.84s linear infinite;
+}
+
+.mf-trace-packet b::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--packet-color);
+  box-shadow: 0 0 12px var(--packet-color);
+  transform: translateX(-50%);
+}
+
+@keyframes mf-packet-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.72);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes mf-packet-orbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
 @media (min-width: 640px) {
   .mf-map .maplibregl-ctrl-top-right {
     top: 4.5rem;

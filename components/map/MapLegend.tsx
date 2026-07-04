@@ -1,3 +1,5 @@
+import { SNR_GOOD } from "./signal-color";
+
 type MapLegendProps = {
   open: boolean;
   onToggle: () => void;
@@ -30,7 +32,10 @@ export function MapLegend({ open, onToggle }: MapLegendProps) {
               <span className="min-w-0 break-words">Node visible</span>
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <span className="h-1 w-10 flex-none rounded bg-[#22c55e]" />
+              <span
+                className="h-1 w-10 flex-none rounded"
+                style={{ background: SNR_GOOD }}
+              />
               <span className="min-w-0 break-words">Lien direct 0-hop</span>
             </div>
             <div className="flex min-w-0 items-center gap-2">

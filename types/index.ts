@@ -141,17 +141,6 @@ export interface Observation {
   packets: number; // nb de paquets (toutes catégories) captés pour cette paire
 }
 
-// Arête d'ATTEIGNABILITÉ ORIENTÉE (API /api/reach), pour enrichir le survol :
-// `fromId` atteint `toId` en `hop` sauts. Union NeighborInfo (0 hop, voisin
-// direct, émis dans les deux sens) + Traceroute (paires ordonnées du chemin,
-// hop = nb de relais entre les deux). Orientée car le hop dépend du sens :
-// A→C peut être 1 hop (via un relais) alors que C→A est 0 hop (direct). MIN hop.
-export interface ReachEdge {
-  fromId: string;
-  toId: string;
-  hop: number;
-}
-
 // ---------------------------------------------------------------------------
 // Diagnostic « Voisinage réseau » de la fiche node (/node/[id]).
 // ---------------------------------------------------------------------------
@@ -167,9 +156,8 @@ export interface NodeNeighbor {
   lastSeen: string | null; // ISO 8601 — dernier NeighborInfo le mentionnant
 }
 
-// Un nœud CONNECTÉ au nœud consulté (mini-carte « Voisinage réseau ») : union
-// des paquets réels captés (2 sens) + voisins NeighborInfo. hop MIN, SNR médian,
-// et le détail des paquets par TYPE (pour le filtre). Position pour la carte.
+// Un voisin radio direct du nœud consulté (mini-carte « Voisinage réseau ») :
+// NeighborInfo en source principale, complété par les paquets directs hop_count=0.
 export interface NodeMapLink {
   nodeId: string;
   name: string | null;
@@ -177,7 +165,7 @@ export interface NodeMapLink {
   hop: number | null;
   lat: number | null;
   lon: number | null;
-  types: Record<string, number>; // type de paquet -> nb (ex: {position:12, neighborinfo:2})
+  sources: Record<string, number>; // ex: {neighborinfo:1, direct_packets:12}
 }
 
 // Un traceroute complet impliquant le node consulté : chemin ordonné par saut,
@@ -196,8 +184,12 @@ export interface TracerouteHop {
   step: number;
   fromNode: string;
   fromName: string | null;
+  fromLat: number | null;
+  fromLon: number | null;
   toNode: string;
   toName: string | null;
+  toLat: number | null;
+  toLon: number | null;
   snr: number | null;
 }
 

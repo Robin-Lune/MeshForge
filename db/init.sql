@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS node_neighbors (
     channel     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_neighbors_node ON node_neighbors (node_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_neighbors_recent ON node_neighbors (received_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- traceroute_segments — un SAUT d'un traceroute (RouteDiscovery). Orienté
@@ -71,6 +72,12 @@ CREATE TABLE IF NOT EXISTS traceroute_segments (
 CREATE INDEX IF NOT EXISTS idx_tracesegs_source ON traceroute_segments (source_node, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tracesegs_target ON traceroute_segments (target_node, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tracesegs_packet ON traceroute_segments (packet_id);
+CREATE INDEX IF NOT EXISTS idx_tracesegs_recent ON traceroute_segments (received_at DESC);
+DO $$ BEGIN
+    ALTER TABLE traceroute_segments
+        ADD CONSTRAINT traceroute_segments_direction_chk CHECK (direction IN ('forward', 'back'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_packets_node    ON packets (node_id,     received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_packets_type    ON packets (packet_type, received_at DESC);

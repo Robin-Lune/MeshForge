@@ -27,7 +27,8 @@ Fonctionnalités principales :
 
 - Carte temps réel MapLibre GL avec clustering, filtres et SSE.
 - Toile de liaisons depuis les gateways : 0-hop = portée radio directe ; mesh pointillé = via relais.
-- Détail node : historique 30 j, SNR par gateway, distance, télémétrie.
+- Détail node : historique 30 j, SNR par gateway, distance, télémétrie, voisinage réseau.
+- Diagnostic NeighborInfo / Traceroute : mini-carte de voisinage, voisins radio directs et chemins segmentés avec SNR par saut.
 - Admin : trames brutes, config runtime, RGPD, inscription relais MQTT.
 - Privacy : public par défaut, mais précision du node respectée + droit de retrait.
 
@@ -51,6 +52,17 @@ Principes : worker séparé de Next.js, SQL centralisé dans `lib/queries/`, bro
 Le worker ingère les topics Meshtastic `msh/+/+/json/#`, `msh/+/+/map/#` et
 `msh/+/+/e/#`. Les paquets `/e/` chiffrés sont décodés uniquement quand la PSK
 du canal est fournie via `MESHTASTIC_CHANNEL_KEYS`.
+
+Tables principales :
+
+- `packets` : hypertable TimescaleDB, historique brut normalisé des trames.
+- `nodes` : dernier état connu d'un node.
+- `node_neighbors` : voisins radio directs déclarés par NeighborInfo.
+- `traceroute_segments` : segments RouteDiscovery, un saut par ligne avec SNR.
+
+La carte principale reste volontairement légère : elle affiche les nodes et les
+liens observés utiles au survol. Le diagnostic complet NeighborInfo / Traceroute
+vit dans la fiche node, section « Voisinage réseau ».
 
 ---
 
@@ -211,6 +223,11 @@ yarn create-admin
   se règlent dans `/admin/config`.
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
   réception, enveloppe, raison de drop et fixture base64 en cas d'échec.
+- Les tables `node_neighbors` et `traceroute_segments` servent au diagnostic
+  « Voisinage réseau » de la fiche node : voisins radio directs, traceroute
+  segmenté, SNR par saut et animation aller/retour. Avant montée en charge,
+  prévoir une politique claire de rétention/index si le volume
+  NeighborInfo/Traceroute augmente fortement.
 
 ---
 

@@ -12,7 +12,7 @@ interface MapLinkRow {
   lat: number | null;
   lon: number | null;
   isMobile: boolean | null;
-  types: Record<string, string | number> | null;
+  sources: Record<string, string | number> | null;
 }
 
 // Normalise (SNR arrondi + snap privacy, hop number|null, counts en number).
@@ -21,8 +21,8 @@ export function toNodeMapLinks(rows: MapLinkRow[]): NodeMapLink[] {
     const located = r.lat != null && r.lon != null;
     const pos =
       located && r.isMobile !== false ? snapToGrid(r.lat!, r.lon!) : { lat: r.lat, lon: r.lon };
-    const types: Record<string, number> = {};
-    for (const [k, v] of Object.entries(r.types ?? {})) types[k] = Number(v);
+    const sources: Record<string, number> = {};
+    for (const [k, v] of Object.entries(r.sources ?? {})) sources[k] = Number(v);
     return {
       nodeId: r.nodeId,
       name: r.name,
@@ -30,55 +30,130 @@ export function toNodeMapLinks(rows: MapLinkRow[]): NodeMapLink[] {
       hop: r.hop == null ? null : Number(r.hop),
       lat: pos.lat,
       lon: pos.lon,
-      types,
+      sources,
     };
   });
 }
 
-// Connectivité locale d'un node sur 30 j pour la mini-carte : tout ce à quoi il
-// est lié (paquets réels captés dans les 2 sens + voisins NeighborInfo), agrégé
-// par nœud : hop MIN, SNR médian, et nombre de paquets PAR TYPE (pour le filtre).
+// Voisinage d'un node pour la mini-carte :
+//  - NeighborInfo récent = source principale, dernier SNR par voisin ;
+//  - paquets directs hop_count=0 dans les deux sens = fallback.
+//  - extrémités des derniers traceroutes = nodes atteints à afficher, avec le
+//    vrai chemin segmenté au hover.
 // PRIVACY : uniquement des nœuds affichables (localisés, non exclus).
 const SELECT_MAP_LINKS = `
-  WITH raw AS (
+  WITH neighbor_latest AS (
+    SELECT DISTINCT ON (other)
+      other,
+      snr,
+      received_at
+    FROM (
+      SELECT nn.neighbor_id AS other, nn.snr, nn.received_at
+      FROM node_neighbors nn
+      WHERE nn.node_id = $1
+        AND nn.received_at > NOW() - INTERVAL '30 days'
+      UNION ALL
+      SELECT nn.node_id AS other, nn.snr, nn.received_at
+      FROM node_neighbors nn
+      WHERE nn.neighbor_id = $1
+        AND nn.received_at > NOW() - INTERVAL '30 days'
+    ) n
+    ORDER BY other, received_at DESC
+  ),
+  direct_packets AS (
     SELECT
       CASE WHEN p.gateway_id = $1 THEN p.node_id ELSE p.gateway_id END AS other,
-      COALESCE(p.packet_type, 'autre') AS ptype,
-      p.hop_count AS hop, p.snr
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY p.snr) AS snr,
+      COUNT(*) AS packets
     FROM packets p
     WHERE (p.gateway_id = $1 OR p.node_id = $1)
+      AND p.hop_count = 0
       AND p.gateway_id IS NOT NULL AND p.node_id IS NOT NULL
       AND p.gateway_id <> p.node_id
       AND p.received_at > NOW() - INTERVAL '30 days'
-    UNION ALL
-    SELECT nn.neighbor_id AS other, 'neighborinfo' AS ptype, 0 AS hop, nn.snr
-    FROM node_neighbors nn
-    WHERE nn.node_id = $1 AND nn.received_at > NOW() - INTERVAL '30 days'
-  ),
-  agg AS (
-    SELECT other,
-           MIN(hop)                                          AS hop,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY snr)  AS snr
-    FROM raw GROUP BY other
-  ),
-  types AS (
-    SELECT other, jsonb_object_agg(ptype, cnt) AS types
-    FROM (SELECT other, ptype, COUNT(*) AS cnt FROM raw GROUP BY other, ptype) t
     GROUP BY other
+  ),
+  direct_links AS (
+    SELECT
+      COALESCE(n.other, d.other) AS other,
+      COALESCE(n.snr, d.snr) AS snr,
+      0 AS hop,
+      jsonb_strip_nulls(jsonb_build_object(
+        'neighborinfo', CASE WHEN n.other IS NULL THEN NULL ELSE 1 END,
+        'direct_packets', d.packets
+      )) AS sources
+    FROM neighbor_latest n
+    FULL JOIN direct_packets d ON d.other = n.other
+  ),
+  trace_packets AS (
+    SELECT
+      CASE WHEN source_node = $1 THEN target_node ELSE source_node END AS other,
+      source_node,
+      target_node,
+      received_at,
+      packet_id
+    FROM traceroute_segments
+    WHERE (source_node = $1 OR target_node = $1)
+      AND received_at > NOW() - INTERVAL '30 days'
+    GROUP BY source_node, target_node, received_at, packet_id
+  ),
+  trace_latest AS (
+    SELECT DISTINCT ON (other)
+      other,
+      source_node,
+      target_node,
+      received_at,
+      packet_id
+    FROM trace_packets
+    ORDER BY other, received_at DESC
+  ),
+  trace_nodes AS (
+    SELECT
+      tl.other,
+      NULL::real AS snr,
+      GREATEST(COUNT(*) FILTER (WHERE ts.direction = 'forward') - 1, 0)::int AS hop,
+      1 AS traceroute
+    FROM trace_latest tl
+    JOIN traceroute_segments ts
+      ON ts.source_node = tl.source_node
+     AND ts.target_node = tl.target_node
+     AND ts.received_at = tl.received_at
+     AND ts.packet_id IS NOT DISTINCT FROM tl.packet_id
+    GROUP BY tl.other
+  ),
+  links AS (
+    SELECT
+      COALESCE(d.other, t.other) AS other,
+      COALESCE(d.snr, t.snr) AS snr,
+      COALESCE(d.hop, t.hop) AS hop,
+      COALESCE(d.sources, '{}'::jsonb) ||
+        jsonb_strip_nulls(jsonb_build_object(
+          'traceroute', CASE WHEN t.other IS NULL THEN NULL ELSE t.traceroute END
+        )) AS sources
+    FROM direct_links d
+    FULL JOIN trace_nodes t ON t.other = d.other
   )
   SELECT
-    a.other                               AS "nodeId",
-    COALESCE(n.long_name, n.short_name)   AS "name",
-    a.snr, a.hop,
+    l.other                               AS "nodeId",
+    n.short_name                          AS "name",
+    l.snr, l.hop,
     n.last_lat                            AS "lat",
     n.last_lon                            AS "lon",
     n.is_mobile                           AS "isMobile",
-    ty.types                              AS "types"
-  FROM agg a
-  JOIN types ty ON ty.other = a.other
-  JOIN nodes n  ON n.node_id = a.other
+    l.sources                             AS "sources"
+  FROM links l
+  JOIN nodes subject ON subject.node_id = $1
+  JOIN nodes n ON n.node_id = l.other
   WHERE n.last_lat IS NOT NULL AND n.last_lon IS NOT NULL AND NOT n.excluded
-  ORDER BY a.hop NULLS LAST, "name"
+    AND subject.last_lat IS NOT NULL AND subject.last_lon IS NOT NULL
+    AND (
+      6371 * 2 * asin(sqrt(
+        pow(sin(radians(n.last_lat - subject.last_lat) / 2), 2) +
+        cos(radians(subject.last_lat)) * cos(radians(n.last_lat)) *
+        pow(sin(radians(n.last_lon - subject.last_lon) / 2), 2)
+      ))
+    ) <= 20
+  ORDER BY "name"
 `;
 
 export async function getNodeMapLinks(nodeId: string): Promise<NodeMapLink[]> {
