@@ -14,7 +14,7 @@ export function parseMqttPacket(
 ): ParsedPacket | null {
   if (topic.includes("/json/")) {
     const raw = JSON.parse(message.toString()) as RawMeshtasticPacket;
-    return parseMessage(topic, raw, publicChannels);
+    return parseMessage(topic, raw, publicChannels, debug);
   }
 
   if (topic.includes("/map/")) {

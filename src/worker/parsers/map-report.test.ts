@@ -146,6 +146,7 @@ describe("parseMapReport", () => {
     expect(parsed?.lat).toBeNull();
     expect(parsed?.lon).toBeNull();
     expect(parsed?.altitude).toBeNull();
-    expect(parsed?.raw.payload?.latitude_i).toBeUndefined();
+    const payload = parsed?.raw.payload;
+    expect(typeof payload === "object" && payload !== null ? payload.latitude_i : undefined).toBeUndefined();
   });
 });

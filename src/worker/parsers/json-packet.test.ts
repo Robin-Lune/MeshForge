@@ -87,6 +87,35 @@ describe("parseMessage — payload position", () => {
   });
 });
 
+describe("parseMessage — filtrage texte", () => {
+  it("drop un message text sans /URGENT", () => {
+    expect(
+      parseMessage(topic("Fr_Balise"), raw({ type: "text", payload: "message banal" }), CHANNELS),
+    ).toBeNull();
+  });
+
+  it("laisse passer un message text contenant /URGENT", () => {
+    const parsed = parseMessage(
+      topic("Fr_Balise"),
+      raw({ type: "text", payload: "test /URGENT besoin radio" }),
+      CHANNELS,
+    );
+
+    expect(parsed?.packetType).toBe("text");
+    expect(parsed?.raw.payload).toBe("test /URGENT besoin radio");
+  });
+
+  it("ne filtre pas les autres types, même si le payload est du texte", () => {
+    const parsed = parseMessage(
+      topic("Fr_Balise"),
+      raw({ type: "rangetest", payload: "message banal" }),
+      CHANNELS,
+    );
+
+    expect(parsed?.packetType).toBe("rangetest");
+  });
+});
+
 describe("parseMessage — métriques & métadonnées", () => {
   it("mappe rssi/snr/hops_away et la télémétrie", () => {
     const parsed = parseMessage(

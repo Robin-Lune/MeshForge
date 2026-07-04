@@ -15,21 +15,24 @@ export interface RawMeshtasticPacket {
   hops_away?: number; // nb de hops parcourus jusqu'à la gateway
   id?: number;
   timestamp?: number;
-  payload?: {
-    latitude_i?: number;
-    longitude_i?: number;
-    altitude?: number;
-    battery_level?: number;
-    voltage?: number;
-    channel_utilization?: number;
-    air_util_tx?: number;
-    // nodeinfo : noms réels du payload MQTT ; hardware/role sont des enums (nombres).
-    longname?: string;
-    shortname?: string;
-    hardware?: number;
-    role?: number;
-    [key: string]: unknown;
-  };
+  payload?:
+    | string
+    | {
+        latitude_i?: number;
+        longitude_i?: number;
+        altitude?: number;
+        battery_level?: number;
+        voltage?: number;
+        channel_utilization?: number;
+        air_util_tx?: number;
+        text?: string;
+        // nodeinfo : noms réels du payload MQTT ; hardware/role sont des enums (nombres).
+        longname?: string;
+        shortname?: string;
+        hardware?: number;
+        role?: number;
+        [key: string]: unknown;
+      };
   [key: string]: unknown;
 }
 

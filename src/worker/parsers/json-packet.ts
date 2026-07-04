@@ -4,6 +4,7 @@ import type { RawMeshtasticPacket, ParsedPacket } from "../../../types";
 import { hardwareModelName, deviceRoleName } from "../meshtastic/enums";
 import { neighborReports } from "./neighbor-info";
 import { tracerouteInfo } from "./traceroute";
+import { matchingTextMarker } from "./text-message";
 
 // NodeNum entier -> NodeID hex Meshtastic. Ex: 4134129428 -> "!f669cf14".
 // `>>> 0` force l'interprétation non signée (NodeNum va jusqu'à 0xFFFFFFFF).
@@ -26,6 +27,7 @@ export function parseMessage(
   topic: string,
   raw: RawMeshtasticPacket,
   publicChannels: string[],
+  debug?: (message: string) => void,
 ): ParsedPacket | null {
   // Topic : msh/<region>/<gwnum>/json/<channel>/<gateway_id>
   // Barrière privacy : on filtre sur le NOM du canal (segment du topic), jamais
@@ -34,8 +36,16 @@ export function parseMessage(
   if (!channel || !publicChannels.includes(channel)) return null;
 
   if (typeof raw.from !== "number") return null; // émetteur inconnu -> drop
+  if (raw.type === "text") {
+    const marker = matchingTextMarker(raw);
+    if (!marker) {
+      debug?.(`drop: texte sans marqueur autorisé (${channel})`);
+      return null;
+    }
+    debug?.(`allow: texte ${marker} (${channel})`);
+  }
 
-  const payload = raw.payload ?? {};
+  const payload = typeof raw.payload === "object" && raw.payload !== null ? raw.payload : {};
   const isNodeInfo = raw.type === "nodeinfo";
 
   return {

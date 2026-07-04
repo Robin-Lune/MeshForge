@@ -5,6 +5,7 @@ import { deviceRoleName, hardwareModelName } from "../meshtastic/enums";
 import { decodeTraceSnr } from "./parser-utils";
 import { neighborReports } from "./neighbor-info";
 import { tracerouteInfo } from "./traceroute";
+import { matchingTextMarker } from "./text-message";
 
 const PORTNUM = {
   TEXT_MESSAGE_APP: 1,
@@ -351,6 +352,10 @@ export function parseEncryptedPacket(
     return packetFromPosition(packet, envelope, channel, baseRaw, position);
   }
 
+  if (data.portnum === PORTNUM.TEXT_MESSAGE_APP) {
+    return packetFromText(packet, envelope, channel, baseRaw, data.payload, debug);
+  }
+
   if (data.portnum === PORTNUM.NODEINFO_APP) {
     const user = User.toObject(User.decode(data.payload)) as DecodedUser;
     return packetFromUser(packet, envelope, channel, baseRaw, user);
@@ -389,6 +394,32 @@ export function parseEncryptedPacket(
 
   debug?.(`drop: portnum ignoré (${data.portnum ?? "absent"})`);
   return null;
+}
+
+function packetFromText(
+  packet: NonNullable<DecodedEnvelope["packet"]>,
+  envelope: DecodedEnvelope,
+  channel: string,
+  raw: RawMeshtasticPacket,
+  payload: Uint8Array,
+  debug?: DebugLog,
+): ParsedPacket | null {
+  const text = Buffer.from(payload).toString("utf8");
+  const textRaw: RawMeshtasticPacket = {
+    ...raw,
+    type: "text",
+    payload: text,
+  };
+  const marker = matchingTextMarker(textRaw);
+  if (!marker) {
+    debug?.(`drop: texte sans marqueur autorisé (${channel})`);
+    return null;
+  }
+  debug?.(`allow: texte ${marker} (${channel})`);
+
+  return basePacket(packet, envelope, channel, textRaw, {
+    packetType: "text",
+  });
 }
 
 function packetFromPosition(

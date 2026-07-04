@@ -222,7 +222,14 @@ yarn create-admin
 - Canaux publics, bornes carte, zoom, seuils, mentions légales et onboarding MQTT
   se règlent dans `/admin/config`.
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
-  réception, enveloppe, raison de drop et fixture base64 en cas d'échec.
+  réception, enveloppe, raison de drop et fixture base64 en cas d'échec. Les
+  drops/autorisations des messages texte MQTT utilisent aussi ce debug.
+- Les paquets texte MQTT sont filtrés côté worker sur `/json/` (`type: "text"`)
+  et `/e/` (`TEXT_MESSAGE_APP`) : seuls les textes contenant un marqueur autorisé
+  sont conservés. Liste actuelle : `/URGENT`, `/SOS`, `/ALL`, `/SECOURS`.
+  Modifier `src/worker/parsers/text-message.ts` (`ALLOWED_TEXT_MARKERS`) pour
+  changer cette liste. Les autres types (`position`, `telemetry`, `nodeinfo`,
+  `neighborinfo`, `traceroute`, `map_report`, etc.) ne sont pas concernés.
 - Les tables `node_neighbors` et `traceroute_segments` servent au diagnostic
   « Voisinage réseau » de la fiche node : voisins radio directs, traceroute
   segmenté, SNR par saut et animation aller/retour. Avant montée en charge,
