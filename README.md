@@ -28,7 +28,7 @@ Fonctionnalités principales :
 - Carte temps réel MapLibre GL avec clustering, filtres et SSE.
 - Toile de liaisons depuis les gateways : 0-hop = portée radio directe ; mesh pointillé = via relais.
 - Détail node : historique 30 j, SNR par gateway, distance, télémétrie, voisinage réseau.
-- Diagnostic NeighborInfo / Traceroute : voisins radio directs et chemins segmentés avec SNR par saut.
+- Diagnostic NeighborInfo / Traceroute : mini-carte de voisinage, voisins radio directs et chemins segmentés avec SNR par saut.
 - Admin : trames brutes, config runtime, RGPD, inscription relais MQTT.
 - Privacy : public par défaut, mais précision du node respectée + droit de retrait.
 
@@ -62,7 +62,7 @@ Tables principales :
 
 La carte principale reste volontairement légère : elle affiche les nodes et les
 liens observés utiles au survol. Le diagnostic complet NeighborInfo / Traceroute
-vit dans la fiche node.
+vit dans la fiche node, section « Voisinage réseau ».
 
 ---
 
@@ -224,8 +224,10 @@ yarn create-admin
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
   réception, enveloppe, raison de drop et fixture base64 en cas d'échec.
 - Les tables `node_neighbors` et `traceroute_segments` servent au diagnostic
-  réseau. Avant montée en charge, prévoir une politique claire de rétention/index
-  si le volume NeighborInfo/Traceroute augmente fortement.
+  « Voisinage réseau » de la fiche node : voisins radio directs, traceroute
+  segmenté, SNR par saut et animation aller/retour. Avant montée en charge,
+  prévoir une politique claire de rétention/index si le volume
+  NeighborInfo/Traceroute augmente fortement.
 
 ---
 

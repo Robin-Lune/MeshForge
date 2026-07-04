@@ -80,6 +80,10 @@ export default function NodeNeighborhood({ node, links, traceroutes }: Props) {
     ? `${trace.sourceNode}|${trace.targetNode}|${trace.receivedAt}`
     : "";
   const linkFocus = trace ? "__fade-all__" : hovered;
+  const selectableNodeIds = new Set([
+    ...links.map((l) => l.nodeId),
+    ...traceroutes.map((t) => t.otherNode),
+  ]);
 
   const buildNodes = () => buildNodeFeatures(node, located, trace);
   const syncLinks = (
@@ -224,11 +228,23 @@ export default function NodeNeighborhood({ node, links, traceroutes }: Props) {
           color: p.color,
           isGateway: false,
         });
-        if (p.kind === "neighbor") {
-          el.addEventListener("mouseenter", () => setHovered(nodeId));
+        if (p.kind === "neighbor" || p.kind === "trace") {
+          el.addEventListener("mouseenter", () => {
+            if (selectableNodeIds.has(nodeId)) {
+              setHovered(nodeId);
+              return;
+            }
+            setHovered(null);
+            setSelected(null);
+          });
           el.addEventListener("mouseleave", () => setHovered(null));
           el.addEventListener("click", (event) => {
             event.stopPropagation();
+            if (!selectableNodeIds.has(nodeId)) {
+              setHovered(null);
+              setSelected(null);
+              return;
+            }
             setSelected((current) => (current === nodeId ? null : nodeId));
           });
         }
@@ -295,7 +311,10 @@ export default function NodeNeighborhood({ node, links, traceroutes }: Props) {
       syncLinks();
       syncTraceLabels(traceLabelsRef.current);
     });
-    map.on("click", () => setSelected(null));
+    map.on("click", () => {
+      setHovered(null);
+      setSelected(null);
+    });
     return () => {
       clearTraceAnimation();
       traceLabelsLayerRef.current?.remove();

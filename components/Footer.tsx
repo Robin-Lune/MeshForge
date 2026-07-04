@@ -42,7 +42,7 @@ export default function Footer() {
       <Link
         href="/mentions-legales"
         onClick={(e) => e.stopPropagation()}
-        className="min-w-0 break-words transition-colors hover:text-foreground"
+        className="min-w-0 sm:pl-8 break-words transition-colors hover:text-foreground"
       >
         Mentions légales
       </Link>

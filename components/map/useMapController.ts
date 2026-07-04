@@ -194,12 +194,24 @@ export function useMapController({
       meshRaf = null;
       meshSource()?.setData({ type: "FeatureCollection", features: [] });
     };
+    let activeMeshNodeId: string | null = null;
+    let visualAnchors = new Map<string, LngLat>();
+    const visualAnchor = (nodeId: string): LngLat | null =>
+      visualAnchors.get(nodeId) ?? posById(nodeId);
+
     // Toutes les arêtes du nœud survolé issues des observations packets, au hop
     // MINIMAL et au compteur de paquets MAX par nœud atteint. Couleurs = code
     // hop existant. Liens > 20 km masqués automatiquement.
-    const drawMesh = (nodeId: string, gw: LngLat): void => {
+    const drawMesh = (nodeId: string, animate = true): void => {
       const src = meshSource();
       if (!src) return;
+      activeMeshNodeId = nodeId;
+      const rawStart = posById(nodeId);
+      const visualStart = visualAnchor(nodeId);
+      if (!rawStart || !visualStart) {
+        src.setData({ type: "FeatureCollection", features: [] });
+        return;
+      }
       const { hopFilter } = filtersRef.current;
       const best = new Map<string, { hop: number; packets: number }>();
       for (const e of hoverLinkRef.current.get(nodeId) ?? []) {
@@ -209,20 +221,39 @@ export function useMapController({
       }
       const targets = [...best.entries()]
         .filter(([, v]) => matchesHopFilter(v.hop, hopFilter))
-        .map(([id, v]) => ({ hop: v.hop, packets: v.packets, pos: posById(id) }))
-        .filter((t): t is { hop: number; packets: number; pos: LngLat } => t.pos !== null)
-        .filter((t) => haversineKm(gw[1], gw[0], t.pos[1], t.pos[0]) <= FAR_LINK_KM);
-      if (!targets.length) return;
+        .map(([id, v]) => ({
+          hop: v.hop,
+          packets: v.packets,
+          rawPos: posById(id),
+          visualPos: visualAnchor(id),
+        }))
+        .filter(
+          (t): t is {
+            hop: number;
+            packets: number;
+            rawPos: LngLat;
+            visualPos: LngLat;
+          } => t.rawPos !== null && t.visualPos !== null,
+        )
+        .filter(
+          (t) =>
+            haversineKm(rawStart[1], rawStart[0], t.rawPos[1], t.rawPos[0]) <=
+            FAR_LINK_KM,
+        );
+      if (!targets.length) {
+        src.setData({ type: "FeatureCollection", features: [] });
+        return;
+      }
       const start = performance.now();
       const ease = (p: number): number => 1 - (1 - p) * (1 - p);
       const step = (now: number): void => {
-        const p = ease(Math.min((now - start) / 550, 1));
+        const p = animate ? ease(Math.min((now - start) / 550, 1)) : 1;
         const features: GeoJSON.Feature[] = [];
         for (const t of targets) {
-          const end = lerp(gw, t.pos, p);
-          features.push(lineFeature(gw, end, t.hop));
+          const end = lerp(visualStart, t.visualPos, p);
+          features.push(lineFeature(visualStart, end, t.hop));
           if (t.packets > 0) {
-            const mid = lerp(gw, end, 0.5);
+            const mid = lerp(visualStart, end, 0.5);
             features.push({
               type: "Feature",
               properties: { packets: t.packets },
@@ -231,8 +262,9 @@ export function useMapController({
           }
         }
         src.setData({ type: "FeatureCollection", features });
-        if (p < 1) meshRaf = requestAnimationFrame(step);
+        if (animate && p < 1) meshRaf = requestAnimationFrame(step);
       };
+      if (meshRaf !== null) cancelAnimationFrame(meshRaf);
       meshRaf = requestAnimationFrame(step);
     };
 
@@ -252,7 +284,17 @@ export function useMapController({
         };
       });
       const offsets = resolvePillSpread(boxes);
-      ids.forEach((id, i) => onScreen[id].setOffset([offsets[i].dx, offsets[i].dy]));
+      const anchors = new Map<string, LngLat>();
+      ids.forEach((id, i) => {
+        const marker = onScreen[id];
+        const offset: [number, number] = [offsets[i].dx, offsets[i].dy];
+        marker.setOffset(offset);
+        const pt = map.project(marker.getLngLat());
+        const anchor = map.unproject([pt.x + offset[0], pt.y + offset[1]]);
+        anchors.set(id.slice(1), [anchor.lng, anchor.lat]);
+      });
+      visualAnchors = anchors;
+      if (activeMeshNodeId) drawMesh(activeMeshNodeId, false);
     };
 
     const applyBridge = (): void => {
@@ -303,15 +345,15 @@ export function useMapController({
             el.addEventListener("mouseenter", () => {
               if (tapToPreview) return;
               if (pinnedNodeId) return;
-              const c = m.getLngLat();
               openNodePopup(nodeId, p, m);
               // Survol de N'IMPORTE QUEL nœud : ses arêtes issues des
               // observations packets ; drawMesh ne dessine rien s'il n'en a aucune.
-              drawMesh(nodeId, [c.lng, c.lat]);
+              drawMesh(nodeId);
             });
             el.addEventListener("mouseleave", () => {
               if (tapToPreview) return;
               if (pinnedNodeId) return;
+              activeMeshNodeId = null;
               hoverPopup.remove();
               clearMesh();
             });
@@ -322,10 +364,9 @@ export function useMapController({
                 return;
               }
               pinnedNodeId = nodeId;
-              const c = m.getLngLat();
               openNodePopup(nodeId, p, m);
               clearMesh();
-              drawMesh(nodeId, [c.lng, c.lat]);
+              drawMesh(nodeId);
             });
           }
         } else {
@@ -451,6 +492,7 @@ export function useMapController({
     });
     map.on("click", () => {
       pinnedNodeId = null;
+      activeMeshNodeId = null;
       hoverPopup.remove();
       clearMesh();
     });

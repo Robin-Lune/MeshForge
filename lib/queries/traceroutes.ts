@@ -142,15 +142,23 @@ const SELECT_TRACEROUTES = `
     ts.received_at                        AS "receivedAt",
     ts.direction, ts.step,
     ts.from_node                          AS "fromNode",
-    COALESCE(fn.short_name, fn.long_name) AS "fromName",
-    fn.last_lat                           AS "fromLat",
-    fn.last_lon                           AS "fromLon",
-    fn.is_mobile                          AS "fromIsMobile",
+    CASE
+      WHEN fn.node_id IS NULL THEN 'Node inconnu'
+      WHEN fn.excluded THEN 'Node masqué'
+      ELSE COALESCE(fn.short_name, fn.long_name)
+    END                                  AS "fromName",
+    CASE WHEN fn.node_id IS NULL OR fn.excluded THEN NULL ELSE fn.last_lat END AS "fromLat",
+    CASE WHEN fn.node_id IS NULL OR fn.excluded THEN NULL ELSE fn.last_lon END AS "fromLon",
+    CASE WHEN fn.node_id IS NULL OR fn.excluded THEN NULL ELSE fn.is_mobile END AS "fromIsMobile",
     ts.to_node                            AS "toNode",
-    COALESCE(tn.short_name, tn.long_name) AS "toName",
-    tn.last_lat                           AS "toLat",
-    tn.last_lon                           AS "toLon",
-    tn.is_mobile                          AS "toIsMobile",
+    CASE
+      WHEN tn.node_id IS NULL THEN 'Node inconnu'
+      WHEN tn.excluded THEN 'Node masqué'
+      ELSE COALESCE(tn.short_name, tn.long_name)
+    END                                  AS "toName",
+    CASE WHEN tn.node_id IS NULL OR tn.excluded THEN NULL ELSE tn.last_lat END AS "toLat",
+    CASE WHEN tn.node_id IS NULL OR tn.excluded THEN NULL ELSE tn.last_lon END AS "toLon",
+    CASE WHEN tn.node_id IS NULL OR tn.excluded THEN NULL ELSE tn.is_mobile END AS "toIsMobile",
     ts.snr
   FROM traceroute_segments ts
   JOIN latest l

@@ -140,6 +140,10 @@ describe("getNodeTraceroutes", () => {
     expect(query).toHaveBeenCalledWith(expect.any(String), ["!a"]);
     expect(query.mock.calls[0][0]).toContain("COALESCE(fn.short_name, fn.long_name)");
     expect(query.mock.calls[0][0]).toContain("COALESCE(tn.short_name, tn.long_name)");
+    expect(query.mock.calls[0][0]).toContain("fn.excluded");
+    expect(query.mock.calls[0][0]).toContain("tn.excluded");
+    expect(query.mock.calls[0][0]).toContain("Node masqué");
+    expect(query.mock.calls[0][0]).toContain("Node inconnu");
     expect(out[0].otherNode).toBe("!d");
   });
 });

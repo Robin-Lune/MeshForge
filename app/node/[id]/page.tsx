@@ -81,7 +81,12 @@ export default async function NodePage({
   // node chargé d'abord : sa position alimente le calcul de distance vers les gateways.
   const node = await getNodeById(nodeId);
   if (!node) notFound();
-  const [history, gateways, heardNodes, deviceMetrics, mapLinks, traceroutes, admin] =
+  const admin = await isAdmin();
+  // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
+  // pour le gérer/réintégrer). On bloque avant de charger les données associées.
+  if (node.excluded && !admin) notFound();
+
+  const [history, gateways, heardNodes, deviceMetrics, mapLinks, traceroutes] =
     await Promise.all([
       getNodeHistory(nodeId),
       getNodeGateways(nodeId, node.lat, node.lon),
@@ -89,11 +94,7 @@ export default async function NodePage({
       getNodeDeviceMetrics(nodeId),
       getNodeMapLinks(nodeId),
       getNodeTraceroutes(nodeId),
-      isAdmin(),
     ]);
-  // Opt-out RGPD : un node retiré est invisible au public (mais l'admin le voit
-  // pour le gérer/réintégrer).
-  if (node.excluded && !admin) notFound();
 
   const { confirm } = await searchParams;
   const here = `/node/${encodeURIComponent(nodeId)}`;
