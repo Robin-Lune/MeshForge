@@ -60,9 +60,15 @@ Tables principales :
 - `node_neighbors` : voisins radio directs déclarés par NeighborInfo.
 - `traceroute_segments` : segments RouteDiscovery, un saut par ligne avec SNR.
 
-La carte principale reste volontairement légère : elle affiche les nodes et les
-liens observés utiles au survol. Le diagnostic complet NeighborInfo / Traceroute
-vit dans la fiche node, section « Voisinage réseau ».
+La carte principale fusionne au survol les observations gateway, les liens directs
+NeighborInfo et les sauts prouvés de traceroute sur 7 jours. Les cartes d'information
+affichent le NodeID sous le nom lorsqu'il n'est pas déjà utilisé comme titre. Le
+diagnostic complet NeighborInfo / Traceroute reste dans la fiche node, section
+« Voisinage réseau ».
+
+La liste `/nodes` affiche le nom long en titre puis `nom court · NodeID` en ligne
+secondaire quand les deux noms sont connus ; sinon elle affiche le NodeID sans
+dupliquer le nom déjà visible.
 
 ---
 
@@ -212,6 +218,36 @@ yarn create-admin
 
 ### Notes prod
 
+- `packets` est compressée automatiquement après 7 jours et purgée après 60
+  jours. Les filtres 24h / 7j / 30j restent intégralement disponibles.
+- Sur une base existante, `db/init.sql` ne se rejoue pas automatiquement.
+  Appliquer la migration idempotente depuis la racine du projet :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T timescaledb psql -v ON_ERROR_STOP=1 -U meshforge -d meshforge \
+  < db/migrations/001_packets_lifecycle.sql
+```
+
+  `-T` permet de rediriger le fichier SQL local et `ON_ERROR_STOP` interrompt la
+  migration dès la première erreur. Vérifier ensuite les jobs TimescaleDB :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec timescaledb psql -U meshforge -d meshforge -c \
+  "SELECT application_name, schedule_interval, config FROM timescaledb_information.jobs WHERE hypertable_name = 'packets' ORDER BY application_name;"
+```
+
+  Puis contrôler progressivement la compression des chunks :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec timescaledb psql -U meshforge -d meshforge -c \
+  "SELECT chunk_name, range_start, range_end, is_compressed FROM timescaledb_information.chunks WHERE hypertable_name = 'packets' ORDER BY range_start DESC;"
+```
+
+  Les politiques tournent en arrière-plan : la migration ne compresse ni ne
+  supprime immédiatement les anciennes données.
 - `DB_PASSWORD` est passé brut à Postgres, app, worker et broker. Les caractères
   spéciaux sont acceptés.
 - Si on change `DB_PASSWORD` sur une DB existante, aligner aussi Postgres :

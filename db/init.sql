@@ -85,6 +85,24 @@ CREATE INDEX IF NOT EXISTS idx_packets_gateway ON packets (gateway_id,  received
 -- Index géospatial pour la heatmap (GROUP BY bucket lat/lon).
 CREATE INDEX IF NOT EXISTS idx_packets_geo     ON packets (lat, lon) WHERE lat IS NOT NULL;
 
+-- Cycle de vie borné : les requêtes restent transparentes sur les chunks
+-- compressés. La rétention de 60 jours conserve les vues 24h / 7j / 30j.
+ALTER TABLE packets SET (
+    timescaledb.compress,
+    timescaledb.compress_orderby = 'received_at DESC',
+    timescaledb.compress_segmentby = 'node_id'
+);
+SELECT add_compression_policy(
+    'packets',
+    compress_after => INTERVAL '7 days',
+    if_not_exists => TRUE
+);
+SELECT add_retention_policy(
+    'packets',
+    drop_after => INTERVAL '60 days',
+    if_not_exists => TRUE
+);
+
 -- ---------------------------------------------------------------------------
 -- nodes — dernier état connu d'un node. Upsert à chaque paquet reçu.
 -- Aucune série temporelle ici : les courbes vivent dans `packets`.
