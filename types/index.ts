@@ -134,14 +134,23 @@ export interface NodeDetail {
   excluded: boolean; // opt-out RGPD (droit de retrait)
 }
 
-// Arête de la toile mesh (API /api/observations) : un gateway a entendu un node.
-// bestHop = 0 → lien radio DIRECT (portée réelle) ; > 0 → via le mesh.
+// Provenance d'une arête de la toile mesh (API /api/observations).
+export type ObservationSource = "gateway" | "neighbor" | "traceroute";
+
+// Arête de la toile mesh (API /api/observations).
+// source = "gateway" : un gateway a entendu un node (gatewayId = le gateway).
+//   bestHop = 0 → lien radio DIRECT (portée réelle) ; > 0 → via le mesh.
+// source = "neighbor" | "traceroute" : lien radio direct node↔node déclaré par
+//   un paquet NeighborInfo (node_neighbors) ou observé sur un saut de
+//   traceroute (traceroute_segments). gatewayId/nodeId sont alors simplement
+//   les deux extrémités (paire canonique, un seul sens) et bestHop = 0.
 export interface Observation {
   gatewayId: string;
   nodeId: string;
   bestHop: number | null;
   snr: number | null;
   packets: number; // nb de paquets (toutes catégories) captés pour cette paire
+  source: ObservationSource;
 }
 
 // ---------------------------------------------------------------------------

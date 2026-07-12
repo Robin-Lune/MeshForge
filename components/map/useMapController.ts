@@ -22,6 +22,8 @@ import {
   MESH_RELAY_LAYER,
   MESH_BADGE_LAYER,
 } from "@/components/map/map-layers";
+import { bestTargets } from "@/components/map/hover-edges";
+import type { HoverEdge } from "@/components/map/hover-edges";
 import { haversineKm } from "@/lib/geo";
 import type { HopFilter } from "@/components/map/MapFilters";
 
@@ -63,9 +65,14 @@ export function useMapController({
   // tenant compte du seuil 20 km, cohérent avec les liens au survol).
   const heardByRef = useRef<Map<string, Set<string>>>(new Map());
   const bridgeSyncRef = useRef<() => void>(() => {});
-  const hoverLinkRef = useRef<
-    Map<string, { nodeId: string; hop: number; packets: number }[]>
-  >(new Map());
+  // Liens node↔node déclarés (NeighborInfo/traceroute), à côté des observations
+  // gateway : paires canoniques venues de l'API, indexées au survol des deux
+  // extrémités. Ils n'alimentent NI minHop (filtre hops) NI l'anneau "pont"
+  // (sémantiques réservées aux observations gateway).
+  const declaredLinksRef = useRef<
+    { a: string; b: string; source: "neighbor" | "traceroute" }[]
+  >([]);
+  const hoverLinkRef = useRef<Map<string, HoverEdge[]>>(new Map());
   const filtersRef = useRef(filters);
   const refreshRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -199,9 +206,12 @@ export function useMapController({
     const visualAnchor = (nodeId: string): LngLat | null =>
       visualAnchors.get(nodeId) ?? posById(nodeId);
 
-    // Toutes les arêtes du nœud survolé issues des observations packets, au hop
-    // MINIMAL et au compteur de paquets MAX par nœud atteint. Couleurs = code
-    // hop existant. Liens > 20 km masqués automatiquement.
+    // Toutes les arêtes du nœud survolé : observations packets + liens déclarés
+    // NeighborInfo/traceroute (hop 0 -> rendus comme les liens directs, code
+    // couleur hop existant). Une seule ligne par paire (bestTargets : hop
+    // MINIMAL et paquets MAX à source égale, priorité gateway sinon — le badge
+    // paquets d'une vraie observation prime sur un lien déclaré).
+    // Liens > 20 km masqués automatiquement.
     const drawMesh = (nodeId: string, animate = true): void => {
       const src = meshSource();
       if (!src) return;
@@ -213,19 +223,13 @@ export function useMapController({
         return;
       }
       const { hopFilter } = filtersRef.current;
-      const best = new Map<string, { hop: number; packets: number }>();
-      for (const e of hoverLinkRef.current.get(nodeId) ?? []) {
-        const prev = best.get(e.nodeId);
-        if (prev === undefined) best.set(e.nodeId, { hop: e.hop, packets: e.packets });
-        else best.set(e.nodeId, { hop: Math.min(prev.hop, e.hop), packets: Math.max(prev.packets, e.packets) });
-      }
-      const targets = [...best.entries()]
-        .filter(([, v]) => matchesHopFilter(v.hop, hopFilter))
-        .map(([id, v]) => ({
-          hop: v.hop,
-          packets: v.packets,
-          rawPos: posById(id),
-          visualPos: visualAnchor(id),
+      const targets = bestTargets(hoverLinkRef.current.get(nodeId) ?? [])
+        .filter((e) => matchesHopFilter(e.hop, hopFilter))
+        .map((e) => ({
+          hop: e.hop,
+          packets: e.packets,
+          rawPos: posById(e.nodeId),
+          visualPos: visualAnchor(e.nodeId),
         }))
         .filter(
           (t): t is {
@@ -392,8 +396,15 @@ export function useMapController({
           const minHop = minHopRef.current;
           minHop.clear();
           const gwByNode = new Map<string, Set<string>>();
+          const declared: { a: string; b: string; source: "neighbor" | "traceroute" }[] = [];
           for (const o of obs) {
             const hop = o.bestHop ?? 9;
+            if (o.source === "neighbor" || o.source === "traceroute") {
+              // Lien déclaré node↔node : uniquement pour le survol (rebuildHover),
+              // hors minHop/anneau pont (sémantiques gateway).
+              declared.push({ a: o.gatewayId, b: o.nodeId, source: o.source });
+              continue;
+            }
             const arr = m.get(o.gatewayId) ?? [];
             arr.push({ nodeId: o.nodeId, hop, packets: o.packets });
             m.set(o.gatewayId, arr);
@@ -403,6 +414,7 @@ export function useMapController({
             set.add(o.gatewayId);
             gwByNode.set(o.nodeId, set);
           }
+          declaredLinksRef.current = declared;
           heardByRef.current = gwByNode;
           computeBridges();
           rebuildHover();
@@ -435,19 +447,25 @@ export function useMapController({
 
     // Index pour le survol. Les observations sont une réception gateway -> node ;
     // on les ajoute dans les deux sens pour garder le comportement actuel :
-    // survoler un gateway ou un node montre ses liens packets connus.
+    // survoler un gateway ou un node montre ses liens packets connus. Les liens
+    // déclarés (NeighborInfo/traceroute, hop 0 par définition, pas de badge
+    // paquets) sont indexés sous leurs deux extrémités de la même façon.
     const rebuildHover = (): void => {
-      const h = new Map<string, { nodeId: string; hop: number; packets: number }[]>();
-      const add = (a: string, b: string, hop: number, packets: number): void => {
+      const h = new Map<string, HoverEdge[]>();
+      const add = (a: string, edge: HoverEdge): void => {
         const arr = h.get(a) ?? [];
-        arr.push({ nodeId: b, hop, packets });
+        arr.push(edge);
         h.set(a, arr);
       };
       for (const [gw, list] of obsRef.current) {
         for (const e of list) {
-          add(gw, e.nodeId, e.hop, e.packets); // ce que gw a entendu
-          add(e.nodeId, gw, e.hop, e.packets); // sens inverse
+          add(gw, { nodeId: e.nodeId, hop: e.hop, packets: e.packets, source: "gateway" });
+          add(e.nodeId, { nodeId: gw, hop: e.hop, packets: e.packets, source: "gateway" });
         }
+      }
+      for (const l of declaredLinksRef.current) {
+        add(l.a, { nodeId: l.b, hop: 0, packets: 0, source: l.source });
+        add(l.b, { nodeId: l.a, hop: 0, packets: 0, source: l.source });
       }
       hoverLinkRef.current = h;
     };
