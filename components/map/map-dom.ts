@@ -1,3 +1,4 @@
+import { popupNodeId } from "@/lib/format";
 import { GATEWAY_COLOR } from "@/lib/nodeColor";
 
 export function pillElement(p: Record<string, unknown>): HTMLElement {
@@ -66,6 +67,16 @@ export function hoverCard(p: Record<string, unknown>): HTMLElement {
   title.style.fontWeight = "600";
   title.textContent = longName || shortName || nodeId;
   el.appendChild(title);
+
+  // ID sous le titre, sauf si le node sans nom l'affiche déjà en titre.
+  const idLine = popupNodeId(title.textContent ?? "", nodeId);
+  if (idLine) {
+    const id = document.createElement("div");
+    id.style.color = "#666";
+    id.style.fontFamily = "ui-monospace, monospace";
+    id.textContent = idLine;
+    el.appendChild(id);
+  }
 
   const seen = document.createElement("div");
   seen.style.color = "#666";

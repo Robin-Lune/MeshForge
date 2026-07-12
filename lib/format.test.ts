@@ -1,5 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { relativeTime } from "./format";
+import { nodeIdentityLine, popupNodeId, relativeTime } from "./format";
+
+describe("nodeIdentityLine — ligne secondaire des listes de nodes", () => {
+  it("préfixe l'ID par le nom court quand nom long ET nom court existent", () => {
+    expect(nodeIdentityLine("Test Un", "T1", "!11111111")).toBe(
+      "T1 · !11111111",
+    );
+  });
+
+  it("ID seul sans nom court (rien à préfixer)", () => {
+    expect(nodeIdentityLine("Test Un", null, "!11111111")).toBe("!11111111");
+  });
+
+  it("ID seul sans nom long (le titre affiche déjà le nom court)", () => {
+    expect(nodeIdentityLine(null, "T1", "!11111111")).toBe("!11111111");
+  });
+
+  it("ID seul quand le node n'a aucun nom", () => {
+    expect(nodeIdentityLine(null, null, "!11111111")).toBe("!11111111");
+  });
+});
+
+describe("popupNodeId — ID sous le titre du popup carte", () => {
+  it("renvoie l'ID quand le titre est un nom", () => {
+    expect(popupNodeId("Test Un", "!11111111")).toBe("!11111111");
+  });
+
+  it("null quand le titre est déjà l'ID (node sans nom, pas de doublon)", () => {
+    expect(popupNodeId("!11111111", "!11111111")).toBeNull();
+  });
+
+  it("null quand l'ID est absent", () => {
+    expect(popupNodeId("Test Un", "")).toBeNull();
+  });
+});
 
 // `now` est injecté pour rester déterministe (pas de Date.now() implicite).
 describe("relativeTime — durée écoulée lisible (fr)", () => {

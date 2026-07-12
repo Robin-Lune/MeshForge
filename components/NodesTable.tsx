@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { relativeTime } from "@/lib/format";
+import { nodeIdentityLine, relativeTime } from "@/lib/format";
 import { sortNodeList, type SortKey, type SortDir } from "@/lib/nodeSort";
 import type { NodeOverviewView } from "@/lib/queries/node-lists";
 import type { MisconfigReason, NodeListItem } from "@/types";
@@ -241,7 +241,7 @@ export default function NodesTable({
                     {n.longName ?? n.shortName ?? n.nodeId}
                   </div>
                   <div className="mt-0.5 break-all font-mono text-xs text-zinc-500">
-                    {n.nodeId}
+                    {nodeIdentityLine(n.longName, n.shortName, n.nodeId)}
                   </div>
                 </div>
                 {n.isGateway && (
@@ -335,7 +335,7 @@ export default function NodesTable({
                       </span>
                     )}
                     <div className="font-mono text-xs text-zinc-500">
-                      {n.nodeId}
+                      {nodeIdentityLine(n.longName, n.shortName, n.nodeId)}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
