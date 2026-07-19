@@ -514,6 +514,9 @@ export function useMapController({
       offset: 8,
       className: "mf-popup",
     });
+    // Tuile dont l'infobulle est actuellement construite (voir le handler
+    // mousemove plus bas) : évite de reconstruire le DOM à chaque événement.
+    let tuileSurvolee: string | null = null;
 
     // Un échec NE DOIT PAS se traduire par une couche vide : la carte dirait
     // alors « aucune mesure » — le contresens exact que la légende et
@@ -553,6 +556,14 @@ export function useMapController({
         });
     };
 
+    // Ce qui est ACTUELLEMENT peint dans la source. applyCoverage est branché
+    // sur l'effet `filters` commun à tous les filtres : sans cette mémoire, une
+    // frappe dans la recherche reconstruirait les ~2000 polygones et referait un
+    // setData — qui force MapLibre à re-tuiler toute la source dans le worker,
+    // d'où un clignotement de la couche à chaque caractère tapé.
+    let peintMetrique: CoverageSelection | null = null;
+    let peintDonnees: CoverageResponse | null = null;
+
     const applyCoverage = (): void => {
       // Garde `alive` AVANT toute touche à la carte, comme refreshNodes et
       // nodesSource : ceinture et bretelles avec la remise à zéro de la ref au
@@ -565,12 +576,14 @@ export function useMapController({
       const { coverage } = filtersRef.current;
       const on = coverage !== "off";
 
+      // Bascule de visibilité : négligeable, on la refait sans condition.
       for (const id of [COVERAGE_FILL_ID, COVERAGE_LINE_ID]) {
         if (map.getLayer(id)) {
           map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
         }
       }
       if (!on) {
+        tuileSurvolee = null;
         coveragePopup.remove();
         return;
       }
@@ -578,8 +591,15 @@ export function useMapController({
         loadCoverage();
         return;
       }
+      // Éteindre puis rallumer ne vide jamais la source (on masque seulement),
+      // donc la mémoire reste valable d'un cycle à l'autre.
+      if (peintMetrique === coverage && peintDonnees === coverageRef.current) {
+        return;
+      }
       const { tiles, z } = coverageRef.current;
       src.setData(toCoverageGeoJSON(tiles, z, coverage));
+      peintMetrique = coverage;
+      peintDonnees = coverageRef.current;
     };
     coverageSyncRef.current = applyCoverage;
 
@@ -640,6 +660,12 @@ export function useMapController({
     // Infobulle de tuile : c'est là qu'on lit la redondance et le nombre de
     // mesures. `samples` est affiché pour que la confiance soit visible — une
     // tuile à 2 mesures ne vaut pas une tuile à 200.
+    // La carte n'est reconstruite qu'au CHANGEMENT de tuile : mousemove tire
+    // des dizaines de fois par seconde, et setDOMContent remplace le nœud de
+    // contenu à chaque appel (allocations, pression GC, contenu qui scintille
+    // pendant un glissement). À l'intérieur d'une même tuile, seule la position
+    // bouge. C'est le fonctionnement du survol de node, qui construit sa fiche
+    // une seule fois, sur mouseenter.
     map.on("mousemove", COVERAGE_FILL_ID, (e) => {
       const f = e.features?.[0];
       if (!f) return;
@@ -649,15 +675,21 @@ export function useMapController({
       // fiche du node et la masque. La fiche node prime.
       if (hoverPopup.isOpen()) return;
       map.getCanvas().style.cursor = "crosshair";
-      coveragePopup
-        .setLngLat(e.lngLat)
-        .setDOMContent(
-          coverageCard(f.properties as Record<string, unknown>, coverageRef.current?.z ?? 0),
-        )
-        .addTo(map);
+
+      const props = f.properties as Record<string, unknown>;
+      const cle = `${props.x}/${props.y}`;
+      if (cle !== tuileSurvolee) {
+        tuileSurvolee = cle;
+        coveragePopup.setDOMContent(
+          coverageCard(props, coverageRef.current?.z ?? 0),
+        );
+      }
+      coveragePopup.setLngLat(e.lngLat);
+      if (!coveragePopup.isOpen()) coveragePopup.addTo(map);
     });
     map.on("mouseleave", COVERAGE_FILL_ID, () => {
       map.getCanvas().style.cursor = "";
+      tuileSurvolee = null;
       coveragePopup.remove();
     });
 

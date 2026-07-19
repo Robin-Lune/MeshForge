@@ -111,6 +111,24 @@ describe("toCoverageGeoJSON", () => {
     });
   });
 
+  it("porte les indices de tuile, qui servent d'identité au survol", () => {
+    // Sans (x,y) dans les propriétés, le contrôleur ne peut pas détecter un
+    // changement de tuile et reconstruit l'infobulle à chaque mousemove.
+    const fc = toCoverageGeoJSON([tile({ x: 42, y: 7 })], z, "snr");
+    expect(fc.features[0].properties).toMatchObject({ x: 42, y: 7 });
+  });
+
+  it("donne des identités distinctes à deux tuiles voisines", () => {
+    const fc = toCoverageGeoJSON(
+      [tile({ x: 10, y: 20 }), tile({ x: 11, y: 20 })],
+      z,
+      "snr",
+    );
+    const cle = (i: number) =>
+      `${fc.features[i].properties.x}/${fc.features[i].properties.y}`;
+    expect(cle(0)).not.toBe(cle(1));
+  });
+
   it("rend une collection vide sans tuile (aucune donnée ≠ mauvaise couverture)", () => {
     const fc = toCoverageGeoJSON([], z, "snr");
     expect(fc.type).toBe("FeatureCollection");

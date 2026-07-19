@@ -61,6 +61,11 @@ export function tileFillColor(
 
 export interface CoverageFeatureProps {
   color: string;
+  // Indices de la tuile : servent d'IDENTITÉ au survol. Sans eux, le contrôleur
+  // ne peut pas savoir si le pointeur a changé de tuile et reconstruit
+  // l'infobulle à chaque mousemove (des dizaines de fois par seconde).
+  x: number;
+  y: number;
   snrP90: number | null;
   snrMax: number | null;
   gateways: number;
@@ -93,6 +98,8 @@ export function toCoverageGeoJSON(
       geometry: { type: "Polygon", coordinates: [tileToRing(t.x, t.y, z)] },
       properties: {
         color: tileFillColor(t, metric),
+        x: t.x,
+        y: t.y,
         snrP90: t.snrP90,
         snrMax: t.snrMax,
         gateways: t.gateways,
@@ -112,15 +119,22 @@ export const COVERAGE_FILL_LAYER: FillLayerSpecification = {
   paint: { "fill-color": ["get", "color"], "fill-opacity": 0.45 },
 };
 
-// Grille fine : matérialise la maille, pour qu'on ne confonde pas une tuile
-// isolée avec une tache de heatmap.
+// Grille fine : matérialise la maille, pour qu'on ne confonde pas une étendue
+// couverte avec une tache de heatmap, et pour qu'on puisse compter les tuiles.
+// COULEUR FIXE, volontairement — et surtout PAS ["get","color"] : deux tuiles
+// voisines de même valeur auraient alors un contour de leur propre teinte, donc
+// une frontière indiscernable du remplissage, que l'antialiasing efface
+// complètement sur une ligne sub-pixel. Le bloc se lirait comme une seule tache
+// — exactement ce que cette couche existe pour éviter.
+export const COVERAGE_GRID_COLOR = "#111827";
+
 export const COVERAGE_LINE_LAYER: LineLayerSpecification = {
   id: COVERAGE_LINE_ID,
   type: "line",
   source: COVERAGE_SOURCE,
   paint: {
-    "line-color": ["get", "color"],
-    "line-width": 0.5,
-    "line-opacity": 0.5,
+    "line-color": COVERAGE_GRID_COLOR,
+    "line-width": 0.6,
+    "line-opacity": 0.35,
   },
 };
