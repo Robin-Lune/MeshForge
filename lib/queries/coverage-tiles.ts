@@ -121,19 +121,58 @@ const AGGREGATES = `
 // volontairement — sa position est hors sujet (on attribue la mesure à
 // l'émetteur), et une gateway non localisée reste un relais réellement
 // joignable : elle doit compter dans la redondance.
+//
+// DÉDUPLICATION (base) — une RÉCEPTION physique peut produire DEUX lignes.
+// Le worker souscrit à `/json/` ET à `/e/` ; une passerelle qui a activé la
+// sortie JSON en plus du chiffrement — ce que fait la configuration
+// recommandée par le projet (.env.example livre les PSK renseignées, et
+// DEFAULT_MQTT_ONBOARDING active jsonOutputEnabled) — republie donc chaque
+// paquet capté sur les deux topics. `insertPacket` n'a ni contrainte d'unicité
+// ni ON CONFLICT : les deux lignes entrent.
+//
+// Sans correction, cette passerelle pèse DOUBLE dans le percentile qui colore
+// la tuile : une tuile entendue à −16 dB par une passerelle « JSON+chiffré » et
+// à −5 dB par une autre est peinte d'un cran trop sévère, uniquement parce que
+// le propriétaire du premier relais a coché une case.
+//
+// CLÉ = (passerelle, id de paquet), surtout PAS l'id seul : deux passerelles
+// distinctes entendant le même paquet doivent rester DEUX lignes — c'est
+// exactement ce qui mesure la redondance.
+//
+// Les lignes SANS id ne sont pas dédupliquées et sont toutes conservées : les
+// regrouper reviendrait à en supprimer arbitrairement (l'id manque quand
+// MeshPacket.id vaut 0, piège proto3 du commit 7e7d4ad).
 const buildQuery = (bounded: boolean): string => `
+  WITH base AS (
+    SELECT
+      p.node_id, p.gateway_id, p.snr, p.lat, p.lon, p.received_at,
+      p.raw->>'id' AS pkt_id
+    FROM packets p
+    JOIN nodes nd ON nd.node_id = p.node_id AND NOT nd.excluded
+    WHERE${RADIO_PREDICATE}${
+      bounded
+        ? `
+      AND p.lat BETWEEN $2 AND $3
+      AND p.lon BETWEEN $4 AND $5`
+        : ""
+    }
+  ),
+  dedup AS (
+    -- Branche parenthésée : sans cela, le ORDER BY se rattacherait à l'UNION
+    -- entière et non au DISTINCT ON (erreur de syntaxe Postgres).
+    (
+      SELECT DISTINCT ON (gateway_id, pkt_id) *
+      FROM base
+      WHERE pkt_id IS NOT NULL
+      ORDER BY gateway_id, pkt_id, received_at
+    )
+    UNION ALL
+    SELECT * FROM base WHERE pkt_id IS NULL
+  )
   SELECT
 ${TILE_XY},
 ${AGGREGATES}
-  FROM packets p
-  JOIN nodes nd ON nd.node_id = p.node_id AND NOT nd.excluded
-  WHERE${RADIO_PREDICATE}${
-    bounded
-      ? `
-    AND p.lat BETWEEN $2 AND $3
-    AND p.lon BETWEEN $4 AND $5`
-      : ""
-  }
+  FROM dedup p
   GROUP BY tx, ty
 `;
 

@@ -127,6 +127,23 @@ VALUES
   (NOW(),'!cgw1','!cov3','position','Fr_Balise',-21.2200,55.3100, 7, 0,
    '{"payload":{"precision_bits":13}}');
 
+-- ---- Doublon /json/ + /e/ : UNE réception, DEUX lignes ----
+-- Une passerelle ayant activé la sortie JSON en plus du chiffrement republie
+-- chaque paquet capté sur les deux topics. Les deux lignes portent le MÊME
+-- MeshPacket.id : la couche ne doit en compter qu'UNE (sinon cette passerelle
+-- pèse double dans le percentile qui colore la tuile).
+INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel,
+                     lat, lon, snr, hop_count, raw)
+VALUES
+  (NOW(), '!cgw1', '!cov4', 'position', 'Fr_Balise', -21.0500, 55.7000, -16, 0,
+   '{"id":123456789,"payload":{}}'),
+  (NOW(), '!cgw1', '!cov4', 'position', 'Fr_Balise', -21.0500, 55.7000, -16, 0,
+   '{"id":123456789,"payload":{}}'),
+  -- Même paquet entendu par une AUTRE passerelle : deux lignes légitimes,
+  -- à conserver toutes les deux (c'est la redondance qu'on veut mesurer).
+  (NOW(), '!cgw2', '!cov4', 'position', 'Fr_Balise', -21.0500, 55.7000, -5, 0,
+   '{"id":123456789,"payload":{}}');
+
 -- Contrôle rapide (à comparer avec la carte) :
 --   SELECT count(*) FROM packets WHERE node_id LIKE '!cov%' AND hop_count = 0
 --     AND gateway_id <> node_id AND lat IS NOT NULL;

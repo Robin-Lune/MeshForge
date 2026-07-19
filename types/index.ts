@@ -178,7 +178,11 @@ export interface CoverageTile {
   snrMax: number | null; // meilleure réception observée (infobulle)
   gateways: number; // relais DISTINCTS joignables en direct depuis la tuile
   nodes: number; // émetteurs distincts observés dans la tuile
-  samples: number; // réceptions retenues (diagnostic de confiance)
+  // Réceptions retenues, DÉDUPLIQUÉES par (passerelle, id de paquet) : une même
+  // réception republiée sur /json/ ET /e/ ne compte qu'une fois. C'est ce qui
+  // distingue cette valeur d'un comptage de lignes brut — lequel resterait
+  // indigne de confiance, cf. le commentaire de CoverageMetric ci-dessus.
+  samples: number;
 }
 
 // Le zoom est porté par la réponse : il est configurable (coverage_tile_zoom) et
