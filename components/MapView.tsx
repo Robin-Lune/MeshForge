@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapBounds } from "@/types";
+import type { CoverageSelection, MapBounds } from "@/types";
 import { MapFilters } from "@/components/map/MapFilters";
 import type { HopFilter } from "@/components/map/MapFilters";
 import { MapLegend } from "@/components/map/MapLegend";
@@ -21,12 +21,15 @@ export default function MapView({
   const [sinceH, setSinceH] = useState(0); // 0 = tous
   const [hopFilter, setHopFilter] = useState<HopFilter>("all");
   const [legendOpen, setLegendOpen] = useState(true);
+  // Couche de couverture : « off » par défaut. Elle répond à une question
+  // d'exploitation (« où poser un relais ? »), pas à la consultation courante.
+  const [coverage, setCoverage] = useState<CoverageSelection>("off");
   const filters = useMemo(
-    () => ({ search, role, sinceH, hopFilter }),
-    [search, role, sinceH, hopFilter],
+    () => ({ search, role, sinceH, hopFilter, coverage }),
+    [search, role, sinceH, hopFilter, coverage],
   );
 
-  const { roleOptions } = useMapController({
+  const { roleOptions, coverageError } = useMapController({
     containerRef,
     bounds,
     minZoom,
@@ -42,6 +45,8 @@ export default function MapView({
       <MapLegend
         open={legendOpen}
         onToggle={() => setLegendOpen((open) => !open)}
+        coverage={coverage}
+        coverageError={coverageError}
       />
       <MapFilters
         search={search}
@@ -53,6 +58,8 @@ export default function MapView({
         onRoleChange={setRole}
         onSinceHChange={setSinceH}
         onHopFilterChange={setHopFilter}
+        coverage={coverage}
+        onCoverageChange={setCoverage}
       />
     </div>
   );

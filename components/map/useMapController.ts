@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
-import type { PublicNode, NodeUpdate, Observation, MapBounds } from "@/types";
+import type {
+  PublicNode,
+  NodeUpdate,
+  Observation,
+  MapBounds,
+  CoverageResponse,
+  CoverageSelection,
+} from "@/types";
 import {
   nodeFeature,
   shortLabel,
@@ -22,6 +29,15 @@ import {
   MESH_RELAY_LAYER,
   MESH_BADGE_LAYER,
 } from "@/components/map/map-layers";
+import {
+  COVERAGE_FILL_ID,
+  COVERAGE_FILL_LAYER,
+  COVERAGE_LINE_ID,
+  COVERAGE_LINE_LAYER,
+  COVERAGE_SOURCE,
+  toCoverageGeoJSON,
+} from "@/components/map/coverage-layer";
+import { coverageCard } from "@/components/map/map-dom";
 import { bestTargets } from "@/components/map/hover-edges";
 import type { HoverEdge } from "@/components/map/hover-edges";
 import { haversineKm } from "@/lib/geo";
@@ -39,6 +55,7 @@ type MapFiltersState = {
   role: string;
   sinceH: number;
   hopFilter: HopFilter;
+  coverage: CoverageSelection;
 };
 
 type UseMapControllerProps = {
@@ -55,6 +72,9 @@ export function useMapController({
   filters,
 }: UseMapControllerProps) {
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
+  // Vrai quand /api/coverage a échoué : la légende doit dire « indisponible »
+  // et surtout PAS laisser croire que le territoire n'a jamais été mesuré.
+  const [coverageError, setCoverageError] = useState(false);
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());
   const obsRef = useRef<Map<string, { nodeId: string; hop: number; packets: number }[]>>(
     new Map(),
@@ -73,6 +93,12 @@ export function useMapController({
     { a: string; b: string; source: "neighbor" | "traceroute" }[]
   >([]);
   const hoverLinkRef = useRef<Map<string, HoverEdge[]>>(new Map());
+  // Tuiles de couverture : chargées PARESSEUSEMENT (au premier affichage de la
+  // couche) pour ne pas imposer ~115 Ko à qui ne l'ouvre jamais. Conservées
+  // ensuite : la donnée bouge lentement (fenêtre 30 j, cache serveur 10 min),
+  // changer de métrique ne doit pas refaire un aller-retour réseau.
+  const coverageRef = useRef<CoverageResponse | null>(null);
+  const coverageSyncRef = useRef<() => void>(() => {});
   const filtersRef = useRef(filters);
   const refreshRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -100,6 +126,7 @@ export function useMapController({
     filtersRef.current = filters;
     refreshRef.current();
     bridgeSyncRef.current();
+    coverageSyncRef.current();
   }, [filters]);
 
   useEffect(() => {
@@ -475,6 +502,87 @@ export function useMapController({
       observationsTimer = window.setTimeout(loadObservations, 1500);
     };
 
+    // --- Couche « tuiles de couverture » -----------------------------------
+    let coverageFetching = false;
+    // Popup DISTINCTE de hoverPopup. Attention : les deux PEUVENT se disputer
+    // le pointeur — les pills sont enfants de getCanvasContainer(), donc leur
+    // survol remonte jusqu'au gestionnaire de la carte. L'arbitrage est fait
+    // dans le handler mousemove (la fiche node prime).
+    const coveragePopup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 8,
+      className: "mf-popup",
+    });
+
+    // Un échec NE DOIT PAS se traduire par une couche vide : la carte dirait
+    // alors « aucune mesure » — le contresens exact que la légende et
+    // docs/analytics.md interdisent. On remonte donc l'erreur à l'UI.
+    // Le verrou temporel évite en plus la tempête de requêtes : sans lui,
+    // chaque frappe dans la recherche relance un /api/coverage vers un backend
+    // déjà en échec (coverageRef restant null, applyCoverage rappelle ici).
+    const RETRY_COOLDOWN_MS = 30_000;
+    let coverageFailedAt = 0;
+
+    const loadCoverage = (): void => {
+      if (coverageFetching || coverageRef.current) return;
+      if (coverageFailedAt && Date.now() - coverageFailedAt < RETRY_COOLDOWN_MS) {
+        return;
+      }
+      coverageFetching = true;
+      fetch("/api/coverage")
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<CoverageResponse>;
+        })
+        .then((res) => {
+          if (!alive) return;
+          coverageFailedAt = 0;
+          coverageRef.current = res;
+          setCoverageError(false);
+          applyCoverage();
+        })
+        .catch((err) => {
+          if (!alive) return;
+          coverageFailedAt = Date.now();
+          setCoverageError(true);
+          console.error("[couverture] chargement impossible :", err);
+        })
+        .finally(() => {
+          coverageFetching = false;
+        });
+    };
+
+    const applyCoverage = (): void => {
+      // Garde `alive` AVANT toute touche à la carte, comme refreshNodes et
+      // nodesSource : ceinture et bretelles avec la remise à zéro de la ref au
+      // démontage, puisque cette fonction est atteignable par une ref partagée.
+      if (!alive) return;
+      const src = map.getSource(COVERAGE_SOURCE) as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!src) return;
+      const { coverage } = filtersRef.current;
+      const on = coverage !== "off";
+
+      for (const id of [COVERAGE_FILL_ID, COVERAGE_LINE_ID]) {
+        if (map.getLayer(id)) {
+          map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+        }
+      }
+      if (!on) {
+        coveragePopup.remove();
+        return;
+      }
+      if (!coverageRef.current) {
+        loadCoverage();
+        return;
+      }
+      const { tiles, z } = coverageRef.current;
+      src.setData(toCoverageGeoJSON(tiles, z, coverage));
+    };
+    coverageSyncRef.current = applyCoverage;
+
     map.on("load", () => {
       map.addSource("nodes", {
         type: "geojson",
@@ -490,6 +598,30 @@ export function useMapController({
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+      map.addSource(COVERAGE_SOURCE, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      // Insérées SOUS la première couche symbole du fond de carte. Sans
+      // `beforeId`, MapLibre empile en fin de liste, donc AU-DESSUS de tout le
+      // style — y compris les libellés de villes et de routes, qui se
+      // retrouveraient teintés par le remplissage. Or c'est précisément le fond
+      // de carte qui donne son sens à la mesure (relief, axes) : il doit rester
+      // lisible. Les liens de la toile et les pills, ajoutés ensuite sans
+      // beforeId, restent au-dessus.
+      const firstSymbolId = map
+        .getStyle()
+        .layers?.find((l) => l.type === "symbol")?.id;
+
+      map.addLayer(
+        { ...COVERAGE_FILL_LAYER, layout: { visibility: "none" } },
+        firstSymbolId,
+      );
+      map.addLayer(
+        { ...COVERAGE_LINE_LAYER, layout: { visibility: "none" } },
+        firstSymbolId,
+      );
 
       map.addLayer({
         id: "nodes-hit",
@@ -502,6 +634,31 @@ export function useMapController({
       map.addLayer(MESH_BADGE_LAYER);
       refreshNodes();
       loadObservations();
+      applyCoverage(); // déclenche le chargement paresseux si la couche est déjà active
+    });
+
+    // Infobulle de tuile : c'est là qu'on lit la redondance et le nombre de
+    // mesures. `samples` est affiché pour que la confiance soit visible — une
+    // tuile à 2 mesures ne vaut pas une tuile à 200.
+    map.on("mousemove", COVERAGE_FILL_ID, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      // Les pills de nodes sont des enfants de getCanvasContainer(), sur lequel
+      // MapLibre écoute : leur survol REMONTE jusqu'ici et déclenche cet
+      // événement. Sans cette garde, la carte de tuile s'ouvre par-dessus la
+      // fiche du node et la masque. La fiche node prime.
+      if (hoverPopup.isOpen()) return;
+      map.getCanvas().style.cursor = "crosshair";
+      coveragePopup
+        .setLngLat(e.lngLat)
+        .setDOMContent(
+          coverageCard(f.properties as Record<string, unknown>, coverageRef.current?.z ?? 0),
+        )
+        .addTo(map);
+    });
+    map.on("mouseleave", COVERAGE_FILL_ID, () => {
+      map.getCanvas().style.cursor = "";
+      coveragePopup.remove();
     });
 
     map.on("data", (e) => {
@@ -556,6 +713,13 @@ export function useMapController({
     return () => {
       alive = false;
       refreshRef.current = () => {};
+      // MÊME RAISON que refreshRef : ces refs survivent à l'effet. Sans cette
+      // remise à zéro, l'effet [filters] du remontage (navigation Carte ->
+      // Listes -> Carte) appelle l'applyCoverage de la carte DÉTRUITE, dont le
+      // premier geste est map.getSource() — or map.remove() a supprimé
+      // `map.style`, d'où un TypeError qui empêche la nouvelle carte de
+      // s'initialiser. La carte reste alors définitivement vide.
+      coverageSyncRef.current = () => {};
       es.close();
       if (observationsTimer !== null) window.clearTimeout(observationsTimer);
       if (meshRaf !== null) cancelAnimationFrame(meshRaf);
@@ -564,5 +728,5 @@ export function useMapController({
     };
   }, [bounds, containerRef, minZoom]);
 
-  return { roleOptions };
+  return { roleOptions, coverageError };
 }

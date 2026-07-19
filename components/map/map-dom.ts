@@ -92,3 +92,44 @@ export function hoverCard(p: Record<string, unknown>): HTMLElement {
   }
   return el;
 }
+
+// Infobulle d'une tuile de couverture. Volontairement chiffrée et sans
+// interprétation : la couche sert à décider où poser un relais, donc l'usager
+// doit voir la CONFIANCE (nb de mesures) autant que la valeur.
+export function coverageCard(
+  p: Record<string, unknown>,
+  z: number,
+): HTMLElement {
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const snrP90 = num(p.snrP90);
+  const snrMax = num(p.snrMax);
+
+  const el = document.createElement("div");
+  el.style.color = "#111";
+  el.style.fontSize = "12px";
+  el.style.lineHeight = "1.4";
+
+  const title = document.createElement("div");
+  title.style.fontWeight = "600";
+  title.textContent = `Couverture (maille z${z})`;
+  el.appendChild(title);
+
+  const line = (text: string, muted = false): void => {
+    const d = document.createElement("div");
+    if (muted) d.style.color = "#666";
+    d.textContent = text;
+    el.appendChild(d);
+  };
+
+  line(
+    snrP90 === null
+      ? "Meilleur lien : non mesurable"
+      : `Meilleur lien (p90) : ${snrP90.toFixed(1)} dB`,
+  );
+  if (snrMax !== null) line(`Meilleure réception : ${snrMax.toFixed(1)} dB`, true);
+  line(`Relais joignables : ${Number(p.gateways ?? 0)}`);
+  line(`Émetteurs distincts : ${Number(p.nodes ?? 0)}`);
+  line(`${Number(p.samples ?? 0)} mesure(s) sur 30 j`, true);
+  return el;
+}
