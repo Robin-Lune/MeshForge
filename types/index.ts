@@ -154,6 +154,42 @@ export interface Observation {
 }
 
 // ---------------------------------------------------------------------------
+// Couverture radio par tuile (API /api/coverage, couche carte « VeloViewer »).
+// ---------------------------------------------------------------------------
+
+// Métrique affichée par la couche. Le nombre de PAQUETS n'en fait volontairement
+// pas partie : rien n'est dédoublonné en base (un même paquet est stocké une
+// fois par gateway l'ayant capté, et deux fois s'il arrive sur /json/ ET /e/),
+// donc ce comptage mesurerait le trafic, pas la couverture.
+export type CoverageMetric = "snr" | "gateways" | "nodes";
+
+// État du sélecteur de couverture sur la carte. Un SEUL état plutôt qu'un
+// booléen + une métrique : « couche éteinte » et « métrique choisie » ne peuvent
+// donc pas diverger, et il n'y a pas de métrique fantôme mémorisée hors écran.
+export type CoverageSelection = "off" | CoverageMetric;
+
+// Une tuile agrégée. (x,y) sont les indices slippy au zoom `z` de la réponse ;
+// la géométrie est reconstruite côté client via tileToBounds (lib/tiles.ts).
+// AUCUN identifiant ni horodatage : la tuile est un agrégat non attribué.
+export interface CoverageTile {
+  x: number;
+  y: number;
+  snrP90: number | null; // « meilleur lien atteignable », robuste aux aubaines
+  snrMax: number | null; // meilleure réception observée (infobulle)
+  gateways: number; // relais DISTINCTS joignables en direct depuis la tuile
+  nodes: number; // émetteurs distincts observés dans la tuile
+  samples: number; // réceptions retenues (diagnostic de confiance)
+}
+
+// Le zoom est porté par la réponse : il est configurable (coverage_tile_zoom) et
+// le client en a besoin pour reconstruire la géométrie des tuiles.
+export interface CoverageResponse {
+  z: number;
+  tileCount: number; // 2^z — nb de tuiles par côté du monde
+  tiles: CoverageTile[];
+}
+
+// ---------------------------------------------------------------------------
 // Diagnostic « Voisinage réseau » de la fiche node (/node/[id]).
 // ---------------------------------------------------------------------------
 

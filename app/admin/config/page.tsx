@@ -6,7 +6,12 @@ import SiteHeader from "@/components/SiteHeader";
 import AdminNav from "@/components/AdminNav";
 import { isAdmin } from "@/lib/admin";
 import { isSameOrigin } from "@/lib/security";
-import { getAllSettings, setSetting } from "@/lib/queries/settings";
+import {
+  getAllSettings,
+  setSetting,
+  MIN_COVERAGE_TILE_ZOOM,
+  MAX_COVERAGE_TILE_ZOOM,
+} from "@/lib/queries/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +85,18 @@ async function saveZoom(formData: FormData) {
   let error: string | null = null;
   try {
     await setSetting("map_min_zoom", String(formData.get("value") ?? ""));
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  done(error);
+}
+
+async function saveCoverageTileZoom(formData: FormData) {
+  "use server";
+  await requireAdminMutation(done);
+  let error: string | null = null;
+  try {
+    await setSetting("coverage_tile_zoom", String(formData.get("value") ?? ""));
   } catch (e) {
     error = (e as Error).message;
   }
@@ -338,6 +355,24 @@ export default async function ConfigPage({
                 max={22}
                 step="any"
                 defaultValue={s.map_min_zoom}
+                className={numCls}
+              />
+              <button className={btnCls}>OK</button>
+            </form>
+          </Section>
+
+          <Section
+            title="Maille de la couche de couverture"
+            hint="Taille des tuiles de couverture radio. z13 ≈ 4,6 km · z14 ≈ 2,3 km · z15 ≈ 1,15 km · z16 ≈ 570 m (à La Réunion). Fixe aussi la précision de position minimale acceptée : un node qui diffuse une position plus grossière que la maille est écarté. Attention : les métriques de comptage (relais, émetteurs) ne sont pas comparables d’un réglage à l’autre, et le changement met jusqu’à ~10 min à se propager (cache)."
+          >
+            <form action={saveCoverageTileZoom} className="flex gap-2">
+              <input
+                name="value"
+                type="number"
+                min={MIN_COVERAGE_TILE_ZOOM}
+                max={MAX_COVERAGE_TILE_ZOOM}
+                step={1}
+                defaultValue={s.coverage_tile_zoom}
                 className={numCls}
               />
               <button className={btnCls}>OK</button>
