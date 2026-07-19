@@ -116,6 +116,13 @@ describe("parseMapReport", () => {
     expect(parsed?.firmware).toBe("2.7.15.567b8ea08");
   });
 
+  it("map-report sans champ role (firmware CLIENT réel) -> CLIENT", () => {
+    // role absent du fil (proto3 n'encode pas la valeur par défaut 0) : sans le
+    // `?? 0` du parser, role sortirait à null et un CLIENT ne serait jamais écrit.
+    const parsed = parseMapReport(TOPIC, packet({ mapReport: { role: undefined } }), CHANNELS);
+    expect(parsed?.role).toBe("CLIENT");
+  });
+
   it("ignore les canaux hors allowlist", () => {
     const parsed = parseMapReport(
       TOPIC,

@@ -70,7 +70,9 @@ export function parseMessage(
     shortName: isNodeInfo ? strOrNull(payload.shortname) : null,
     hwModel: isNodeInfo ? hardwareModelName(payload.hardware) : null,
     firmware: null,
-    role: isNodeInfo ? deviceRoleName(payload.role) : null,
+    // `?? 0` par cohérence avec les parsers protobuf : si la gateway JSON omet
+    // la clé `role`, on retombe sur le défaut Meshtastic (CLIENT) plutôt que null.
+    role: isNodeInfo ? deviceRoleName(payload.role ?? 0) : null,
     // NeighborInfo / Traceroute : données diagnostiques attachées à la trame.
     // JSON : le barème SNR des traceroute n'est pas fiable -> SNR par saut null ;
     // sans want_response, le sens est indéterminé -> pas de segments (cf. tracerouteInfo).

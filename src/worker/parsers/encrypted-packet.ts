@@ -469,7 +469,11 @@ function packetFromUser(
     longName: strOrNull(user.long_name),
     shortName: strOrNull(user.short_name),
     hwModel: hardwareModelName(user.hw_model),
-    role: deviceRoleName(user.role),
+    // proto3 n'émet pas les champs à leur valeur par défaut : un node en rôle
+    // CLIENT (enum 0) envoie un User SANS champ `role` -> toObject renvoie
+    // `undefined`. Dans un NodeInfo on SAIT que le rôle par défaut est CLIENT,
+    // donc `?? 0`, sinon un passage en CLIENT ne serait jamais enregistré.
+    role: deviceRoleName(user.role ?? 0),
   });
 }
 
