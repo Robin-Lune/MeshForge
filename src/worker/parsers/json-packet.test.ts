@@ -169,6 +169,20 @@ describe("parseMessage — champs nodeinfo", () => {
     expect(parsed?.role).toBe("CLIENT");
   });
 
+  it("nodeinfo sans clé role -> défaut CLIENT", () => {
+    // Si la gateway JSON omet la clé `role`, on retombe sur le défaut Meshtastic
+    // (CLIENT) au lieu de null, par cohérence avec les parsers protobuf.
+    const parsed = parseMessage(
+      topic("Fr_Balise"),
+      raw({
+        type: "nodeinfo",
+        payload: { longname: "Piton", shortname: "PIT", hardware: 110 },
+      }),
+      CHANNELS,
+    );
+    expect(parsed?.role).toBe("CLIENT");
+  });
+
   it("packetType null si le type est absent", () => {
     const parsed = parseMessage(topic("Fr_Balise"), raw({ type: undefined }), CHANNELS);
     expect(parsed?.packetType).toBeNull();

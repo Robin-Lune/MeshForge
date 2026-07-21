@@ -185,7 +185,9 @@ export function parseMapReport(
     shortName: strOrNull(report.short_name),
     hwModel: hardwareModelName(report.hw_model),
     firmware: strOrNull(report.firmware_version),
-    role: deviceRoleName(report.role),
+    // Même piège proto3 que le NodeInfo : rôle CLIENT (enum 0) absent du fil
+    // -> `report.role` undefined. `?? 0` pour ne pas perdre un passage en CLIENT.
+    role: deviceRoleName(report.role ?? 0),
     raw,
   };
 }

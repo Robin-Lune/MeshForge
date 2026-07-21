@@ -207,6 +207,32 @@ describe("parseEncryptedPacket", () => {
     expect(parsed?.role).toBe("CLIENT");
   });
 
+  // Cas FIDÈLE au firmware : un node en rôle CLIENT (enum 0) émet un User SANS
+  // champ `role` (proto3 n'encode pas les valeurs par défaut). Le test précédent
+  // force `role: 0` sur le fil via User.create, ce qu'aucun firmware ne fait ->
+  // il ne couvrait pas ce cas. Sans le `?? 0` du parser, role sortirait à null
+  // et un passage en CLIENT ne serait jamais enregistré en base.
+  it("décode un NODEINFO sans champ role (firmware CLIENT réel) -> CLIENT", () => {
+    const payload = User.encode(
+      User.create({
+        long_name: "Piton",
+        short_name: "PIT",
+        hw_model: 110,
+        // role volontairement absent : c'est ce qu'envoie un vrai node CLIENT
+      }),
+    ).finish();
+
+    const parsed = single(parseEncryptedPacket(
+      TOPIC,
+      envelope(4, payload),
+      CHANNELS,
+      parseChannelKeys("Fr_Balise:AQ=="),
+    ));
+
+    expect(parsed?.packetType).toBe("nodeinfo");
+    expect(parsed?.role).toBe("CLIENT");
+  });
+
   it("décode un /e/ TELEMETRY_APP chiffré", () => {
     const payload = Telemetry.encode(
       Telemetry.create({
