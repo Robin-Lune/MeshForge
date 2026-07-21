@@ -5,6 +5,7 @@ export const ALLOWED_TEXT_MARKERS = [
   "/SOS",
   "/ALL",
   "/SECOURS",
+  "/cortana",
 ] as const;
 
 export function textPayload(raw: RawMeshtasticPacket): string | null {
