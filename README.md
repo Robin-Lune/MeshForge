@@ -74,7 +74,7 @@ dupliquer le nom déjà visible.
 
 ## 🚀 Développement local
 
-**Prérequis** : Node 20+, Yarn, Docker.
+**Prérequis** : Node 20.19+, Yarn, Docker.
 
 ```bash
 git clone https://github.com/Robin-Lune/meshforge.git

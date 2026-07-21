@@ -29,7 +29,12 @@ export default defineConfig({
       // fichiers comparés, aucun écart), sans le coût de l'instrumentation.
       provider: "v8",
       reporter: ["text", "json-summary"],
-      include: ["app/**", "components/**", "lib/**", "src/**"],
+      include: [
+        "app/**/*.{ts,tsx}",
+        "components/**/*.{ts,tsx}",
+        "lib/**/*.{ts,tsx}",
+        "src/**/*.{ts,tsx}",
+      ],
       exclude: [
         "**/*.test.*",
         "**/*.d.ts",
