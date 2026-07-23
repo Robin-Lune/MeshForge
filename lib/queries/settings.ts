@@ -16,6 +16,7 @@ export type SettingKey =
   | "public_channels"
   | "map_bounds"
   | "map_min_zoom"
+  | "coverage_tile_zoom"
   | "legal_info"
   | "mqtt_onboarding";
 
@@ -43,6 +44,7 @@ interface SettingValues {
   public_channels: string[];
   map_bounds: MapBounds | null;
   map_min_zoom: number;
+  coverage_tile_zoom: number;
   legal_info: LegalInfo;
   mqtt_onboarding: MqttOnboarding;
 }
@@ -51,6 +53,20 @@ export const DEFAULT_MAX_PACKETS_24H = 1000;
 const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
 const REUNION_BOUNDS: MapBounds = { west: 54.7, south: -21.9, east: 56.3, north: -20.4 };
 const DEFAULT_MIN_ZOOM = 8;
+
+// Maille des tuiles de couverture radio (cf. lib/tiles.ts, coverage-tiles.ts).
+// z15 ≈ 1,15 km de côté à La Réunion : le relief (remparts, cirques) fait
+// basculer la couverture sur quelques centaines de mètres, une maille plus
+// grossière moyennerait les deux versants d'une crête en une seule valeur.
+// Plage VOLONTAIREMENT ÉTROITE :
+//  - plancher 12 (~9 km) : au-delà la couche ne dit plus rien d'utile ;
+//  - plafond 16 (~570 m) : au-delà on descend SOUS le flou de 500 m appliqué
+//    aux marqueurs publics (snapToGrid), donc la couche agrégée exposerait une
+//    granularité plus fine que le reste de la carte — et le nombre de tuiles
+//    explose (×4 par niveau).
+export const DEFAULT_COVERAGE_TILE_ZOOM = 15;
+export const MIN_COVERAGE_TILE_ZOOM = 12;
+export const MAX_COVERAGE_TILE_ZOOM = 16;
 const DEFAULT_LEGAL_INFO: LegalInfo = {
   companyName: "À compléter",
   companyType: "À compléter",
@@ -174,6 +190,30 @@ export function requireZoom(raw: unknown): number {
   return n;
 }
 
+// --- Maille des tuiles de couverture : ENTIER dans [12,16] ---
+// Entier obligatoire (≠ map_min_zoom qui accepte les décimaux) : il sert
+// d'exposant à 2^z côté SQL. Un z20 par faute de frappe générerait des millions
+// de tuiles, d'où la plage stricte.
+const isTileZoom = (n: number): boolean =>
+  Number.isInteger(n) &&
+  n >= MIN_COVERAGE_TILE_ZOOM &&
+  n <= MAX_COVERAGE_TILE_ZOOM;
+
+export function parseCoverageTileZoom(raw: unknown, fallback: number): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return isTileZoom(n) ? n : fallback;
+}
+
+export function requireCoverageTileZoom(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!isTileZoom(n)) {
+    throw new Error(
+      `maille invalide : entier dans [${MIN_COVERAGE_TILE_ZOOM},${MAX_COVERAGE_TILE_ZOOM}] attendu`,
+    );
+  }
+  return n;
+}
+
 const LEGAL_FIELDS: (keyof LegalInfo)[] = [
   "companyName",
   "companyType",
@@ -291,6 +331,12 @@ const SPECS: { [K in SettingKey]: Spec<K> } = {
     default: DEFAULT_MIN_ZOOM,
     parseStored: (raw) => parseZoom(raw, DEFAULT_MIN_ZOOM),
     validateInput: (raw) => requireZoom(raw),
+  },
+  coverage_tile_zoom: {
+    default: DEFAULT_COVERAGE_TILE_ZOOM,
+    parseStored: (raw) =>
+      parseCoverageTileZoom(raw, DEFAULT_COVERAGE_TILE_ZOOM),
+    validateInput: (raw) => requireCoverageTileZoom(raw),
   },
   legal_info: {
     default: DEFAULT_LEGAL_INFO,

@@ -53,12 +53,14 @@ export default defineConfig({
       // l'introduction de cette configuration. Elles ne doivent que MONTER —
       // leur rôle est d'interdire la régression, pas d'attester une cible
       // atteinte. L'objectif de 100 % se construit module par module.
-      // Mesuré à l'introduction : 31,31 / 36,97 / 33,44 / 31,24.
+      // Historique du cliquet — ces valeurs ne doivent que MONTER :
+      //   introduction de la configuration : 31,31 / 36,97 / 33,44 / 31,24
+      //   couche de couverture testée      : 35,66 / 40,74 / 37,57 / 35,92
       thresholds: {
-        statements: 30,
-        branches: 35,
-        functions: 32,
-        lines: 30,
+        statements: 34,
+        branches: 39,
+        functions: 36,
+        lines: 34,
       },
     },
   },

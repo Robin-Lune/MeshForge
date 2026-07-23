@@ -74,7 +74,7 @@ body > * {
 }
 
 .mf-map .maplibregl-ctrl-top-right {
-  top: 5.75rem;
+  top: 9.5rem;
   right: 0.75rem;
 }
 
@@ -221,6 +221,12 @@ body > * {
 }
 
 @media (min-width: 640px) {
+  .mf-map .maplibregl-ctrl-top-right {
+    top: 6.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
   .mf-map .maplibregl-ctrl-top-right {
     top: 4.5rem;
   }

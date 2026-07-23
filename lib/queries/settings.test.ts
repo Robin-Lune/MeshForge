@@ -8,6 +8,11 @@ import {
   requireMapBounds,
   parseZoom,
   requireZoom,
+  parseCoverageTileZoom,
+  requireCoverageTileZoom,
+  DEFAULT_COVERAGE_TILE_ZOOM,
+  MIN_COVERAGE_TILE_ZOOM,
+  MAX_COVERAGE_TILE_ZOOM,
   parseLegalInfo,
   requireLegalInfo,
   parseMqttOnboarding,
@@ -223,5 +228,47 @@ describe("parseMqttOnboarding / requireMqttOnboarding", () => {
     expect(() =>
       requireMqttOnboarding({ ...MQTT_FALLBACK, rootTopic: "x".repeat(121) }),
     ).toThrow();
+  });
+});
+
+// La maille conditionne le SQL (2^z) et la granularité publique : un réglage
+// hors plage doit être refusé à l'écriture, jamais silencieusement accepté
+// (z20 = millions de tuiles ; z17+ = plus fin que le flou public).
+describe("coverage_tile_zoom — maille des tuiles de couverture", () => {
+  it("lecture : accepte un entier dans la plage", () => {
+    expect(parseCoverageTileZoom(13, DEFAULT_COVERAGE_TILE_ZOOM)).toBe(13);
+    expect(parseCoverageTileZoom("16", DEFAULT_COVERAGE_TILE_ZOOM)).toBe(16);
+  });
+
+  it("lecture : retombe sur le défaut hors plage ou non entier", () => {
+    for (const bad of [11, 17, 20, 15.5, "abc", null, {}]) {
+      expect(parseCoverageTileZoom(bad, DEFAULT_COVERAGE_TILE_ZOOM)).toBe(
+        DEFAULT_COVERAGE_TILE_ZOOM,
+      );
+    }
+  });
+
+  it("écriture : accepte les bornes incluses", () => {
+    expect(requireCoverageTileZoom(MIN_COVERAGE_TILE_ZOOM)).toBe(
+      MIN_COVERAGE_TILE_ZOOM,
+    );
+    expect(requireCoverageTileZoom(MAX_COVERAGE_TILE_ZOOM)).toBe(
+      MAX_COVERAGE_TILE_ZOOM,
+    );
+  });
+
+  it("écriture : refuse hors plage, non entier et non numérique", () => {
+    expect(() => requireCoverageTileZoom(MIN_COVERAGE_TILE_ZOOM - 1)).toThrow();
+    expect(() => requireCoverageTileZoom(MAX_COVERAGE_TILE_ZOOM + 1)).toThrow();
+    expect(() => requireCoverageTileZoom(20)).toThrow();
+    expect(() => requireCoverageTileZoom(15.5)).toThrow();
+    expect(() => requireCoverageTileZoom("z15")).toThrow();
+    expect(() => requireCoverageTileZoom(null)).toThrow();
+  });
+
+  it("le défaut est dans la plage autorisée", () => {
+    expect(requireCoverageTileZoom(DEFAULT_COVERAGE_TILE_ZOOM)).toBe(
+      DEFAULT_COVERAGE_TILE_ZOOM,
+    );
   });
 });

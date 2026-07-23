@@ -329,11 +329,13 @@ seuil sur les *statements*, qui est celui qui mord.
 
 Politique : **public par défaut** (norme Meshtastic — un node qui uplinke est diffusé largement), **mais** consentement respecté à la source et droit de retrait.
 
-- **`precision_bits`** du node honoré : on n'affiche jamais une position plus précise que ce que le node diffuse.
-- **`ok_to_mqtt = false`** → node exclu de l'affichage.
-- **Nodes mobiles** → position snappée sur une cellule **~500 m constante** (jamais re-randomisée : un flou aléatoire se moyennerait et révélerait le vrai point).
-- **`Fr_EMCOM`** (urgence) + canaux privés/chiffrés → contenu et positions **jamais** exposés.
+- **Nodes mobiles** → position snappée sur une cellule **~500 m constante** (jamais re-randomisée : un flou aléatoire se moyennerait et révélerait le vrai point). `is_mobile = TRUE` est le **défaut prudent** : un node est flouté tant qu'un admin ne l'a pas déclaré relais fixe.
+- **Consentement MapReport** : la position d'un paquet `MAP_REPORT` n'est retenue que si le node a activé `has_opted_report_location` ; sinon elle est écartée, y compris du payload brut conservé. ⚠️ Ce garde-fou ne vaut **que pour les MapReport** — un `POSITION_APP` diffusé en clair sur un canal public est ingéré tel quel, conformément au protocole.
+- **Canaux** : le worker n'ingère **que** les canaux de l'allowlist `public_channels` (default-deny). C'est elle qui protège, *pas* le chiffrement : un canal `/e/` dont la PSK est fournie via `MESHTASTIC_CHANNEL_KEYS` est bel et bien déchiffré.
+- **`Fr_EMCOM`** (urgence) : les **trames** sont exclues de toute vue (flux brut, vue passerelle, couche de couverture). ⚠️ En revanche, `upsertNode` s'exécute pour tout paquet ingéré, sans distinction de canal : un node entendu **uniquement** sur `Fr_EMCOM` alimente quand même `nodes.last_lat/last_lon` et **apparaît donc sur la carte publique**. La table `nodes` ne conserve aucune provenance de canal, donc l'affichage ne peut pas l'en distinguer. Retirer un tel node demande un opt-out explicite (`excluded`).
 - **Opt-out, anonymisation et suppression** depuis `/node/[id]` (admin). L'anonymisation est **permanente** : les noms ne reviennent pas au prochain `nodeinfo` (colonne `anonymized`).
+- **`precision_bits`** (précision de position réglée sur l'appareil) : décodé par les parsers et conservé dans `packets.raw`, mais **honoré uniquement par la couche de couverture**. Celle-ci reconstitue la zone d'incertitude du masque Meshtastic et ne retient la mesure que si toute la zone tient dans une seule tuile ; une valeur absente ou invalide est refusée. L'affichage des marqueurs ne le lit pas : le floutage y repose sur `is_mobile`/`snapToGrid`. À ne pas présenter comme une garantie générale.
+- **Couche de couverture** (tuiles) : agrégat non attribué (ni `node_id`, ni horodatage précis), utilisable avec une seule sonde, limité aux canaux publics, opt-out RGPD appliqué, et maille bornée à `[12,16]`. Voir **[`docs/analytics.md`](docs/analytics.md)** pour la frontière agrégat/individu.
 
 ---
 

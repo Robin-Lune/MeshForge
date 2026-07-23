@@ -1,11 +1,45 @@
-import { SNR_GOOD } from "./signal-color";
+"use client";
+
+import type { CoverageMetric, CoverageSelection } from "@/types";
+import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
 
 type MapLegendProps = {
   open: boolean;
   onToggle: () => void;
+  coverage: CoverageSelection;
+  coverageError: boolean;
 };
 
-export function MapLegend({ open, onToggle }: MapLegendProps) {
+// Paliers affichés pour la métrique active. Les libellés des comptages sont
+// ceux utilisés par tileFillColor (coverage-layer.ts) — les deux doivent rester alignés.
+const COVERAGE_SCALE: Record<
+  CoverageMetric,
+  { color: string; label: string }[]
+> = {
+  snr: [
+    { color: SNR_GOOD, label: "Bon lien (SNR > −7 dB)" },
+    { color: SNR_FAIR, label: "Lien correct (−7 à −15 dB)" },
+    { color: SNR_BAD, label: "Lien limite (< −15 dB)" },
+    { color: SNR_UNKNOWN_COLOR, label: "Mesure inexploitable" },
+  ],
+  gateways: [
+    { color: SNR_GOOD, label: "3 relais ou plus depuis un même point" },
+    { color: SNR_FAIR, label: "2 relais depuis un même point" },
+    { color: SNR_BAD, label: "1 seul relais (fragile)" },
+  ],
+  nodes: [
+    { color: SNR_GOOD, label: "3 émetteurs ou plus" },
+    { color: SNR_FAIR, label: "2 émetteurs" },
+    { color: SNR_BAD, label: "1 seul émetteur" },
+  ],
+};
+
+export function MapLegend({
+  open,
+  onToggle,
+  coverage,
+  coverageError,
+}: MapLegendProps) {
   return (
     <div className="pointer-events-none absolute bottom-14 sm:bottom-6 left-2 right-2 z-[120] sm:right-auto">
       {open && (
@@ -62,9 +96,58 @@ export function MapLegend({ open, onToggle }: MapLegendProps) {
                 Nombre de paquets sur le lien (au survol)
               </span>
             </div>
+
+            {coverage !== "off" && coverageError && (
+              <>
+                <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+                  Couverture radio
+                </div>
+                {/* Une couche vide sur échec de chargement se lirait « aucune
+                    mesure ». On le dit explicitement pour couper court. */}
+                <div className="flex min-w-0 items-start gap-2">
+                  <span aria-hidden className="flex-none">
+                    ⚠️
+                  </span>
+                  <span className="min-w-0 break-words">
+                    <strong>Données indisponibles</strong> — le chargement a
+                    échoué. L&apos;absence de tuiles ne reflète pas la couverture
+                    réelle.
+                  </span>
+                </div>
+              </>
+            )}
+
+            {coverage !== "off" && !coverageError && (
+              <>
+                <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+                  Couverture radio
+                </div>
+                {COVERAGE_SCALE[coverage].map(({ color, label }) => (
+                  <div key={label} className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="h-4 w-10 flex-none rounded-sm"
+                      style={{ background: color, opacity: 0.45 }}
+                    />
+                    <span className="min-w-0 break-words">{label}</span>
+                  </div>
+                ))}
+                {/* ENTRÉE ESSENTIELLE : sans elle, une zone blanche se lit
+                    « pas de réseau » alors qu'elle veut dire « aucune mesure
+                    attribuable ». La confusion rendrait la couche trompeuse
+                    pour décider où poser un relais — précisément son usage. */}
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="h-4 w-10 flex-none rounded-sm border border-dashed border-black/30 dark:border-white/30" />
+                  <span className="min-w-0 break-words">
+                    <strong>Non exploré</strong> — aucune mesure attribuable, ne
+                    signifie pas absence de réseau
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
+
       <button
         type="button"
         onClick={onToggle}

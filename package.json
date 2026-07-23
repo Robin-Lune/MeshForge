@@ -15,6 +15,7 @@
     "worker": "tsx src/worker/mqtt-subscriber.ts",
     "worker:dev": "tsx watch src/worker/mqtt-subscriber.ts",
     "create-admin": "tsx scripts/create-admin.ts",
+    "check-tile-parity": "tsx scripts/check-tile-parity.ts",
     "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build"
   },
   "dependencies": {
