@@ -201,22 +201,42 @@ const SELECT_ADMIN_PAGE = `
     created_at AS "createdAt",
     COUNT(*) OVER() AS "totalCount"
   FROM contributors
+  WHERE (
+    $1::text = ''
+    OR username ILIKE $1
+    OR COALESCE(node_name, '') ILIKE $1
+    OR COALESCE(email, '') ILIKE $1
+  )
   ORDER BY created_at DESC, id DESC
-  LIMIT $1 OFFSET $2
+  LIMIT $2 OFFSET $3
 `;
 
-const COUNT_CONTRIBUTORS = `SELECT COUNT(*) AS count FROM contributors`;
+const COUNT_CONTRIBUTORS = `
+  SELECT COUNT(*) AS count
+  FROM contributors
+  WHERE (
+    $1::text = ''
+    OR username ILIKE $1
+    OR COALESCE(node_name, '') ILIKE $1
+    OR COALESCE(email, '') ILIKE $1
+  )
+`;
 
 export async function getContributorsAdminPage(
   limit: number,
   offset: number,
+  search = "",
 ): Promise<ContributorsAdminPage> {
+  const query = search.trim();
+  const searchParam = query ? `%${query}%` : "";
   const { rows } = await pool.query<ContributorAdminPageRow>(
     SELECT_ADMIN_PAGE,
-    [limit, offset],
+    [searchParam, limit, offset],
   );
   if (rows.length === 0) {
-    const count = await pool.query<{ count: string }>(COUNT_CONTRIBUTORS);
+    const count = await pool.query<{ count: string }>(COUNT_CONTRIBUTORS, [
+      searchParam,
+    ]);
     return { contributors: [], total: Number(count.rows[0]?.count ?? 0) };
   }
   return {

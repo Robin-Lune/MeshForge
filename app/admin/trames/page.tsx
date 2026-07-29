@@ -16,9 +16,14 @@ function fmt(v: string | number | null): string {
 }
 
 // Vue par défaut : aperçu de chaque gateway (charge & portée). Clic -> ses trames.
-async function GatewayOverview() {
-  const gateways = await getGatewayOverview();
+async function GatewayOverview({ query }: { query: string }) {
+  const gateways = await getGatewayOverview(query);
   const now = new Date();
+  const gatewayHref = (gatewayId: string): string => {
+    const params = new URLSearchParams({ gateway: gatewayId });
+    if (query) params.set("q", query);
+    return `/admin/trames?${params.toString()}`;
+  };
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
       <div className="mb-4 flex items-baseline justify-between">
@@ -34,15 +39,46 @@ async function GatewayOverview() {
         Choisis un gateway pour étudier ses 200 dernières trames. Fr_EMCOM exclu.
       </p>
 
+      <form
+        action="/admin/trames"
+        className="mb-4 flex max-w-lg flex-wrap gap-2"
+      >
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Rechercher un gateway (nom ou ID)…"
+          className="min-w-60 flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/15"
+        />
+        <button
+          type="submit"
+          className="rounded-lg border border-black/15 px-3 py-1.5 text-sm font-medium dark:border-white/20"
+        >
+          Rechercher
+        </button>
+        {query && (
+          <Link
+            href="/admin/trames"
+            className="rounded-lg px-2 py-1.5 text-sm text-zinc-500 hover:text-current"
+          >
+            Effacer
+          </Link>
+        )}
+      </form>
+
       {gateways.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucun gateway actif.</p>
+        <p className="text-sm text-zinc-500">
+          {query
+            ? "Aucun gateway ne correspond à cette recherche."
+            : "Aucun gateway actif."}
+        </p>
       ) : (
         <>
         <div className="grid gap-3 md:hidden">
           {gateways.map((g) => (
             <Link
               key={g.gatewayId}
-              href={`/admin/trames?gateway=${encodeURIComponent(g.gatewayId)}`}
+              href={gatewayHref(g.gatewayId)}
               className="rounded-lg border border-black/10 bg-white/[0.02] p-3 transition-colors hover:border-accent/60 dark:border-white/15"
             >
               <div className="flex items-start justify-between gap-3">
@@ -95,7 +131,7 @@ async function GatewayOverview() {
                 >
                   <td className="px-3 py-2">
                     <Link
-                      href={`/admin/trames?gateway=${encodeURIComponent(g.gatewayId)}`}
+                      href={gatewayHref(g.gatewayId)}
                       className="font-medium hover:underline"
                     >
                       {g.name ?? g.gatewayId}
@@ -123,7 +159,13 @@ async function GatewayOverview() {
 }
 
 // Vue détail : 200 dernières trames d'un gateway (ou de tous si `all`).
-async function FramesView({ gateway }: { gateway: string }) {
+async function FramesView({
+  gateway,
+  query,
+}: {
+  gateway: string;
+  query: string;
+}) {
   const gatewayId = gateway === "all" ? null : gateway;
   const trames = await getRecentPackets(200, gatewayId);
   const now = new Date();
@@ -133,7 +175,11 @@ async function FramesView({ gateway }: { gateway: string }) {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
       <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <Link
-          href="/admin/trames"
+          href={
+            query
+              ? `/admin/trames?q=${encodeURIComponent(query)}`
+              : "/admin/trames"
+          }
           className="text-sm text-zinc-500 hover:text-current"
         >
           ← Gateways
@@ -273,16 +319,21 @@ async function FramesView({ gateway }: { gateway: string }) {
 export default async function TramesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gateway?: string }>;
+  searchParams: Promise<{ gateway?: string; q?: string }>;
 }) {
   if (!(await isAdmin())) redirect("/admin/login");
-  const { gateway } = await searchParams;
+  const { gateway, q } = await searchParams;
+  const query = String(q ?? "").trim();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader active="/admin/trames" />
       <AdminNav active="/admin/trames" />
-      {gateway ? <FramesView gateway={gateway} /> : <GatewayOverview />}
+      {gateway ? (
+        <FramesView gateway={gateway} query={query} />
+      ) : (
+        <GatewayOverview query={query} />
+      )}
     </div>
   );
 }

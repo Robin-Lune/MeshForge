@@ -1,4 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { query } = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("../db", () => ({ pool: { query } }));
+
 import {
   canLogin,
   canMutateContributor,
@@ -10,6 +14,7 @@ import {
   passwordResetTokenHash,
   generateUsername,
   generatePassword,
+  getContributorsAdminPage,
 } from "./contributors";
 import type { ContributorAuth } from "./contributors";
 
@@ -153,5 +158,48 @@ describe("generateUsername / generatePassword — creds d'inscription", () => {
   it("génère des valeurs différentes (aléatoire)", () => {
     expect(generatePassword()).not.toBe(generatePassword());
     expect(generateUsername("x")).not.toBe(generateUsername("x"));
+  });
+});
+
+describe("getContributorsAdminPage — recherche admin", () => {
+  beforeEach(() => query.mockReset());
+
+  it("recherche username, nom de node ou email avant pagination", async () => {
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 1,
+          username: "piton_123",
+          email: "piton@example.com",
+          nodeName: "Piton",
+          role: "USER",
+          isActive: true,
+          createdAt: new Date("2026-07-01T00:00:00.000Z"),
+          totalCount: "1",
+        },
+      ],
+    });
+
+    await getContributorsAdminPage(25, 50, "  piton  ");
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("ILIKE"),
+      ["%piton%", 25, 50],
+    );
+  });
+
+  it("conserve le filtre dans le comptage d'une page vide", async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ count: "3" }] });
+
+    const result = await getContributorsAdminPage(25, 75, "forge");
+
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("ILIKE"),
+      ["%forge%"],
+    );
+    expect(result.total).toBe(3);
   });
 });

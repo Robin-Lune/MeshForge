@@ -35,8 +35,20 @@ async function adminRequest(
   return data;
 }
 
-function returnToPage(page: number) {
-  window.location.assign(`/admin/contributeurs?page=${page}&ok=1`);
+function contributorsHref(
+  page: number,
+  query: string,
+  extra?: { ok?: string; err?: string },
+): string {
+  const params = new URLSearchParams({ page: String(page) });
+  if (query) params.set("q", query);
+  if (extra?.ok) params.set("ok", extra.ok);
+  if (extra?.err) params.set("err", extra.err);
+  return `/admin/contributeurs?${params.toString()}`;
+}
+
+function returnToPage(page: number, query: string) {
+  window.location.assign(contributorsHref(page, query, { ok: "1" }));
 }
 
 function formatDate(d: Date): string {
@@ -177,10 +189,12 @@ function ResetPasswordModal({
 function EditContributorModal({
   contributor,
   page,
+  query,
   onClose,
 }: {
   contributor: ContributorAdminRow;
   page: number;
+  query: string;
   onClose: () => void;
 }) {
   const [username, setUsername] = useState(contributor.username);
@@ -202,7 +216,7 @@ function EditContributorModal({
           email,
         }),
       });
-      returnToPage(page);
+      returnToPage(page, query);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -268,12 +282,14 @@ export default function ContributorsManager({
   pageCount,
   pageSize,
   total,
+  query,
 }: {
   contributors: ContributorAdminRow[];
   page: number;
   pageCount: number;
   pageSize: number;
   total: number;
+  query: string;
 }) {
   const [modal, setModal] = useState<ModalState>(null);
   const start = (page - 1) * pageSize;
@@ -287,12 +303,10 @@ export default function ContributorsManager({
           isActive: !contributor.isActive,
         }),
       });
-      returnToPage(page);
+      returnToPage(page, query);
     } catch (e) {
       window.location.assign(
-        `/admin/contributeurs?page=${page}&err=${encodeURIComponent(
-          (e as Error).message,
-        )}`,
+        contributorsHref(page, query, { err: (e as Error).message }),
       );
     }
   }
@@ -300,12 +314,10 @@ export default function ContributorsManager({
   async function remove(id: number) {
     try {
       await adminRequest(id, { method: "DELETE" });
-      returnToPage(page);
+      returnToPage(page, query);
     } catch (e) {
       window.location.assign(
-        `/admin/contributeurs?page=${page}&err=${encodeURIComponent(
-          (e as Error).message,
-        )}`,
+        contributorsHref(page, query, { err: (e as Error).message }),
       );
     }
   }
@@ -320,7 +332,7 @@ export default function ContributorsManager({
           <div className="flex items-center gap-2">
             <Link
               aria-disabled={page === 1}
-              href={`/admin/contributeurs?page=${Math.max(1, page - 1)}`}
+              href={contributorsHref(Math.max(1, page - 1), query)}
               className={`${secondaryBtnCls} ${
                 page === 1 ? "pointer-events-none opacity-40" : ""
               }`}
@@ -332,7 +344,7 @@ export default function ContributorsManager({
             </span>
             <Link
               aria-disabled={page === pageCount}
-              href={`/admin/contributeurs?page=${Math.min(pageCount, page + 1)}`}
+              href={contributorsHref(Math.min(pageCount, page + 1), query)}
               className={`${secondaryBtnCls} ${
                 page === pageCount ? "pointer-events-none opacity-40" : ""
               }`}
@@ -445,6 +457,7 @@ export default function ContributorsManager({
         <EditContributorModal
           contributor={modal.contributor}
           page={page}
+          query={query}
           onClose={() => setModal(null)}
         />
       )}

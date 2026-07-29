@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { toGatewayStat } from "./packets";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { query } = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("../db", () => ({ pool: { query } }));
+
+import { getGatewayOverview, toGatewayStat } from "./packets";
 
 describe("toGatewayStat — normalisation d'un agrégat gateway", () => {
   const row = {
@@ -24,5 +28,28 @@ describe("toGatewayStat — normalisation d'un agrégat gateway", () => {
   it("propage gatewayId et name (name nullable)", () => {
     expect(toGatewayStat(row).gatewayId).toBe("!f669cf14");
     expect(toGatewayStat({ ...row, name: null }).name).toBeNull();
+  });
+});
+
+describe("getGatewayOverview — recherche admin", () => {
+  beforeEach(() => query.mockReset());
+
+  it("recherche par nom ou NodeID avec une valeur normalisée", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await getGatewayOverview("  piton  ");
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("ILIKE"),
+      ["%piton%"],
+    );
+  });
+
+  it("désactive le filtre quand la recherche est vide", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await getGatewayOverview("   ");
+
+    expect(query).toHaveBeenCalledWith(expect.any(String), [""]);
   });
 });
