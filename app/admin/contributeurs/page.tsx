@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import AdminNav from "@/components/AdminNav";
 import { isAdmin } from "@/lib/admin";
@@ -17,19 +18,30 @@ function parsePage(value: string | undefined): number {
 export default async function ContributorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; err?: string; page?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    err?: string;
+    page?: string;
+    q?: string;
+  }>;
 }) {
   if (!(await isAdmin())) redirect("/admin/login");
-  const { ok, err, page: pageParam } = await searchParams;
+  const { ok, err, page: pageParam, q } = await searchParams;
   const page = parsePage(pageParam);
+  const query = String(q ?? "").trim();
   const offset = (page - 1) * PAGE_SIZE;
   const { contributors, total } = await getContributorsAdminPage(
     PAGE_SIZE,
     offset,
+    query,
   );
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (page > pageCount) redirect(`/admin/contributeurs?page=${pageCount}`);
+  if (page > pageCount) {
+    const params = new URLSearchParams({ page: String(pageCount) });
+    if (query) params.set("q", query);
+    redirect(`/admin/contributeurs?${params.toString()}`);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -58,8 +70,39 @@ export default async function ContributorsPage({
           </p>
         )}
 
+        <form
+          action="/admin/contributeurs"
+          className="mb-4 flex max-w-lg flex-wrap gap-2"
+        >
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Username, nom de node ou email…"
+            className="min-w-60 flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-1.5 text-sm dark:border-white/15"
+          />
+          <button
+            type="submit"
+            className="rounded-lg border border-black/15 px-3 py-1.5 text-sm font-medium dark:border-white/20"
+          >
+            Rechercher
+          </button>
+          {query && (
+            <Link
+              href="/admin/contributeurs"
+              className="rounded-lg px-2 py-1.5 text-sm text-zinc-500 hover:text-current"
+            >
+              Effacer
+            </Link>
+          )}
+        </form>
+
         {contributors.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aucun contributeur.</p>
+          <p className="text-sm text-zinc-500">
+            {query
+              ? "Aucun contributeur ne correspond à cette recherche."
+              : "Aucun contributeur."}
+          </p>
         ) : (
           <ContributorsManager
             contributors={contributors}
@@ -67,6 +110,7 @@ export default async function ContributorsPage({
             pageCount={pageCount}
             pageSize={PAGE_SIZE}
             total={total}
+            query={query}
           />
         )}
       </main>

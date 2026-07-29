@@ -102,11 +102,20 @@ const SELECT_GATEWAY_OVERVIEW = `
   LEFT JOIN nodes n ON n.node_id = p.gateway_id
   WHERE p.gateway_id IS NOT NULL
     AND p.channel IS DISTINCT FROM 'Fr_EMCOM'
+    AND (
+      $1::text = ''
+      OR p.gateway_id ILIKE $1
+      OR COALESCE(n.long_name, '') ILIKE $1
+      OR COALESCE(n.short_name, '') ILIKE $1
+    )
   GROUP BY p.gateway_id, n.long_name
   ORDER BY "packets24h" DESC, "lastSeen" DESC NULLS LAST
 `;
 
-export async function getGatewayOverview(): Promise<GatewayStat[]> {
-  const { rows } = await pool.query<GatewayStatRow>(SELECT_GATEWAY_OVERVIEW);
+export async function getGatewayOverview(search = ""): Promise<GatewayStat[]> {
+  const query = search.trim();
+  const { rows } = await pool.query<GatewayStatRow>(SELECT_GATEWAY_OVERVIEW, [
+    query ? `%${query}%` : "",
+  ]);
   return rows.map(toGatewayStat);
 }
