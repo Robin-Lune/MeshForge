@@ -4,7 +4,6 @@ import type { RawMeshtasticPacket, ParsedPacket } from "../../../types";
 import { hardwareModelName, deviceRoleName } from "../meshtastic/enums";
 import { neighborReports } from "./neighbor-info";
 import { tracerouteInfo } from "./traceroute";
-import { matchingTextMarker } from "./text-message";
 import { decodePosition } from "./parser-utils";
 
 // NodeNum entier -> NodeID hex Meshtastic. Ex: 4134129428 -> "!f669cf14".
@@ -38,12 +37,8 @@ export function parseMessage(
 
   if (typeof raw.from !== "number") return null; // émetteur inconnu -> drop
   if (raw.type === "text") {
-    const marker = matchingTextMarker(raw);
-    if (!marker) {
-      debug?.(`drop: texte sans marqueur autorisé (${channel})`);
-      return null;
-    }
-    debug?.(`allow: texte ${marker} (${channel})`);
+    debug?.(`drop: texte non ingéré (${channel})`);
+    return null;
   }
 
   const payload = typeof raw.payload === "object" && raw.payload !== null ? raw.payload : {};

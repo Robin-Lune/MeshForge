@@ -36,6 +36,8 @@ export interface MqttOnboarding {
   jsonOutputEnabled: boolean;
   tlsEnabled: boolean;
   mapReportEnabled: boolean;
+  userChatEnabled: boolean;
+  announcementNodeId: string;
 }
 
 // Type de la valeur pour chaque clé.
@@ -82,10 +84,13 @@ const DEFAULT_MQTT_ONBOARDING: MqttOnboarding = {
   jsonOutputEnabled: true,
   tlsEnabled: false,
   mapReportEnabled: true,
+  userChatEnabled: false,
+  announcementNodeId: "",
 };
 
 // Noms de canaux : alphanumérique + _ - (anti-injection : on n'accepte rien d'autre).
 const CHANNEL_RE = /^[A-Za-z0-9_-]{1,40}$/;
+const NODE_ID_RE = /^![0-9a-fA-F]{8}$/;
 
 // --- Entier positif (seuil bavard) ---
 // Entier > 0 sinon `fallback` (lecture tolérante, logique pure testée).
@@ -259,7 +264,7 @@ export function requireLegalInfo(raw: unknown): LegalInfo {
 
 function isMqttOnboarding(
   raw: unknown,
-): raw is Record<keyof MqttOnboarding, string | boolean> {
+): raw is Record<string, unknown> {
   if (!raw || typeof raw !== "object") return false;
   const o = raw as Record<string, unknown>;
   return (
@@ -273,7 +278,8 @@ function isMqttOnboarding(
 }
 
 function pickMqttOnboarding(
-  raw: Record<keyof MqttOnboarding, string | boolean>,
+  raw: Record<string, unknown>,
+  fallback: MqttOnboarding,
 ): MqttOnboarding {
   return {
     mobileBroker: String(raw.mobileBroker).trim(),
@@ -282,6 +288,14 @@ function pickMqttOnboarding(
     jsonOutputEnabled: Boolean(raw.jsonOutputEnabled),
     tlsEnabled: Boolean(raw.tlsEnabled),
     mapReportEnabled: Boolean(raw.mapReportEnabled),
+    userChatEnabled:
+      typeof raw.userChatEnabled === "boolean"
+        ? raw.userChatEnabled
+        : fallback.userChatEnabled,
+    announcementNodeId:
+      typeof raw.announcementNodeId === "string"
+        ? raw.announcementNodeId.trim().toLowerCase()
+        : fallback.announcementNodeId,
   };
 }
 
@@ -289,18 +303,25 @@ export function parseMqttOnboarding(
   raw: unknown,
   fallback: MqttOnboarding,
 ): MqttOnboarding {
-  return isMqttOnboarding(raw) ? pickMqttOnboarding(raw) : fallback;
+  return isMqttOnboarding(raw) ? pickMqttOnboarding(raw, fallback) : fallback;
 }
 
 export function requireMqttOnboarding(raw: unknown): MqttOnboarding {
-  if (!isMqttOnboarding(raw)) {
+  if (
+    !isMqttOnboarding(raw) ||
+    typeof raw.userChatEnabled !== "boolean" ||
+    typeof raw.announcementNodeId !== "string"
+  ) {
     throw new Error("configuration MQTT invalide : objet incomplet");
   }
-  const info = pickMqttOnboarding(raw);
+  const info = pickMqttOnboarding(raw, DEFAULT_MQTT_ONBOARDING);
   for (const field of ["mobileBroker", "rootTopic"] as const) {
     if (!info[field] || info[field].length > 120) {
       throw new Error("configuration MQTT invalide : champ vide ou trop long");
     }
+  }
+  if (!NODE_ID_RE.test(info.announcementNodeId)) {
+    throw new Error("NodeID d'annonce invalide : format !xxxxxxxx attendu");
   }
   return info;
 }

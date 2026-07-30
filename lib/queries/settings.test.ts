@@ -187,6 +187,8 @@ const MQTT_FALLBACK = {
   jsonOutputEnabled: true,
   tlsEnabled: false,
   mapReportEnabled: true,
+  userChatEnabled: false,
+  announcementNodeId: "",
 };
 
 describe("parseMqttOnboarding / requireMqttOnboarding", () => {
@@ -201,6 +203,8 @@ describe("parseMqttOnboarding / requireMqttOnboarding", () => {
           jsonOutputEnabled: true,
           tlsEnabled: false,
           mapReportEnabled: true,
+          userChatEnabled: true,
+          announcementNodeId: " !1234ABCD ",
           extra: "ignoré",
         },
         MQTT_FALLBACK,
@@ -212,6 +216,33 @@ describe("parseMqttOnboarding / requireMqttOnboarding", () => {
       jsonOutputEnabled: true,
       tlsEnabled: false,
       mapReportEnabled: true,
+      userChatEnabled: true,
+      announcementNodeId: "!1234abcd",
+    });
+  });
+
+  it("lecture : complète une ancienne valeur sans réglages de chat", () => {
+    expect(
+      parseMqttOnboarding(
+        {
+          mobileBroker: "mqtt.legacy.example:1883",
+          rootTopic: "msh/EU_868",
+          encryptionEnabled: true,
+          jsonOutputEnabled: false,
+          tlsEnabled: false,
+          mapReportEnabled: true,
+        },
+        MQTT_FALLBACK,
+      ),
+    ).toEqual({
+      mobileBroker: "mqtt.legacy.example:1883",
+      rootTopic: "msh/EU_868",
+      encryptionEnabled: true,
+      jsonOutputEnabled: false,
+      tlsEnabled: false,
+      mapReportEnabled: true,
+      userChatEnabled: false,
+      announcementNodeId: "",
     });
   });
 
@@ -227,6 +258,12 @@ describe("parseMqttOnboarding / requireMqttOnboarding", () => {
     ).toThrow();
     expect(() =>
       requireMqttOnboarding({ ...MQTT_FALLBACK, rootTopic: "x".repeat(121) }),
+    ).toThrow();
+    expect(() =>
+      requireMqttOnboarding({
+        ...MQTT_FALLBACK,
+        announcementNodeId: "1234abcd",
+      }),
     ).toThrow();
   });
 });

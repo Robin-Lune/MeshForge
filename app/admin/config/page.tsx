@@ -156,6 +156,10 @@ async function saveMqttOnboarding(formData: FormData) {
       jsonOutputEnabled: formData.get("jsonOutputEnabled") === "on",
       tlsEnabled: formData.get("tlsEnabled") === "on",
       mapReportEnabled: formData.get("mapReportEnabled") === "on",
+      userChatEnabled: formData.get("userChatEnabled") === "on",
+      announcementNodeId: String(
+        formData.get("announcementNodeId") ?? "",
+      ),
     });
   } catch (e) {
     error = (e as Error).message;
@@ -447,8 +451,8 @@ export default async function ConfigPage({
         ) : (
           <div key="mqtt" className="flex flex-col gap-4">
             <Section
-              title="Onboarding MQTT"
-              hint="Valeurs affichées après inscription d'un relais. Utile pour adapter MeshForge à une autre instance."
+              title="Configuration MQTT"
+              hint="Paramètres affichés après inscription et comportement MQTT de cette instance MeshForge."
             >
               <form action={saveMqttOnboarding} className="grid gap-3">
                 <label className="text-xs text-zinc-500">
@@ -467,7 +471,29 @@ export default async function ConfigPage({
                     className={numCls}
                   />
                 </label>
+                <label className="text-xs text-zinc-500">
+                  NodeID réservé aux annonces MeshForge
+                  <input
+                    name="announcementNodeId"
+                    required
+                    pattern="![0-9a-fA-F]{8}"
+                    placeholder="!1234abcd"
+                    defaultValue={mqtt.announcementNodeId}
+                    className={numCls}
+                  />
+                  <span className="mt-1 block">
+                    Ce NodeID ne doit appartenir à aucun node physique.
+                  </span>
+                </label>
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name="userChatEnabled"
+                      defaultChecked={mqtt.userChatEnabled}
+                    />
+                    Chat MQTT USER activé
+                  </label>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"

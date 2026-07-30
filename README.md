@@ -29,25 +29,27 @@ Fonctionnalités principales :
 - Toile de liaisons depuis les gateways : 0-hop = portée radio directe ; mesh pointillé = via relais.
 - Détail node : historique 30 j, SNR par gateway, distance, télémétrie, voisinage réseau.
 - Diagnostic NeighborInfo / Traceroute : mini-carte de voisinage, voisins radio directs et chemins segmentés avec SNR par saut.
-- Admin : trames brutes, config runtime, RGPD, inscription relais MQTT.
+- Admin : trames brutes, annonces MQTT, config runtime, RGPD, inscription relais.
 - Privacy : public par défaut, mais précision du node respectée + droit de retrait.
 
 ---
 
 ## 🏗️ Architecture
 
-```
-Nodes Meshtastic ──MQTT(JSON/protobuf)──▶ Mosquitto ──▶ worker ──▶ TimescaleDB ──▶ API Next ──▶ carte
-                                                    (parse,        (packets,      (/api/nodes,    (MapView)
-                                                     filtre         nodes)         /api/stats,
-                                                     privacy)                      /api/stream SSE)
-                                                        │                              ▲
-                                                        └──── pg_notify ──▶ LISTEN ─────┘ (temps réel)
+```text
+Nodes Meshtastic ◀──LoRa──▶ gateways MQTT ◀──downlink── Mosquitto
+                               │                    │
+                               └──── uplink ────────┤
+                                                    ├──▶ worker ──▶ TimescaleDB ──▶ carte
+Admin /admin/annonces ──protobuf chiffré───────────▶│
+
+Chat USER ouvert : Mosquitto relaie aussi les messages entre gateways.
+Chat USER fermé  : les gateways ne reçoivent que les annonces MeshForge.
 ```
 
 Stack : Next.js 16, React 19, Tailwind v4, MapLibre GL, worker Node/TS, MQTT, TimescaleDB/Postgres 16, Mosquitto.
 
-Principes : worker séparé de Next.js, SQL centralisé dans `lib/queries/`, broker **uplink only**, zéro dépendance cloud propriétaire.
+Principes : worker séparé de Next.js, SQL centralisé dans `lib/queries/`, chat MQTT USER désactivable, zéro dépendance cloud propriétaire.
 
 Le worker ingère les topics Meshtastic `msh/+/+/json/#`, `msh/+/+/map/#` et
 `msh/+/+/e/#`. Les paquets `/e/` chiffrés sont décodés uniquement quand la PSK
@@ -214,7 +216,24 @@ NEXT_PUBLIC_APP_URL=https://ton-domaine.example
 yarn create-admin
 ```
 
-6. Renseigne `/admin/config`, notamment l'onglet `Légal`.
+6. Renseigne `/admin/config`, notamment les onglets `Légal` et `MQTT`.
+
+### Chat et annonces MQTT
+
+Dans `/admin/config?tab=mqtt` :
+
+- **Chat MQTT USER activé** ouvre la messagerie MQTT classique entre les
+  gateways. Désactivé, leurs uplinks restent ingérés mais seuls les messages
+  LoRa et les annonces MeshForge leur parviennent.
+- **NodeID réservé aux annonces** identifie les paquets envoyés depuis
+  `/admin/annonces`. Il doit respecter le format `!` suivi de 8 caractères
+  hexadécimaux et ne correspondre à aucun node physique, par exemple
+  `!4d461111` en développement ou `!4d467777` en production.
+
+Les annonces restent disponibles lorsque le chat USER est fermé. Le canal choisi
+doit être public, disposer de sa PSK dans `MESHTASTIC_CHANNEL_KEYS` et avoir le
+downlink actif sur les gateways concernées. Une annonce est limitée à 200 octets
+UTF-8.
 
 ### Notes prod
 
@@ -264,19 +283,17 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 - Si on change `DB_PASSWORD` sur une DB existante, aligner aussi Postgres :
   `ALTER USER meshforge WITH PASSWORD 'NEW_PASSWORD'`.
 - Le broker prod utilise `mosquitto-go-auth`. Sa config est un template :
-  `mosquitto/entrypoint.sh` remplacer `__DB_PASSWORD__` au démarrage.
+  `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` au démarrage.
 - Les relais créent leurs identifiants MQTT via `/register`.
-- Canaux publics, bornes carte, zoom, seuils, mentions légales et onboarding MQTT
-  se règlent dans `/admin/config`.
+- Canaux publics, bornes carte, zoom, seuils, mentions légales et configuration
+  MQTT se règlent dans `/admin/config`.
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
   réception, enveloppe, raison de drop et fixture base64 en cas d'échec. Les
-  drops/autorisations des messages texte MQTT utilisent aussi ce debug.
-- Les paquets texte MQTT sont filtrés côté worker sur `/json/` (`type: "text"`)
-  et `/e/` (`TEXT_MESSAGE_APP`) : seuls les textes contenant un marqueur autorisé
-  sont conservés. Liste actuelle : `/URGENT`, `/SOS`, `/ALL`, `/SECOURS`.
-  Modifier `src/worker/parsers/text-message.ts` (`ALLOWED_TEXT_MARKERS`) pour
-  changer cette liste. Les autres types (`position`, `telemetry`, `nodeinfo`,
-  `neighborinfo`, `traceroute`, `map_report`, etc.) ne sont pas concernés.
+  drops des messages texte MQTT utilisent aussi ce debug.
+- Le worker n'ingère aucun message texte MQTT dans la base. Leur éventuelle
+  distribution entre USER est assurée directement par Mosquitto lorsque le chat
+  est ouvert. Les autres types (`position`, `telemetry`, `nodeinfo`,
+  `neighborinfo`, `traceroute`, `map_report`, etc.) restent ingérés.
 - Les tables `node_neighbors` et `traceroute_segments` servent au diagnostic
   « Voisinage réseau » de la fiche node : voisins radio directs, traceroute
   segmenté, SNR par saut et animation aller/retour. Avant montée en charge,

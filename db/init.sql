@@ -218,6 +218,8 @@ INSERT INTO settings (key, value) VALUES
         "encryptionEnabled": true,
         "jsonOutputEnabled": true,
         "tlsEnabled": false,
-        "mapReportEnabled": true
+        "mapReportEnabled": true,
+        "userChatEnabled": false,
+        "announcementNodeId": ""
     }'::jsonb)
 ON CONFLICT (key) DO NOTHING;
