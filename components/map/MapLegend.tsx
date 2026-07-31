@@ -99,7 +99,9 @@ export function MapLegend({
                   <span className="min-w-0 whitespace-nowrap">{badge.short}</span>
                 </div>
               ))}
-              <div className="flex min-w-0 items-center gap-1.5">
+              {/* Sur toute la largeur : le libellé doit dire QUI capte, sinon
+                  « ≥ 2 gateways » se lit comme un compte de nodes. */}
+              <div className="col-span-2 flex min-w-0 items-center gap-1.5">
                 <span
                   className="inline-flex h-5 min-w-8 flex-none items-center justify-center rounded-[6px] border border-white px-1 text-[10px] font-semibold"
                   style={{
@@ -110,7 +112,9 @@ export function MapLegend({
                 >
                   N
                 </span>
-                <span className="min-w-0 whitespace-nowrap">≥ 2 gateways</span>
+                <span className="min-w-0 whitespace-nowrap">
+                  Capté par ≥ 2 gateways
+                </span>
               </div>
             </div>
 

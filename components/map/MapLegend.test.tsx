@@ -56,7 +56,7 @@ describe("MapLegend — légende de base", () => {
   it("décrit le compteur des passerelles et l'anneau", () => {
     render(<MapLegend {...props()} />);
     expect(screen.getByText("Gateway /1h")).toBeInTheDocument();
-    expect(screen.getByText("≥ 2 gateways")).toBeInTheDocument();
+    expect(screen.getByText("Capté par ≥ 2 gateways")).toBeInTheDocument();
   });
 
   it("ne décrit pas de « node visible » générique", () => {
