@@ -14,13 +14,16 @@ export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RIN
 const BADGE_SIZE = 14;
 const COUNT_BADGE_HEIGHT = 15;
 
-// Débordement horizontal d'un badge hors de la pastille, translation comprise.
-// resolvePillSpread ne lit que dataset.w/h : un débordement non compté y ramène
-// les chevauchements.
-const ROLE_OUT = 0.24;
-const COUNT_OUT = 0.28;
-const roleOverflow = (): number => BADGE_SIZE * ROLE_OUT;
-const countOverflow = (width: number): number => width * COUNT_OUT;
+// Part du badge posée HORS de la pastille, par axe. Les translations en sont
+// dérivées : les deux ne peuvent pas diverger. resolvePillSpread ne lit que
+// dataset.w/h, donc un débordement non compté y ramène les chevauchements.
+const ROLE_OUT_X = 0.38;
+const ROLE_OUT_Y = 0.4;
+const COUNT_OUT_X = 0.42;
+const COUNT_OUT_Y = 0.46;
+const pct = (v: number): string => `${v * 100}%`;
+const roleOverflow = (): number => BADGE_SIZE * ROLE_OUT_X;
+const countOverflow = (width: number): number => width * COUNT_OUT_X;
 // countBadge : min-width 15px, +3px de padding de chaque côté, ~5px par chiffre.
 const countWidth = (count: number): number =>
   Math.max(COUNT_BADGE_HEIGHT, 6 + String(count).length * 5.5);
@@ -50,7 +53,7 @@ export function countBadge(count: number): HTMLElement {
   el.textContent = String(count);
   el.style.top = "0";
   el.style.right = "0";
-  el.style.transform = `translate(${COUNT_OUT * 100}%, -${COUNT_OUT * 100}%)`;
+  el.style.transform = `translate(${pct(COUNT_OUT_X)}, -${pct(COUNT_OUT_Y)})`;
   el.style.minWidth = `${COUNT_BADGE_HEIGHT}px`;
   el.style.height = `${COUNT_BADGE_HEIGHT}px`;
   el.style.padding = "0 3px";
@@ -71,7 +74,7 @@ export function roleBadgeElement(role: unknown): HTMLElement | null {
   el.textContent = badge.letter;
   el.style.bottom = "0";
   el.style.left = "0";
-  el.style.transform = `translate(-${ROLE_OUT * 100}%, ${ROLE_OUT * 100}%)`;
+  el.style.transform = `translate(-${pct(ROLE_OUT_X)}, ${pct(ROLE_OUT_Y)})`;
   el.style.width = `${BADGE_SIZE}px`;
   el.style.height = `${BADGE_SIZE}px`;
   el.style.borderRadius = "999px";
@@ -95,8 +98,8 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   // déborde. Sommer les deux écarterait les pastilles empilées du double du
   // nécessaire — d'où le max, et non la somme.
   const vertical = Math.max(
-    hasRole ? BADGE_SIZE * ROLE_OUT : 0,
-    countEl ? COUNT_BADGE_HEIGHT * COUNT_OUT : 0,
+    hasRole ? BADGE_SIZE * ROLE_OUT_Y : 0,
+    countEl ? COUNT_BADGE_HEIGHT * COUNT_OUT_Y : 0,
   );
 
   el.dataset.w = String(
