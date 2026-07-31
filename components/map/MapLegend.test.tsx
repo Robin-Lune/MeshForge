@@ -26,7 +26,7 @@ describe("MapLegend — légende de base", () => {
   it("affiche les entrées quand elle est ouverte", () => {
     render(<MapLegend {...props()} />);
     expect(screen.getByText(/Gateway MQTT/)).toBeInTheDocument();
-    expect(screen.getByText("Lien direct 0-hop")).toBeInTheDocument();
+    expect(screen.getByText("Direct 0-hop")).toBeInTheDocument();
   });
 
   it("masque les entrées quand elle est fermée", () => {

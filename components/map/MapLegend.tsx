@@ -49,17 +49,21 @@ export function MapLegend({
         <div className="pointer-events-auto mb-2 w-fit max-w-full rounded-lg bg-white/95 px-3 py-2 text-xs leading-tight text-zinc-800 shadow ring-1 ring-black/10 dark:bg-zinc-900/90 dark:text-zinc-100 dark:ring-white/15">
           <div className="grid gap-1.5">
             <div className="font-semibold">Dernière réception</div>
-            {FRESHNESS_STEPS.map((step) => (
-              <div key={step.label} className="flex min-w-0 items-center gap-2">
-                <span
-                  className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold shadow"
-                  style={{ background: step.bg, color: step.fg }}
-                >
-                  N
-                </span>
-                <span className="min-w-0 break-words">{step.label}</span>
-              </div>
-            ))}
+            {/* Trois colonnes : les libellés sont assez courts pour tenir dans
+                la largeur imposée par les entrées « Marques ». */}
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+              {FRESHNESS_STEPS.map((step) => (
+                <div key={step.label} className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className="inline-flex h-5 min-w-8 flex-none items-center justify-center rounded-[7px] border border-white px-1 text-[10px] font-semibold shadow"
+                    style={{ background: step.bg, color: step.fg }}
+                  >
+                    N
+                  </span>
+                  <span className="min-w-0 whitespace-nowrap">{step.label}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Marques
@@ -105,35 +109,35 @@ export function MapLegend({
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Liens
             </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="h-1 w-10 flex-none rounded"
-                style={{ background: SNR_GOOD }}
-              />
-              <span className="min-w-0 break-words">Lien direct 0-hop</span>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="w-10 flex-none border-t-2 border-dashed border-[#eab308]" />
-              <span className="min-w-0 break-words">Lien via relais 1 hop</span>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="w-10 flex-none border-t-2 border-dashed border-[#f97316]" />
-              <span className="min-w-0 break-words">
-                Lien via relais 2 hops
-              </span>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="w-10 flex-none border-t-2 border-dashed border-[#ef4444]" />
-              <span className="min-w-0 break-words">
-                Lien via relais 3+ hops
-              </span>
+            {/* Deux colonnes : « Lien via » se répétait sur chaque ligne, le
+                titre de section le dit déjà. */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="h-1 w-7 flex-none rounded"
+                  style={{ background: SNR_GOOD }}
+                />
+                <span className="min-w-0 whitespace-nowrap">Direct 0-hop</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="w-7 flex-none border-t-2 border-dashed border-[#eab308]" />
+                <span className="min-w-0 whitespace-nowrap">Relais 1 hop</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="w-7 flex-none border-t-2 border-dashed border-[#f97316]" />
+                <span className="min-w-0 whitespace-nowrap">Relais 2 hops</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="w-7 flex-none border-t-2 border-dashed border-[#ef4444]" />
+                <span className="min-w-0 whitespace-nowrap">Relais 3+ hops</span>
+              </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
               <span className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] bg-white px-1.5 text-[10px] font-bold text-zinc-900 shadow ring-1 ring-black/10">
                 12
               </span>
               <span className="min-w-0 break-words">
-                Nombre de paquets sur le lien (au survol)
+                Paquets sur le lien (au survol)
               </span>
             </div>
 
