@@ -1,12 +1,95 @@
 import { popupNodeId } from "@/lib/format";
-import { GATEWAY_COLOR } from "@/lib/nodeColor";
+import { freshnessColor, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
+import { roleBadge } from "@/lib/nodeRole";
+
+// Anneau « pont ». AUCUNE couleur unique ne peut contraster à la fois avec une
+// tuile très claire et une tuile très sombre : l'ambre est autoportant sur fond
+// sombre (7,42) mais s'efface sur fond clair (1,87), d'où le filet ardoise
+// translucide posé juste à l'extérieur, qui lui donne son arête (15,56 contre
+// une tuile claire). Une seule règle, aucun basculement selon le thème.
+// L'ancien anneau bleu est abandonné : sur la pastille bleue du palier « < 1 h »
+// il tombait à 1,09 de contraste, donc disparaissait.
+export const BRIDGE_RING = "#f59e0b";
+export const BRIDGE_RING_EDGE = "rgba(15,23,42,0.55)";
+export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
+export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RING_EDGE}, 0 1px 3px rgba(0,0,0,0.4)`;
+
+// Les badges débordent des coins : l'anti-collision (resolvePillSpread) lit
+// dataset.w/h, donc sans cette marge les pastilles se chevaucheraient à nouveau.
+const BADGE_OVERFLOW = 7;
+
+function badgeBase(el: HTMLElement): void {
+  el.style.position = "absolute";
+  el.style.display = "flex";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.style.border = "1.5px solid #fff";
+  el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3)";
+  el.style.font = "700 8.5px/1 ui-sans-serif, system-ui, sans-serif";
+  el.style.pointerEvents = "none";
+}
+
+// Badge compteur d'une passerelle (coin haut-droit). Il porte DEUX informations
+// à la fois : « ce node est une passerelle MQTT » et « voici combien de nodes
+// il a captés en direct dans l'heure ». Il reste donc affiché à 0 — s'il
+// disparaissait, une passerelle silencieuse cesserait d'être identifiable comme
+// passerelle, alors qu'un « 0 » est précisément le cas intéressant.
+export function countBadge(count: number): HTMLElement {
+  const el = document.createElement("div");
+  badgeBase(el);
+  el.className = "mf-badge-count";
+  el.textContent = String(count);
+  el.style.top = "0";
+  el.style.right = "0";
+  el.style.transform = "translate(42%, -46%)";
+  el.style.minWidth = "15px";
+  el.style.height = "15px";
+  el.style.padding = "0 3px";
+  el.style.borderRadius = "999px";
+  el.style.background = GATEWAY_COLOR;
+  el.style.color = GATEWAY_INK;
+  el.style.fontVariantNumeric = "tabular-nums";
+  return el;
+}
+
+// Badge de rôle (coin bas-gauche — diagonale opposée au compteur, pour qu'ils
+// ne se disputent jamais la place). Encre plutôt que couleur : la rampe de
+// fraîcheur occupe désormais le bleu, où les teintes de badge prévues
+// (indigo/teal/bleu) se confondaient avec le fond.
+export function roleBadgeElement(role: unknown): HTMLElement | null {
+  const badge = roleBadge(typeof role === "string" ? role : null);
+  if (!badge) return null;
+  const el = document.createElement("div");
+  badgeBase(el);
+  el.className = "mf-badge-role";
+  el.textContent = badge.letter;
+  el.title = badge.title;
+  el.style.bottom = "0";
+  el.style.left = "0";
+  el.style.transform = "translate(-38%, 40%)";
+  el.style.width = "14px";
+  el.style.height = "14px";
+  el.style.borderRadius = "999px";
+  el.style.background = "#1f2937";
+  el.style.color = "#fff";
+  return el;
+}
 
 export function pillElement(p: Record<string, unknown>): HTMLElement {
   const isGateway = p.isGateway === true;
   const el = document.createElement("div");
-  el.textContent = String(p.label ?? "");
-  el.style.background = String(p.color ?? "#3b82f6");
-  el.style.color = isGateway ? "#064e3b" : "#fff";
+  el.style.position = "relative";
+
+  const text = document.createElement("span");
+  text.textContent = String(p.label ?? "");
+  el.appendChild(text);
+
+  // Couleur initiale ; applyFreshness() la reprend ensuite au fil du temps.
+  const { bg, fg } = freshnessColor(
+    typeof p.lastSeen === "string" ? p.lastSeen : null,
+  );
+  el.style.background = bg;
+  el.style.color = fg;
   el.style.font = isGateway
     ? "700 13px/1 ui-sans-serif, system-ui, sans-serif"
     : "600 11px/1 ui-sans-serif, system-ui, sans-serif";
@@ -15,18 +98,44 @@ export function pillElement(p: Record<string, unknown>): HTMLElement {
   el.style.border = isGateway
     ? "2px solid rgba(255,255,255,0.95)"
     : "1.5px solid rgba(255,255,255,0.9)";
-  el.style.boxShadow = "0 1px 3px rgba(0,0,0,0.35)";
+  el.style.boxShadow = PILL_SHADOW;
   el.style.cursor = "pointer";
   el.style.whiteSpace = "nowrap";
   el.style.userSelect = "none";
   el.style.zIndex = isGateway ? "2" : "1";
+
+  if (isGateway) el.appendChild(countBadge(0));
+  const role = roleBadgeElement(p.role);
+  if (role) el.appendChild(role);
+
   el.dataset.gateway = String(isGateway);
   el.dataset.w = String(
     String(p.label ?? "").length * (isGateway ? 8.5 : 7) +
-      (isGateway ? 20 : 16),
+      (isGateway ? 20 : 16) +
+      BADGE_OVERFLOW * 2,
   );
-  el.dataset.h = String(isGateway ? 24 : 20);
+  el.dataset.h = String((isGateway ? 24 : 20) + BADGE_OVERFLOW * 2);
   return el;
+}
+
+// Repeint une pastille déjà montée. Séparé de pillElement parce que l'élément
+// DOM survit aux mises à jour : seul l'état gateway le fait recréer.
+export function paintFreshness(
+  el: HTMLElement,
+  lastSeen: unknown,
+  now?: number,
+): void {
+  const { bg, fg } = freshnessColor(
+    typeof lastSeen === "string" ? lastSeen : null,
+    now,
+  );
+  el.style.background = bg;
+  el.style.color = fg;
+}
+
+export function paintCount(el: HTMLElement, count: number): void {
+  const badge = el.querySelector<HTMLElement>(".mf-badge-count");
+  if (badge) badge.textContent = String(count);
 }
 
 export function clusterElement(p: Record<string, unknown>): HTMLElement {
@@ -90,6 +199,21 @@ export function hoverCard(p: Record<string, unknown>): HTMLElement {
     sig.textContent = `Signal : ${lastSnr} dB`;
     el.appendChild(sig);
   }
+
+  // Précision de position : dans l'infobulle et PAS en badge sur la pastille.
+  // is_mobile vaut TRUE par défaut (prudence vie privée) et signifie donc
+  // « personne n'a encore confirmé que ce node est fixe », pas « ce node
+  // bouge » : un badge s'y poserait sur presque tout le parc en affirmant le
+  // contraire de ce qu'il montre. C'est une réserve utile en lisant UN node,
+  // pas en balayant la carte.
+  const precision = document.createElement("div");
+  precision.style.color = "#666";
+  precision.textContent =
+    p.isMobile === false
+      ? "Position exacte"
+      : "Position approximative (~1,5 km)";
+  el.appendChild(precision);
+
   return el;
 }
 

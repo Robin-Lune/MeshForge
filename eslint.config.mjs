@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Outillage AI hors périmètre du dépôt : déjà ignoré par git et par
+    // vitest, il ne doit pas non plus être lint. Son style (require(), etc.)
+    // n'a pas à être aligné sur celui de l'application.
+    "_bmad/**",
+    "_bmad-output/**",
+    ".claude/**",
+    ".agents/**",
+    "coverage/**",
   ]),
 ]);
 

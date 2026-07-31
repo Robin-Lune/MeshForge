@@ -35,6 +35,10 @@ import {
 // Au-delà de cette distance, un lien est probablement un artefact (GPS erroné /
 // module itinérant) vu la portée LoRa à La Réunion : masqué automatiquement.
 const FAR_LINK_KM = 20;
+// Cadence de vieillissement des pastilles. Une minute suffit : le palier le
+// plus court est d'une heure, et la fenêtre du compteur glisse sur la même
+// échelle.
+const FRESHNESS_TICK_MS = 60_000;
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
@@ -53,6 +57,7 @@ const emptyObservationIndex = (): ObservationIndex => ({
   minHopByNode: new Map(),
   heardByNode: new Map(),
   hoverByNode: new Map(),
+  directCountByGateway: new Map(),
 });
 
 export function useMapController({
@@ -137,6 +142,8 @@ export function useMapController({
       getMinHopByNode: () => observationsRef.current.minHopByNode,
       getBridgeNodeIds: () => bridgesRef.current,
       getHoverByNode: () => observationsRef.current.hoverByNode,
+      getDirectCountByGateway: () =>
+        observationsRef.current.directCountByGateway,
       onOpenNode: (nodeId) =>
         routerRef.current.push(`/node/${encodeURIComponent(nodeId)}`),
     });
@@ -172,6 +179,7 @@ export function useMapController({
           observationsRef.current = indexObservations(observations);
           computeBridges();
           nodeController.refreshNodes();
+          nodeController.applyFreshness();
         })
         .catch(() => {});
     };
@@ -259,9 +267,21 @@ export function useMapController({
         }
         updateRoleOptions();
         nodeController.refreshNodes();
+        nodeController.applyFreshness();
         scheduleObservationsRefresh();
       } catch {}
     });
+
+    // UN SEUL timer pour deux besoins qui ont la même cause — le temps passe :
+    // la couleur doit vieillir, et la fenêtre glissante d'une heure du compteur
+    // se vide même quand plus aucun paquet n'arrive. Sur un mesh calme la nuit,
+    // aucun node_update ne survient : sans ce tick, la carte resterait figée sur
+    // l'état du chargement.
+    const freshnessTimer = window.setInterval(() => {
+      if (!alive) return;
+      nodeController.applyFreshness();
+      loadObservations();
+    }, FRESHNESS_TICK_MS);
 
     return () => {
       alive = false;
@@ -272,6 +292,7 @@ export function useMapController({
         coverageControllerRef.current = null;
       }
       eventSource.close();
+      window.clearInterval(freshnessTimer);
       if (observationsTimer !== null) {
         window.clearTimeout(observationsTimer);
       }

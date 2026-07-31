@@ -1,5 +1,4 @@
 import type { PublicNode } from "@/types";
-import { nodeColor } from "@/lib/nodeColor";
 
 export type LngLat = [number, number];
 
@@ -42,7 +41,10 @@ export function nodeFeature(n: MarkerNode): GeoJSON.Feature {
       role: n.role ?? "",
       isGateway,
       isMobile: n.isMobile ?? false,
-      color: nodeColor(n.nodeId, isGateway),
+      // Pas de `color` ici : la couleur dépend du TEMPS QUI PASSE, pas de la
+      // donnée. La figer à la construction du feature la rendrait fausse dès
+      // la minute suivante — elle est calculée au rendu et repeinte par
+      // applyFreshness().
     },
   };
 }

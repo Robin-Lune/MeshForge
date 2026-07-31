@@ -2,6 +2,8 @@
 
 import type { CoverageMetric, CoverageSelection } from "@/types";
 import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
+import { FRESHNESS_STEPS, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
+import { BRIDGE_RING, BRIDGE_RING_EDGE } from "./map-dom";
 
 type MapLegendProps = {
   open: boolean;
@@ -45,25 +47,70 @@ export function MapLegend({
       {open && (
         <div className="pointer-events-auto mb-2 w-fit max-w-full rounded-lg bg-white/95 px-3 py-2 text-xs leading-tight text-zinc-800 shadow ring-1 ring-black/10 dark:bg-zinc-900/90 dark:text-zinc-100 dark:ring-white/15">
           <div className="grid gap-1.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border-2 border-white bg-[#67EA94] px-1.5 text-[10px] font-bold text-emerald-950 shadow">
-                GW
-              </span>
-              <span className="min-w-0 break-words">Gateway MQTT</span>
+            {/* La couleur d'une pastille = date de dernière réception. Sans ces
+                entrées, les teintes seraient aussi opaques que le hash du
+                node_id qu'elles remplacent. */}
+            <div className="font-semibold">Dernière réception</div>
+            {FRESHNESS_STEPS.map((step) => (
+              <div key={step.label} className="flex min-w-0 items-center gap-2">
+                <span
+                  className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold shadow"
+                  style={{ background: step.bg, color: step.fg }}
+                >
+                  N
+                </span>
+                <span className="min-w-0 break-words">{step.label}</span>
+              </div>
+            ))}
+
+            <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+              Marques
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white bg-sky-500 px-1.5 text-[10px] font-semibold text-white shadow-[0_0_0_3px_#2563eb]">
+              <span
+                className="inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white px-1 text-[9px] font-bold shadow"
+                style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
+              >
+                5
+              </span>
+              <span className="min-w-0 break-words">
+                Gateway MQTT — nodes captés en direct sur 1 h
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
+                R
+              </span>
+              <span className="min-w-0 break-words">
+                Relaie le trafic (routeur ou répéteur)
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
+                C
+              </span>
+              <span className="min-w-0 break-words">
+                Capteur — publie de la télémétrie
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold shadow"
+                style={{
+                  background: FRESHNESS_STEPS[0].bg,
+                  color: FRESHNESS_STEPS[0].fg,
+                  boxShadow: `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RING_EDGE}`,
+                }}
+              >
                 N
               </span>
               <span className="min-w-0 break-words">
                 Vu par plusieurs gateways
               </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white bg-sky-500 px-1.5 text-[10px] font-semibold text-white shadow">
-                N
-              </span>
-              <span className="min-w-0 break-words">Node visible</span>
+
+            <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+              Liens
             </div>
             <div className="flex min-w-0 items-center gap-2">
               <span

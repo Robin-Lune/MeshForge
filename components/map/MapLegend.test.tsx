@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MapLegend } from "@/components/map/MapLegend";
+import { FRESHNESS_STEPS } from "@/lib/nodeColor";
 import type { CoverageSelection } from "@/types";
 
 const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
@@ -23,13 +24,40 @@ const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
 describe("MapLegend — légende de base", () => {
   it("affiche les entrées quand elle est ouverte", () => {
     render(<MapLegend {...props()} />);
-    expect(screen.getByText("Gateway MQTT")).toBeInTheDocument();
+    expect(screen.getByText(/Gateway MQTT/)).toBeInTheDocument();
     expect(screen.getByText("Lien direct 0-hop")).toBeInTheDocument();
   });
 
   it("masque les entrées quand elle est fermée", () => {
     render(<MapLegend {...props({ open: false })} />);
-    expect(screen.queryByText("Gateway MQTT")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gateway MQTT/)).not.toBeInTheDocument();
+  });
+
+  it("documente TOUS les paliers de fraîcheur", () => {
+    // La couleur d'une pastille n'est lisible que si la légende la décrit :
+    // sans ces entrées, les teintes seraient aussi opaques que le hash du
+    // node_id qu'elles remplacent. Le test itère sur la source de vérité pour
+    // qu'un palier ajouté sans entrée de légende fasse échouer la suite.
+    render(<MapLegend {...props()} />);
+    expect(screen.getByText("Dernière réception")).toBeInTheDocument();
+    for (const step of FRESHNESS_STEPS) {
+      expect(screen.getByText(step.label)).toBeInTheDocument();
+    }
+  });
+
+  it("décrit les marques posées sur les pastilles", () => {
+    render(<MapLegend {...props()} />);
+    expect(screen.getByText(/nodes captés en direct sur 1 h/)).toBeInTheDocument();
+    expect(screen.getByText(/Relaie le trafic/)).toBeInTheDocument();
+    expect(screen.getByText(/Capteur/)).toBeInTheDocument();
+    expect(screen.getByText("Vu par plusieurs gateways")).toBeInTheDocument();
+  });
+
+  it("ne décrit plus de « node visible » bleu générique", () => {
+    // L'ancienne légende montrait des pastilles bleues fixes qui n'existaient
+    // sur aucune carte : la couleur dépend désormais de la fraîcheur.
+    render(<MapLegend {...props()} />);
+    expect(screen.queryByText("Node visible")).not.toBeInTheDocument();
   });
 
   it("libelle le bouton selon l'état et expose aria-expanded", () => {

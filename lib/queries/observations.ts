@@ -11,10 +11,12 @@ interface ObservationRow {
   bestHop: string | number | null;
   snr: number | null;
   packets: string | number;
+  direct1h?: string | number | null;
   source?: string;
 }
 
-// Normalise les arêtes (coercition bestHop/packets ; snr/bestHop null préservés).
+// Normalise les arêtes (coercition bestHop/packets/direct1h ; snr/bestHop null
+// préservés).
 export function toObservations(rows: ObservationRow[]): Observation[] {
   return rows.map((r) => ({
     gatewayId: r.gatewayId,
@@ -22,6 +24,7 @@ export function toObservations(rows: ObservationRow[]): Observation[] {
     bestHop: r.bestHop == null ? null : Number(r.bestHop),
     snr: r.snr,
     packets: Number(r.packets),
+    direct1h: r.direct1h == null ? 0 : Number(r.direct1h),
     source:
       r.source === "neighbor" || r.source === "traceroute"
         ? r.source
@@ -52,6 +55,13 @@ const SELECT_OBSERVATIONS = `
     MIN(p.hop_count)  AS "bestHop",
     AVG(p.snr)::real  AS "snr",
     COUNT(*)          AS "packets",
+    -- Badge compteur des passerelles. hop_count = 0 UNIQUEMENT : au-delà, le
+    -- paquet est arrivé relayé, la passerelle ne l'a pas « capté ». Agrégat
+    -- conditionnel sur la branche existante : aucune requête supplémentaire.
+    COUNT(*) FILTER (
+      WHERE p.hop_count = 0
+        AND p.received_at > NOW() - INTERVAL '1 hour'
+    )                 AS "direct1h",
     'gateway'         AS "source"
   FROM packets p
   JOIN nodes gw ON gw.node_id = p.gateway_id
@@ -72,6 +82,7 @@ const SELECT_OBSERVATIONS = `
     0                                    AS "bestHop",
     AVG(nn.snr)::real                    AS "snr",
     0                                    AS "packets",
+    0                                    AS "direct1h",
     'neighbor'                           AS "source"
   FROM node_neighbors nn
   JOIN nodes na ON na.node_id = LEAST(nn.node_id, nn.neighbor_id)
@@ -91,6 +102,7 @@ const SELECT_OBSERVATIONS = `
     0                                  AS "bestHop",
     AVG(ts.snr)::real                  AS "snr",
     0                                  AS "packets",
+    0                                  AS "direct1h",
     'traceroute'                       AS "source"
   FROM traceroute_segments ts
   JOIN nodes na ON na.node_id = LEAST(ts.from_node, ts.to_node)

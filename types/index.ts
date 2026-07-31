@@ -150,6 +150,11 @@ export interface Observation {
   bestHop: number | null;
   snr: number | null;
   packets: number; // nb de paquets (toutes catégories) captés pour cette paire
+  // Réceptions DIRECTES (hop 0) de la dernière heure pour cette paire. Sert au
+  // badge compteur des passerelles : « capté » veut dire entendu en radio
+  // directe, pas reçu via un relais. Toujours 0 pour neighbor/traceroute, dont
+  // les liens sont déclarés et agrégés sur 7 jours sans horodatage exploitable.
+  direct1h: number;
   source: ObservationSource;
 }
 

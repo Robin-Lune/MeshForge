@@ -3,7 +3,15 @@ import maplibregl from "maplibre-gl";
 import type { HopFilter } from "./MapFilters";
 import { bestTargets, type HoverEdge } from "./hover-edges";
 import { lerp, lineFeature, type LngLat } from "./map-data";
-import { clusterElement, hoverCard, pillElement } from "./map-dom";
+import {
+  BRIDGE_SHADOW,
+  PILL_SHADOW,
+  clusterElement,
+  hoverCard,
+  paintCount,
+  paintFreshness,
+  pillElement,
+} from "./map-dom";
 import { resolvePillSpread } from "./pill-spread";
 import { haversineKm } from "@/lib/geo";
 
@@ -23,6 +31,7 @@ type NodeMarkerControllerOptions = {
   getMinHopByNode: () => Map<string, number>;
   getBridgeNodeIds: () => Set<string>;
   getHoverByNode: () => Map<string, HoverEdge[]>;
+  getDirectCountByGateway: () => Map<string, number>;
   onOpenNode: (nodeId: string) => void;
 };
 
@@ -30,6 +39,7 @@ export type NodeMarkerController = {
   refreshNodes: () => void;
   updateMarkers: () => void;
   applyBridgeHighlight: () => void;
+  applyFreshness: () => void;
   clearSelection: () => void;
   popupIsOpen: () => boolean;
   destroy: () => void;
@@ -54,6 +64,7 @@ export function createNodeMarkerController({
   getMinHopByNode,
   getBridgeNodeIds,
   getHoverByNode,
+  getDirectCountByGateway,
   onOpenNode,
 }: NodeMarkerControllerOptions): NodeMarkerController {
   let alive = true;
@@ -232,8 +243,30 @@ export function createNodeMarkerController({
       if (!id.startsWith("n")) continue;
       const element = onScreen[id].getElement();
       element.style.boxShadow = bridges.has(id.slice(1))
-        ? "0 0 0 3px #2563eb, 0 1px 3px rgba(0,0,0,0.4)"
-        : "0 1px 3px rgba(0,0,0,0.35)";
+        ? BRIDGE_SHADOW
+        : PILL_SHADOW;
+    }
+  };
+
+  // Repeint la fraîcheur et le compteur des pastilles À L'ÉCRAN.
+  // INDISPENSABLE et facile à oublier : un node passe de « < 1 h » à « < 24 h »
+  // par le seul écoulement du temps, sans qu'aucun paquet n'arrive. Sans ce
+  // rafraîchissement périodique, la carte ment dès la minute suivante.
+  const applyFreshness = (): void => {
+    const now = Date.now();
+    const directCounts = getDirectCountByGateway();
+    for (const id in onScreen) {
+      if (!id.startsWith("n")) continue;
+      const nodeId = id.slice(1);
+      const element = onScreen[id].getElement();
+      const properties = (nodes.get(nodeId)?.properties ?? {}) as Record<
+        string,
+        unknown
+      >;
+      paintFreshness(element, properties.lastSeen, now);
+      if (properties.isGateway === true) {
+        paintCount(element, directCounts.get(nodeId) ?? 0);
+      }
     }
   };
 
@@ -363,6 +396,7 @@ export function createNodeMarkerController({
     onScreen = next;
     spreadPills();
     applyBridgeHighlight();
+    applyFreshness();
   };
 
   const clearSelection = (): void => {
@@ -383,6 +417,7 @@ export function createNodeMarkerController({
     refreshNodes,
     updateMarkers,
     applyBridgeHighlight,
+    applyFreshness,
     clearSelection,
     popupIsOpen: () => hoverPopup.isOpen(),
     destroy,
