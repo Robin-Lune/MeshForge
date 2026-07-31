@@ -40,11 +40,12 @@ export function nodeFeature(n: MarkerNode): GeoJSON.Feature {
       lastSnr: n.lastSnr ?? null,
       role: n.role ?? "",
       isGateway,
-      isMobile: n.isMobile ?? false,
-      // Pas de `color` ici : la couleur dépend du TEMPS QUI PASSE, pas de la
-      // donnée. La figer à la construction du feature la rendrait fausse dès
-      // la minute suivante — elle est calculée au rendu et repeinte par
-      // applyFreshness().
+      // Défaut PRUDENT, aligné sur is_mobile BOOLEAN DEFAULT TRUE : NodeUpdate
+      // ne transporte pas ce champ, et un `?? false` ferait annoncer « position
+      // exacte » pour un node dont le serveur a floué la position.
+      isMobile: n.isMobile ?? true,
+      // Pas de `color` : elle dépend du temps écoulé, pas de la donnée. Elle est
+      // calculée au rendu et repeinte par applyFreshness().
     },
   };
 }

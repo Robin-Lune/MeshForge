@@ -11,6 +11,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MapLegend } from "@/components/map/MapLegend";
 import { FRESHNESS_STEPS } from "@/lib/nodeColor";
+import { ROLE_BADGES } from "@/lib/nodeRole";
 import type { CoverageSelection } from "@/types";
 
 const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
@@ -45,11 +46,21 @@ describe("MapLegend — légende de base", () => {
     }
   });
 
-  it("décrit les marques posées sur les pastilles", () => {
+  it("décrit TOUTES les lettres de badge produites", () => {
+    // Les badges sont aria-hidden et sans infobulle : la légende est leur seul
+    // canal d'explication. Itérer la source de vérité fait échouer la suite si
+    // une lettre est ajoutée sans entrée.
     render(<MapLegend {...props()} />);
-    expect(screen.getByText(/nodes captés en direct sur 1 h/)).toBeInTheDocument();
-    expect(screen.getByText(/Relaie le trafic/)).toBeInTheDocument();
-    expect(screen.getByText(/Capteur/)).toBeInTheDocument();
+    for (const badge of ROLE_BADGES) {
+      expect(screen.getByText(badge.title)).toBeInTheDocument();
+    }
+  });
+
+  it("dit que le compteur dépasse ce que la carte affiche", () => {
+    render(<MapLegend {...props()} />);
+    expect(
+      screen.getByText(/y compris ceux que la carte n'affiche pas/),
+    ).toBeInTheDocument();
     expect(screen.getByText("Vu par plusieurs gateways")).toBeInTheDocument();
   });
 

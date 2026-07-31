@@ -43,12 +43,37 @@ non aléatoire : moyenner N trames ne permet pas de retrouver la position exacte
 ### Régime « agrégat » — pas de barrière individuelle
 
 Vues concernées : `/stats` (`getNetworkStats`), tuiles de couverture
-(`/api/coverage`).
+(`/api/coverage`), activité directe des passerelles (`/api/observations`,
+champ `gatewayActivity`).
 
 Un agrégat qui ne permet pas de remonter à un node n'a pas à être filtré : le
 filtrer dégraderait la mesure sans rien protéger. Les répartitions de `/stats`
 (par type de paquet, par hop, par modèle, par rôle) portent sur tout le réseau
 capté.
+
+## Cas particulier : le compteur d'activité des passerelles
+
+Le badge d'une passerelle annonce combien de nodes elle a entendus en direct
+(hop 0) sur la dernière heure. Il compte **tous** les nodes captés, y compris
+ceux sans position et ceux en opt-out RGPD — c'est sa seule raison d'être :
+donner à la carte une trace des nodes qui n'y figurent jamais.
+
+Ce qui le rend acceptable :
+
+1. **La sortie est `(gateway_id, nombre)`.** Aucun node capté n'est nommé.
+   L'identifiant de passerelle est déjà public : elle porte un marker.
+2. **Rien ne permet d'isoler un node.** Un nombre ne se remonte pas jusqu'à une
+   identité ni jusqu'à une position — c'est le test de la section « En cas de
+   doute ».
+3. **La passerelle, elle, reste soumise aux barrières individuelles** : non
+   localisée ou retirée, elle n'a pas de marker, donc pas de badge.
+
+**Divergence assumée avec les tuiles de couverture**, qui excluent l'opt-out
+RGPD alors qu'elles sont elles aussi un agrégat. La différence tient à ce que
+chaque sortie publie : une tuile porte une **position** (celle du node retiré,
+même grossie), le compteur ne porte qu'un nombre attaché à une **autre**
+entité. Retirer un node du comptage ne le protégerait de rien et priverait le
+badge de son intérêt.
 
 ## Cas particulier : les tuiles de couverture
 

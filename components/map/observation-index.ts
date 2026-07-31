@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { Observation } from "@/types";
+import type { GatewayActivity, Observation } from "@/types";
 import type { HoverEdge } from "./hover-edges";
 import type { LngLat } from "./map-data";
 import { haversineKm } from "@/lib/geo";
@@ -8,9 +8,6 @@ export type ObservationIndex = {
   minHopByNode: Map<string, number>;
   heardByNode: Map<string, Set<string>>;
   hoverByNode: Map<string, HoverEdge[]>;
-  // gateway -> nombre de nodes DISTINCTS captés en direct sur la dernière
-  // heure. Alimente le badge compteur des passerelles.
-  directCountByGateway: Map<string, number>;
 };
 
 const addHoverEdge = (
@@ -31,7 +28,6 @@ export function indexObservations(observations: Observation[]): ObservationIndex
   const minHopByNode = new Map<string, number>();
   const heardByNode = new Map<string, Set<string>>();
   const hoverByNode = new Map<string, HoverEdge[]>();
-  const directCountByGateway = new Map<string, number>();
 
   for (const observation of observations) {
     const hop = observation.bestHop ?? 9;
@@ -63,17 +59,6 @@ export function indexObservations(observations: Observation[]): ObservationIndex
     gateways.add(observation.gatewayId);
     heardByNode.set(observation.nodeId, gateways);
 
-    // « Capté » = entendu EN RADIO DIRECTE. Une arête gateway peut être à
-    // 3 hops : le paquet est alors arrivé relayé, la passerelle ne l'a pas
-    // capté. direct1h ne compte que les réceptions hop 0 de la dernière heure,
-    // et l'API en donne une par paire — d'où un comptage de NODES distincts.
-    if (observation.direct1h > 0) {
-      directCountByGateway.set(
-        observation.gatewayId,
-        (directCountByGateway.get(observation.gatewayId) ?? 0) + 1,
-      );
-    }
-
     addHoverEdge(hoverByNode, observation.gatewayId, {
       nodeId: observation.nodeId,
       hop,
@@ -88,7 +73,13 @@ export function indexObservations(observations: Observation[]): ObservationIndex
     });
   }
 
-  return { minHopByNode, heardByNode, hoverByNode, directCountByGateway };
+  return { minHopByNode, heardByNode, hoverByNode };
+}
+
+export function indexGatewayActivity(
+  activity: GatewayActivity[],
+): Map<string, number> {
+  return new Map(activity.map((a) => [a.gatewayId, a.directNodes1h]));
 }
 
 // Un node reçoit l'anneau « pont » s'il est entendu par au moins deux gateways

@@ -56,12 +56,12 @@ export default defineConfig({
       // Historique du cliquet — ces valeurs ne doivent que MONTER :
       //   introduction de la configuration : 31,31 / 36,97 / 33,44 / 31,24
       //   couche de couverture testée      : 35,66 / 40,74 / 37,57 / 35,92
-      //   fraîcheur des pastilles          : 41,49 / 45,01 / 40,00 / 41,71
+      //   fraîcheur des pastilles          : 45,16 / 46,93 / 42,30 / 45,50
       thresholds: {
-        statements: 41,
-        branches: 44,
-        functions: 39,
-        lines: 41,
+        statements: 45,
+        branches: 46,
+        functions: 42,
+        lines: 45,
       },
     },
   },

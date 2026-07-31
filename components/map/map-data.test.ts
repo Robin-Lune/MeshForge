@@ -36,13 +36,22 @@ describe("nodeFeature", () => {
     expect(p.label).toBe("StD");
     expect(p.lastSeen).toBe("2026-07-31T12:00:00Z");
     expect(p.isGateway).toBe(false);
-    expect(p.isMobile).toBe(false);
+  });
+
+  it("suppose la position FLOUTÉE quand isMobile est absent", () => {
+    // NodeUpdate ne transporte pas ce champ : un node né du flux temps réel
+    // passe ici. Un défaut à false ferait annoncer « position exacte » alors
+    // que le serveur a snappé la position.
+    const p = nodeFeature(base).properties as Record<string, unknown>;
+    expect(p.isMobile).toBe(true);
+    expect(
+      (nodeFeature({ ...base, isMobile: false }).properties as Record<string, unknown>)
+        .isMobile,
+    ).toBe(false);
   });
 
   it("NE FIGE PAS de couleur dans le feature", () => {
-    // La couleur dépend du temps qui passe, pas de la donnée : la calculer ici
-    // la rendrait fausse dès la minute suivante. Elle est produite au rendu et
-    // repeinte par applyFreshness().
+    // La couleur dépend du temps écoulé : la figer la rendrait fausse.
     const p = nodeFeature(base).properties as Record<string, unknown>;
     expect(p).not.toHaveProperty("color");
   });

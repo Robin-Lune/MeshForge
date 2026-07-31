@@ -8,7 +8,7 @@ import type {
   CoverageSelection,
   MapBounds,
   NodeUpdate,
-  Observation,
+  ObservationsResponse,
   PublicNode,
 } from "@/types";
 import { nodeFeature, shortLabel, type LngLat } from "./map-data";
@@ -24,6 +24,7 @@ import {
 } from "./node-marker-controller";
 import {
   bridgeNodeIds,
+  indexGatewayActivity,
   indexObservations,
   type ObservationIndex,
 } from "./observation-index";
@@ -35,9 +36,7 @@ import {
 // Au-delà de cette distance, un lien est probablement un artefact (GPS erroné /
 // module itinérant) vu la portée LoRa à La Réunion : masqué automatiquement.
 const FAR_LINK_KM = 20;
-// Cadence de vieillissement des pastilles. Une minute suffit : le palier le
-// plus court est d'une heure, et la fenêtre du compteur glisse sur la même
-// échelle.
+// Le palier le plus court et la fenêtre du compteur valent une heure.
 const FRESHNESS_TICK_MS = 60_000;
 const REUNION_CENTER: [number, number] = [55.536, -21.115];
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -57,7 +56,6 @@ const emptyObservationIndex = (): ObservationIndex => ({
   minHopByNode: new Map(),
   heardByNode: new Map(),
   hoverByNode: new Map(),
-  directCountByGateway: new Map(),
 });
 
 export function useMapController({
@@ -72,6 +70,7 @@ export function useMapController({
 
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());
   const observationsRef = useRef<ObservationIndex>(emptyObservationIndex());
+  const directCountsRef = useRef<Map<string, number>>(new Map());
   const bridgesRef = useRef<Set<string>>(new Set());
   const coverageCacheRef = useRef<CoverageResponse | null>(null);
   const filtersRef = useRef(filters);
@@ -142,8 +141,7 @@ export function useMapController({
       getMinHopByNode: () => observationsRef.current.minHopByNode,
       getBridgeNodeIds: () => bridgesRef.current,
       getHoverByNode: () => observationsRef.current.hoverByNode,
-      getDirectCountByGateway: () =>
-        observationsRef.current.directCountByGateway,
+      getDirectCountByGateway: () => directCountsRef.current,
       onOpenNode: (nodeId) =>
         routerRef.current.push(`/node/${encodeURIComponent(nodeId)}`),
     });
@@ -171,12 +169,21 @@ export function useMapController({
       nodeController.applyBridgeHighlight();
     };
 
+    // Le tick périodique et le rafraîchissement débouncé du SSE peuvent se
+    // croiser : sans numéro de séquence, une réponse lente écrase une réponse
+    // plus récente déjà appliquée.
+    let observationsSeq = 0;
+
     const loadObservations = (): void => {
+      const seq = ++observationsSeq;
       fetch("/api/observations")
-        .then((response) => response.json() as Promise<Observation[]>)
-        .then((observations) => {
-          if (!alive) return;
-          observationsRef.current = indexObservations(observations);
+        .then((response) => response.json() as Promise<ObservationsResponse>)
+        .then((payload) => {
+          if (!alive || seq !== observationsSeq) return;
+          observationsRef.current = indexObservations(payload.edges);
+          directCountsRef.current = indexGatewayActivity(
+            payload.gatewayActivity,
+          );
           computeBridges();
           nodeController.refreshNodes();
           nodeController.applyFreshness();
@@ -272,15 +279,12 @@ export function useMapController({
       } catch {}
     });
 
-    // UN SEUL timer pour deux besoins qui ont la même cause — le temps passe :
-    // la couleur doit vieillir, et la fenêtre glissante d'une heure du compteur
-    // se vide même quand plus aucun paquet n'arrive. Sur un mesh calme la nuit,
-    // aucun node_update ne survient : sans ce tick, la carte resterait figée sur
-    // l'état du chargement.
+    // Le temps qui passe suffit à périmer la couleur et à vider la fenêtre d'une
+    // heure du compteur : aucun événement serveur ne les rafraîchirait. Repeint
+    // toujours (gratuit, local), mais ne requête pas un onglet masqué.
     const freshnessTimer = window.setInterval(() => {
-      if (!alive) return;
       nodeController.applyFreshness();
-      loadObservations();
+      if (!document.hidden) loadObservations();
     }, FRESHNESS_TICK_MS);
 
     return () => {

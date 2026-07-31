@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleBadge } from "./nodeRole";
+import { ROLE_BADGES, roleBadge } from "./nodeRole";
 
 describe("roleBadge", () => {
   it("marque d'un R tout ce qui relaie", () => {
@@ -16,8 +16,7 @@ describe("roleBadge", () => {
   });
 
   it("ne marque AUCUN node de la famille CLIENT", () => {
-    // CLIENT est le défaut Meshtastic : un badge s'y poserait sur presque tout
-    // le parc et ne distinguerait plus rien. L'absence de badge EST le signal.
+    // CLIENT est le défaut Meshtastic : l'absence de badge EST le signal.
     for (const r of [
       "CLIENT",
       "CLIENT_MUTE",
@@ -35,12 +34,17 @@ describe("roleBadge", () => {
   });
 
   it("signale un rôle hors catalogue plutôt que de le taire", () => {
-    // deviceRoleName() renvoie la valeur brute pour un enum inconnu : un
-    // firmware plus récent que le décodeur ne doit pas passer pour un client.
-    const badge = roleBadge("42");
-    expect(badge?.letter).toBe("?");
-    expect(badge?.title).toContain("42");
+    // deviceRoleName() renvoie la valeur brute pour un enum inconnu.
+    expect(roleBadge("42")?.letter).toBe("?");
     expect(roleBadge("LOST_AND_FOUND")?.letter).toBe("?");
+  });
+
+  it("n'expose que des badges présents dans ROLE_BADGES", () => {
+    // La légende itère ROLE_BADGES : une lettre produite hors de cette table
+    // n'y serait jamais documentée.
+    for (const role of ["ROUTER", "SENSOR", "TRACKER", "42"]) {
+      expect(ROLE_BADGES).toContain(roleBadge(role));
+    }
   });
 
   it("tolère la casse et les espaces", () => {

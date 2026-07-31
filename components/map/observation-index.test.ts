@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Observation } from "@/types";
-import { bridgeNodeIds, indexObservations } from "./observation-index";
+import {
+  bridgeNodeIds,
+  indexGatewayActivity,
+  indexObservations,
+} from "./observation-index";
 import type { LngLat } from "./map-data";
 
 const observation = (
@@ -11,7 +15,6 @@ const observation = (
   bestHop: 0,
   snr: -8,
   packets: 4,
-  direct1h: 0,
   source: "gateway",
   ...over,
 });
@@ -44,11 +47,13 @@ describe("indexObservations", () => {
     const index = indexObservations([
       observation({ gatewayId: "!gw1", bestHop: 2 }),
       observation({ gatewayId: "!gw2", bestHop: 1 }),
+      // Hop plus GRAND que le minimum déjà retenu : ne doit pas l'écraser.
+      observation({ gatewayId: "!gw3", bestHop: 3 }),
     ]);
 
     expect(index.minHopByNode.get("!node")).toBe(1);
     expect(index.heardByNode.get("!node")).toEqual(
-      new Set(["!gw1", "!gw2"]),
+      new Set(["!gw1", "!gw2", "!gw3"]),
     );
   });
 
@@ -78,61 +83,6 @@ describe("indexObservations", () => {
       nodeId: "!b",
       source: "traceroute",
     });
-  });
-});
-
-describe("indexObservations — compteur des passerelles", () => {
-  it("compte les NODES distincts captés en direct dans l'heure", () => {
-    const index = indexObservations([
-      observation({ gatewayId: "!gw", nodeId: "!n1", direct1h: 6 }),
-      observation({ gatewayId: "!gw", nodeId: "!n2", direct1h: 1 }),
-      observation({ gatewayId: "!gw", nodeId: "!n3", direct1h: 3 }),
-    ]);
-    // Trois paires actives → 3, et non 10 : le badge annonce un nombre de
-    // nodes captés, pas un volume de paquets.
-    expect(index.directCountByGateway.get("!gw")).toBe(3);
-  });
-
-  it("ignore une paire sans réception directe récente", () => {
-    // direct1h = 0 couvre deux cas indissociables ici : lien relayé (hop > 0)
-    // et lien direct mais plus vieux qu'une heure. Aucun des deux n'est
-    // « capté maintenant ».
-    const index = indexObservations([
-      observation({ gatewayId: "!gw", nodeId: "!n1", direct1h: 2 }),
-      observation({ gatewayId: "!gw", nodeId: "!n2", bestHop: 2, direct1h: 0 }),
-      observation({ gatewayId: "!gw", nodeId: "!n3", direct1h: 0 }),
-    ]);
-    expect(index.directCountByGateway.get("!gw")).toBe(1);
-  });
-
-  it("laisse une passerelle silencieuse absente de l'index", () => {
-    // Le contrôleur retombe alors sur 0, et le badge reste affiché : c'est lui
-    // qui identifie la passerelle.
-    const index = indexObservations([
-      observation({ gatewayId: "!gw", nodeId: "!n1", direct1h: 0 }),
-    ]);
-    expect(index.directCountByGateway.has("!gw")).toBe(false);
-  });
-
-  it("sépare les compteurs de deux passerelles", () => {
-    const index = indexObservations([
-      observation({ gatewayId: "!gw1", nodeId: "!n1", direct1h: 4 }),
-      observation({ gatewayId: "!gw1", nodeId: "!n2", direct1h: 4 }),
-      observation({ gatewayId: "!gw2", nodeId: "!n1", direct1h: 9 }),
-    ]);
-    expect(index.directCountByGateway.get("!gw1")).toBe(2);
-    expect(index.directCountByGateway.get("!gw2")).toBe(1);
-  });
-
-  it("ne compte pas les liens déclarés NeighborInfo/traceroute", () => {
-    // Ils sont agrégés sur 7 jours sans horodatage exploitable : leur direct1h
-    // est structurellement 0 côté SQL, mais l'index ne doit pas non plus les
-    // laisser entrer par une autre porte.
-    const index = indexObservations([
-      observation({ gatewayId: "!a", nodeId: "!b", source: "neighbor", direct1h: 5 }),
-      observation({ gatewayId: "!a", nodeId: "!c", source: "traceroute", direct1h: 5 }),
-    ]);
-    expect(index.directCountByGateway.size).toBe(0);
   });
 });
 
@@ -193,5 +143,20 @@ describe("bridgeNodeIds", () => {
         20,
       ),
     ).toEqual(new Set());
+  });
+});
+
+describe("indexGatewayActivity", () => {
+  it("indexe les compteurs par passerelle", () => {
+    const counts = indexGatewayActivity([
+      { gatewayId: "!gw1", directNodes1h: 7 },
+      { gatewayId: "!gw2", directNodes1h: 0 },
+    ]);
+    expect(counts.get("!gw1")).toBe(7);
+    expect(counts.get("!gw2")).toBe(0);
+  });
+
+  it("laisse absente une passerelle sans ligne", () => {
+    expect(indexGatewayActivity([]).has("!gw")).toBe(false);
   });
 });

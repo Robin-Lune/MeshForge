@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import type { Observation } from "../../types";
+import type {
+  GatewayActivity,
+  Observation,
+  ObservationsResponse,
+} from "../../types";
 
 // pg : MIN(hop_count) (smallint) en number/string, AVG(snr)::real en number,
 // COUNT(*) (bigint) en string.
@@ -11,12 +15,15 @@ interface ObservationRow {
   bestHop: string | number | null;
   snr: number | null;
   packets: string | number;
-  direct1h?: string | number | null;
   source?: string;
 }
 
-// Normalise les arêtes (coercition bestHop/packets/direct1h ; snr/bestHop null
-// préservés).
+interface GatewayActivityRow {
+  gatewayId: string;
+  directNodes1h: string | number;
+}
+
+// Normalise les arêtes (coercition bestHop/packets ; snr/bestHop null préservés).
 export function toObservations(rows: ObservationRow[]): Observation[] {
   return rows.map((r) => ({
     gatewayId: r.gatewayId,
@@ -24,11 +31,19 @@ export function toObservations(rows: ObservationRow[]): Observation[] {
     bestHop: r.bestHop == null ? null : Number(r.bestHop),
     snr: r.snr,
     packets: Number(r.packets),
-    direct1h: r.direct1h == null ? 0 : Number(r.direct1h),
     source:
       r.source === "neighbor" || r.source === "traceroute"
         ? r.source
         : "gateway",
+  }));
+}
+
+export function toGatewayActivity(
+  rows: GatewayActivityRow[],
+): GatewayActivity[] {
+  return rows.map((r) => ({
+    gatewayId: r.gatewayId,
+    directNodes1h: Number(r.directNodes1h),
   }));
 }
 
@@ -55,13 +70,6 @@ const SELECT_OBSERVATIONS = `
     MIN(p.hop_count)  AS "bestHop",
     AVG(p.snr)::real  AS "snr",
     COUNT(*)          AS "packets",
-    -- Badge compteur des passerelles. hop_count = 0 UNIQUEMENT : au-delà, le
-    -- paquet est arrivé relayé, la passerelle ne l'a pas « capté ». Agrégat
-    -- conditionnel sur la branche existante : aucune requête supplémentaire.
-    COUNT(*) FILTER (
-      WHERE p.hop_count = 0
-        AND p.received_at > NOW() - INTERVAL '1 hour'
-    )                 AS "direct1h",
     'gateway'         AS "source"
   FROM packets p
   JOIN nodes gw ON gw.node_id = p.gateway_id
@@ -82,7 +90,6 @@ const SELECT_OBSERVATIONS = `
     0                                    AS "bestHop",
     AVG(nn.snr)::real                    AS "snr",
     0                                    AS "packets",
-    0                                    AS "direct1h",
     'neighbor'                           AS "source"
   FROM node_neighbors nn
   JOIN nodes na ON na.node_id = LEAST(nn.node_id, nn.neighbor_id)
@@ -102,7 +109,6 @@ const SELECT_OBSERVATIONS = `
     0                                  AS "bestHop",
     AVG(ts.snr)::real                  AS "snr",
     0                                  AS "packets",
-    0                                  AS "direct1h",
     'traceroute'                       AS "source"
   FROM traceroute_segments ts
   JOIN nodes na ON na.node_id = LEAST(ts.from_node, ts.to_node)
@@ -120,7 +126,42 @@ const SELECT_OBSERVATIONS = `
   GROUP BY 1, 2
 `;
 
-export async function getObservations(): Promise<Observation[]> {
-  const { rows } = await pool.query<ObservationRow>(SELECT_OBSERVATIONS);
-  return toObservations(rows);
+// Badge compteur des passerelles. Requête SÉPARÉE de la toile, et c'est le
+// point : une arête n'existe que si ses deux extrémités sont affichables, une
+// barrière posée pour tracer des liens. Le compteur, lui, n'a besoin d'aucune
+// position — la lui appliquer le priverait justement des nodes que la carte ne
+// montre jamais (sans GPS, retirés), qui sont sa seule raison d'être.
+//
+// Régime « agrégat » de docs/analytics.md : la sortie est (id de passerelle,
+// nombre). L'identifiant de passerelle est déjà public, aucun node capté n'est
+// nommé, donc rien ne permet d'isoler un node — aucune barrière individuelle.
+// La passerelle doit rester localisée : sans marker, pas de badge à porter.
+//
+// hop_count = 0 STRICTEMENT : au-delà le paquet est arrivé relayé, la passerelle
+// ne l'a pas capté. hop_count NULL (hops_away absent du fil) est écarté par la
+// comparaison — un hop inconnu ne doit pas être compté comme direct.
+const SELECT_GATEWAY_ACTIVITY = `
+  SELECT
+    p.gateway_id                 AS "gatewayId",
+    COUNT(DISTINCT p.node_id)    AS "directNodes1h"
+  FROM packets p
+  JOIN nodes gw ON gw.node_id = p.gateway_id
+  WHERE p.gateway_id IS NOT NULL AND p.node_id IS NOT NULL
+    AND p.gateway_id <> p.node_id
+    AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
+    AND NOT gw.excluded
+    AND p.hop_count = 0
+    AND p.received_at > NOW() - INTERVAL '1 hour'
+  GROUP BY p.gateway_id
+`;
+
+export async function getObservations(): Promise<ObservationsResponse> {
+  const [edges, activity] = await Promise.all([
+    pool.query<ObservationRow>(SELECT_OBSERVATIONS),
+    pool.query<GatewayActivityRow>(SELECT_GATEWAY_ACTIVITY),
+  ]);
+  return {
+    edges: toObservations(edges.rows),
+    gatewayActivity: toGatewayActivity(activity.rows),
+  };
 }

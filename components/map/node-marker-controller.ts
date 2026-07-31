@@ -8,8 +8,7 @@ import {
   PILL_SHADOW,
   clusterElement,
   hoverCard,
-  paintCount,
-  paintFreshness,
+  paintMarker,
   pillElement,
 } from "./map-dom";
 import { resolvePillSpread } from "./pill-spread";
@@ -248,25 +247,20 @@ export function createNodeMarkerController({
     }
   };
 
-  // Repeint la fraîcheur et le compteur des pastilles À L'ÉCRAN.
-  // INDISPENSABLE et facile à oublier : un node passe de « < 1 h » à « < 24 h »
-  // par le seul écoulement du temps, sans qu'aucun paquet n'arrive. Sans ce
-  // rafraîchissement périodique, la carte ment dès la minute suivante.
+  // Un node change de palier par le seul écoulement du temps, sans qu'aucun
+  // paquet n'arrive : sans repeint périodique la couleur devient fausse. Le rôle
+  // y passe aussi, l'élément DOM n'étant recréé qu'au changement d'état
+  // passerelle.
   const applyFreshness = (): void => {
     const now = Date.now();
     const directCounts = getDirectCountByGateway();
     for (const id in onScreen) {
       if (!id.startsWith("n")) continue;
-      const nodeId = id.slice(1);
-      const element = onScreen[id].getElement();
-      const properties = (nodes.get(nodeId)?.properties ?? {}) as Record<
+      const properties = (nodes.get(id.slice(1))?.properties ?? {}) as Record<
         string,
         unknown
       >;
-      paintFreshness(element, properties.lastSeen, now);
-      if (properties.isGateway === true) {
-        paintCount(element, directCounts.get(nodeId) ?? 0);
-      }
+      paintMarker(onScreen[id].getElement(), properties, directCounts, now);
     }
   };
 

@@ -3,6 +3,7 @@
 import type { CoverageMetric, CoverageSelection } from "@/types";
 import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
 import { FRESHNESS_STEPS, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
+import { ROLE_BADGES } from "@/lib/nodeRole";
 import { BRIDGE_RING, BRIDGE_RING_EDGE } from "./map-dom";
 
 type MapLegendProps = {
@@ -47,9 +48,6 @@ export function MapLegend({
       {open && (
         <div className="pointer-events-auto mb-2 w-fit max-w-full rounded-lg bg-white/95 px-3 py-2 text-xs leading-tight text-zinc-800 shadow ring-1 ring-black/10 dark:bg-zinc-900/90 dark:text-zinc-100 dark:ring-white/15">
           <div className="grid gap-1.5">
-            {/* La couleur d'une pastille = date de dernière réception. Sans ces
-                entrées, les teintes seraient aussi opaques que le hash du
-                node_id qu'elles remplacent. */}
             <div className="font-semibold">Dernière réception</div>
             {FRESHNESS_STEPS.map((step) => (
               <div key={step.label} className="flex min-w-0 items-center gap-2">
@@ -74,28 +72,24 @@ export function MapLegend({
                 5
               </span>
               <span className="min-w-0 break-words">
-                Gateway MQTT — nodes captés en direct sur 1 h
+                Gateway MQTT — nodes entendus en direct sur 1 h, y compris ceux
+                que la carte n&apos;affiche pas
               </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
-                R
-              </span>
-              <span className="min-w-0 break-words">
-                Relaie le trafic (routeur ou répéteur)
-              </span>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
-                C
-              </span>
-              <span className="min-w-0 break-words">
-                Capteur — publie de la télémétrie
-              </span>
-            </div>
+            {/* Itère la source de vérité : une lettre ajoutée à ROLE_BADGES
+                apparaît ici sans intervention. Les badges étant aria-hidden et
+                sans infobulle, cette liste est leur seule explication. */}
+            {ROLE_BADGES.map((badge) => (
+              <div key={badge.letter} className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
+                  {badge.letter}
+                </span>
+                <span className="min-w-0 break-words">{badge.title}</span>
+              </div>
+            ))}
             <div className="flex min-w-0 items-center gap-2">
               <span
-                className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold shadow"
+                className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold"
                 style={{
                   background: FRESHNESS_STEPS[0].bg,
                   color: FRESHNESS_STEPS[0].fg,

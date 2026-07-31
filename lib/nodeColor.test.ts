@@ -7,16 +7,11 @@ import {
 } from "./nodeColor";
 
 const H = 3_600_000;
-// Instant de référence fixe : sans lui, un test « il y a 23 h » basculerait de
-// palier selon l'heure d'exécution.
 const NOW = Date.parse("2026-07-31T12:00:00Z");
 const ago = (hours: number) => new Date(NOW - hours * H).toISOString();
 
-// --- contraste WCAG 2.1, recalculé ici -------------------------------------
-// La rampe n'est PAS un choix esthétique libre : c'est la lisibilité d'un
-// libellé de 11 px sur un fond de carte. Recalculer les ratios plutôt que de
-// figer les couleurs attendues fait échouer le test si quelqu'un retouche une
-// teinte à l'œil, ce qu'une simple comparaison de chaîne laisserait passer.
+// Contraste WCAG 2.1 recalculé : figer les couleurs attendues laisserait passer
+// une retouche à l'œil.
 function channel(v: number): number {
   const c = v / 255;
   return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -39,8 +34,7 @@ describe("contraste de la rampe", () => {
   );
 
   it("le palier le plus ancien reste distinct d'une tuile claire", () => {
-    // Plus pâle, la pastille se confondrait avec la carte et « très vieux » se
-    // lirait « absent ». Garde-fou explicite contre un fade poussé trop loin.
+    // Plus pâle, « très vieux » se lirait « absent ».
     const oldest = FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1];
     expect(contrast(oldest.bg, "#f2efe9")).toBeGreaterThan(1.5);
   });
@@ -75,10 +69,25 @@ describe("freshnessColor — paliers", () => {
   });
 
   it("vieillit avec le temps à date de réception constante", () => {
-    // Le cœur de la fonctionnalité : la couleur change SANS nouveau paquet.
     const seen = ago(0.5);
     expect(freshnessColor(seen, NOW).bg).toBe(FRESHNESS_STEPS[0].bg);
     expect(freshnessColor(seen, NOW + 2 * H).bg).toBe(FRESHNESS_STEPS[1].bg);
+  });
+});
+
+describe("FRESHNESS_STEPS", () => {
+  it("borne le dernier palier à Infinity", () => {
+    // freshnessColor ne parcourt que length - 1 : un palier ajouté après celui
+    // qui borne à Infinity serait inatteignable.
+    expect(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].maxHours).toBe(Infinity);
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(Number.isFinite(step.maxHours)).toBe(true);
+    }
+  });
+
+  it("est trié par borne croissante", () => {
+    const bornes = FRESHNESS_STEPS.map((s) => s.maxHours);
+    expect([...bornes].sort((a, b) => a - b)).toEqual(bornes);
   });
 });
 
@@ -96,8 +105,7 @@ describe("freshnessColor — entrées dégradées", () => {
   });
 
   it("traite une date future comme la plus fraîche", () => {
-    // Horloge d'un node en avance : un âge négatif ne doit pas sortir de la
-    // rampe ni produire une couleur indéfinie.
+    // Horloge de node en avance : un âge négatif doit rester dans la rampe.
     expect(freshnessColor(new Date(NOW + 10 * H).toISOString(), NOW).bg).toBe(
       FRESHNESS_STEPS[0].bg,
     );

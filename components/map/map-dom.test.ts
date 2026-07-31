@@ -4,12 +4,17 @@
 // Aucun mock — ni MapLibre, ni réseau, ni base. Seul un document est requis.
 import { describe, it, expect } from "vitest";
 import {
+  BRIDGE_RING,
+  BRIDGE_RING_EDGE,
+  BRIDGE_SHADOW,
   clusterElement,
   countBadge,
   coverageCard,
   hoverCard,
   paintCount,
   paintFreshness,
+  paintMarker,
+  paintRole,
   pillElement,
   roleBadgeElement,
 } from "@/components/map/map-dom";
@@ -35,15 +40,15 @@ describe("pillElement", () => {
   });
 
   it("colore la pastille selon la fraîcheur, pas selon le node", () => {
-    const frais = pillElement({ label: "AA", lastSeen: now() });
+    const seen = now();
+    const frais = pillElement({ label: "AA", lastSeen: seen });
     const vieux = pillElement({ label: "AA", lastSeen: daysAgo(30) });
     expect(frais.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
     expect(vieux.style.background).toBe(
       asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
     );
-    // Deux nodes vus au même moment sont de la même couleur : la teinte ne
-    // dépend plus de l'identifiant.
-    const autre = pillElement({ label: "ZZ", lastSeen: frais.dataset.x ?? now() });
+    // Même date, identifiants différents : la teinte ne dépend plus du node.
+    const autre = pillElement({ label: "ZZ", lastSeen: seen });
     expect(autre.style.background).toBe(frais.style.background);
   });
 
@@ -57,12 +62,30 @@ describe("pillElement", () => {
     expect(Number(gw.dataset.w)).toBeGreaterThan(Number(node.dataset.w));
   });
 
-  it("réserve la place des badges dans les dimensions estimées", () => {
-    // Sans cette marge, resolvePillSpread sous-estime la pastille et les
-    // badges se chevauchent à nouveau.
-    const el = pillElement({ label: "AB", lastSeen: now() });
-    expect(Number(el.dataset.h)).toBeGreaterThan(20);
-    expect(Number(el.dataset.w)).toBeGreaterThan("AB".length * 7 + 16);
+  it("ne réserve de marge que pour les badges réellement posés", () => {
+    const nu = pillElement({ label: "AB", role: "CLIENT", lastSeen: now() });
+    const avecRole = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
+    // Une pastille sans badge garde les dimensions historiques : la marge
+    // s'appliquerait sinon à la quasi-totalité du parc, qui n'en porte aucun.
+    expect(Number(nu.dataset.w)).toBe("AB".length * 7 + 16);
+    expect(Number(nu.dataset.h)).toBe(20);
+    expect(Number(avecRole.dataset.w)).toBeGreaterThan(Number(nu.dataset.w));
+    expect(Number(avecRole.dataset.h)).toBeGreaterThan(Number(nu.dataset.h));
+  });
+
+  it("masque les badges aux lecteurs d'écran et garde le libellé lisible", () => {
+    const gw = pillElement({
+      label: "GW",
+      isGateway: true,
+      role: "ROUTER",
+      lastSeen: now(),
+    });
+    for (const badge of gw.querySelectorAll("[class^=mf-badge]")) {
+      expect(badge.getAttribute("aria-hidden")).toBe("true");
+    }
+    // textContent agrège les badges (« GW0R ») : le libellé se lit dans
+    // dataset.label, seule source fiable une fois les badges posés.
+    expect(gw.dataset.label).toBe("GW");
   });
 
   it("porte un badge compteur à 0 dès qu'il s'agit d'une passerelle", () => {
@@ -108,19 +131,26 @@ describe("countBadge / roleBadgeElement", () => {
     expect(countBadge(12).textContent).toBe("12");
   });
 
-  it("décrit le rôle en infobulle du badge", () => {
-    expect(roleBadgeElement("SENSOR")?.title).toContain("Capteur");
+  it("ne pose de badge que hors famille CLIENT", () => {
+    expect(roleBadgeElement("SENSOR")?.textContent).toBe("C");
     expect(roleBadgeElement("CLIENT")).toBeNull();
     expect(roleBadgeElement(null)).toBeNull();
+  });
+
+  it("ne porte pas d'infobulle : pointer-events la rendrait inatteignable", () => {
+    const badge = roleBadgeElement("SENSOR");
+    expect(badge?.style.pointerEvents).toBe("none");
+    expect(badge?.title).toBe("");
   });
 });
 
 describe("paintFreshness / paintCount", () => {
-  it("repeint une pastille déjà montée", () => {
-    const el = pillElement({ label: "AA", lastSeen: now() });
+  it("vieillit une pastille montée à date de réception constante", () => {
+    const seen = "2026-07-31T12:00:00Z";
+    const el = pillElement({ label: "AA", lastSeen: seen });
+    paintFreshness(el, seen, Date.parse("2026-07-31T12:10:00Z"));
     expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
-    // Même node, même date : seul le « maintenant » a avancé de 3 jours.
-    paintFreshness(el, el.dataset.seen ?? daysAgo(3));
+    paintFreshness(el, seen, Date.parse("2026-08-03T12:00:00Z"));
     expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[2].bg));
     expect(el.style.color).toBe(asRgb(FRESHNESS_STEPS[2].fg));
   });
@@ -206,6 +236,29 @@ describe("hoverCard", () => {
     expect(hoverCard({ nodeId: "!a", lastSnr: null }).textContent).not.toContain("Signal");
   });
 
+  it("tolère une fiche entièrement vide", () => {
+    expect(() => hoverCard({})).not.toThrow();
+  });
+
+  it("affiche la date quand elle existe", () => {
+    const t = hoverCard({ nodeId: "!a", lastSeen: "2026-07-31T12:00:00Z" })
+      .textContent ?? "";
+    expect(t).toContain("Vu ");
+  });
+
+  it("explique la lettre du badge, seul canal disponible", () => {
+    // Les badges sont aria-hidden et sans infobulle propre.
+    expect(hoverCard({ nodeId: "!a", role: "SENSOR" }).textContent).toContain(
+      "Capteur",
+    );
+    expect(hoverCard({ nodeId: "!a", role: "CLIENT" }).textContent).not.toContain(
+      "Capteur",
+    );
+    expect(hoverCard({ nodeId: "!a", role: 7 }).textContent).not.toContain(
+      "Capteur",
+    );
+  });
+
   it("qualifie la précision de position", () => {
     // is_mobile vaut TRUE par défaut (prudence vie privée) : seul un FALSE
     // explicite atteste d'une position exacte.
@@ -266,5 +319,181 @@ describe("coverageCard", () => {
     const t = coverageCard({}, 14).textContent ?? "";
     expect(t).toContain("z14");
     expect(t).toContain("0");
+  });
+});
+
+describe("paintRole", () => {
+  it("pose le badge quand le rôle arrive après la création du marker", () => {
+    // nodeinfo tardif : le marker existe déjà et n'est pas recréé, seul l'état
+    // passerelle le ferait.
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    expect(el.querySelector(".mf-badge-role")).toBeNull();
+    paintRole(el, "ROUTER");
+    expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
+  });
+
+  it("retire le badge quand le node est rétrogradé en CLIENT", () => {
+    const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
+    paintRole(el, "CLIENT");
+    expect(el.querySelector(".mf-badge-role")).toBeNull();
+  });
+
+  it("ne duplique pas le badge quand le rôle est inchangé", () => {
+    const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
+    paintRole(el, "ROUTER");
+    paintRole(el, "ROUTER_LATE");
+    expect(el.querySelectorAll(".mf-badge-role")).toHaveLength(1);
+  });
+
+  it("remesure la pastille", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    const avant = Number(el.dataset.w);
+    paintRole(el, "ROUTER");
+    expect(Number(el.dataset.w)).toBeGreaterThan(avant);
+  });
+});
+
+describe("mesure du compteur", () => {
+  it("élargit la pastille quand le compteur gagne des chiffres", () => {
+    // Sinon le badge déborde sur la pastille voisine, la collision même que la
+    // marge doit empêcher.
+    const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    const unChiffre = Number(el.dataset.w);
+    paintCount(el, 127);
+    expect(Number(el.dataset.w)).toBeGreaterThan(unChiffre);
+  });
+
+  it("ne remesure pas quand le compte est inchangé", () => {
+    const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    paintCount(el, 5);
+    const apres = el.dataset.w;
+    paintCount(el, 5);
+    expect(el.dataset.w).toBe(apres);
+  });
+});
+
+describe("contraste de l'anneau « pont »", () => {
+  // L'anneau doit trancher sur les DEUX fonds de carte. Aucune couleur unique
+  // n'y parvient : l'ambre tient sur fond sombre, le filet ardoise fournit
+  // l'arête sur fond clair. Seuil 3:1 (WCAG 2.1 SC 1.4.11, éléments non
+  // textuels). Le filet est en rgba : composité sur le fond avant mesure.
+  const TUILE_CLAIRE = "#f2efe9";
+  const TUILE_SOMBRE = "#1b2230";
+
+  const rgb = (hex: string): [number, number, number] =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
+      number,
+      number,
+      number,
+    ];
+  const channel = (v: number): number => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = ([r, g, b]: [number, number, number]): number =>
+    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  const contrast = (
+    a: [number, number, number],
+    b: [number, number, number],
+  ): number => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const over = (
+    rgba: [number, number, number, number],
+    bg: string,
+  ): [number, number, number] => {
+    const back = rgb(bg);
+    return [0, 1, 2].map(
+      (i) => rgba[3] * rgba[i] + (1 - rgba[3]) * back[i],
+    ) as [number, number, number];
+  };
+
+  const EDGE: [number, number, number, number] = [15, 23, 42, 0.55];
+
+  it("l'ambre porte l'anneau sur fond sombre", () => {
+    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeGreaterThan(3);
+  });
+
+  it("le filet porte l'anneau sur fond clair, là où l'ambre s'efface", () => {
+    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_CLAIRE))).toBeLessThan(3);
+    expect(
+      contrast(over(EDGE, TUILE_CLAIRE), rgb(TUILE_CLAIRE)),
+    ).toBeGreaterThan(3);
+  });
+
+  it("l'anneau se détache de la pastille la plus vive", () => {
+    expect(
+      contrast(rgb(BRIDGE_RING), rgb(FRESHNESS_STEPS[0].bg)),
+    ).toBeGreaterThan(2.5);
+  });
+
+  it("est bien composé de l'ambre puis du filet", () => {
+    expect(BRIDGE_SHADOW).toContain(BRIDGE_RING);
+    expect(BRIDGE_SHADOW).toContain(BRIDGE_RING_EDGE);
+  });
+});
+
+describe("paintMarker", () => {
+  const counts = new Map([["!gw", 4]]);
+
+  it("repeint fraîcheur, rôle et compteur d'une passerelle", () => {
+    const el = pillElement({
+      label: "GW",
+      nodeId: "!gw",
+      isGateway: true,
+      lastSeen: now(),
+    });
+    paintMarker(
+      el,
+      { nodeId: "!gw", isGateway: true, lastSeen: daysAgo(30), role: "ROUTER" },
+      counts,
+    );
+    expect(el.style.background).toBe(
+      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
+    );
+    expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
+    expect(el.querySelector(".mf-badge-count")?.textContent).toBe("4");
+  });
+
+  it("retombe à 0 pour une passerelle absente de l'index", () => {
+    const el = pillElement({
+      label: "GW",
+      nodeId: "!autre",
+      isGateway: true,
+      lastSeen: now(),
+    });
+    paintMarker(el, { nodeId: "!autre", isGateway: true }, counts);
+    expect(el.querySelector(".mf-badge-count")?.textContent).toBe("0");
+  });
+
+  it("ne touche pas au compteur d'un node ordinaire", () => {
+    const el = pillElement({ label: "N1", nodeId: "!n1", lastSeen: now() });
+    paintMarker(el, { nodeId: "!n1", lastSeen: now() }, counts);
+    expect(el.querySelector(".mf-badge-count")).toBeNull();
+  });
+
+  it("accepte un instant de référence", () => {
+    const el = pillElement({ label: "N1", nodeId: "!n1", lastSeen: now() });
+    paintMarker(
+      el,
+      { nodeId: "!n1", lastSeen: "2026-07-31T12:00:00Z" },
+      counts,
+      Date.parse("2026-07-31T12:10:00Z"),
+    );
+    expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
+  });
+
+  it("tolère un élément sans dataset de libellé", () => {
+    // paintRole/paintCount sont exportés : rien ne garantit qu'on les appelle
+    // sur une pastille issue de pillElement.
+    const nu = document.createElement("div");
+    expect(() => paintRole(nu, "ROUTER")).not.toThrow();
+    expect(nu.dataset.w).toBeDefined();
+
+    const gw = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    delete gw.dataset.label;
+    expect(() => paintCount(gw, 9)).not.toThrow();
+    expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("9");
   });
 });
