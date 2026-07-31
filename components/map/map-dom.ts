@@ -17,8 +17,10 @@ const COUNT_BADGE_HEIGHT = 15;
 // Débordement horizontal d'un badge hors de la pastille, translation comprise.
 // resolvePillSpread ne lit que dataset.w/h : un débordement non compté y ramène
 // les chevauchements.
-const roleOverflow = (): number => BADGE_SIZE * 0.38;
-const countOverflow = (width: number): number => width * 0.42;
+const ROLE_OUT = 0.24;
+const COUNT_OUT = 0.28;
+const roleOverflow = (): number => BADGE_SIZE * ROLE_OUT;
+const countOverflow = (width: number): number => width * COUNT_OUT;
 // countBadge : min-width 15px, +3px de padding de chaque côté, ~5px par chiffre.
 const countWidth = (count: number): number =>
   Math.max(COUNT_BADGE_HEIGHT, 6 + String(count).length * 5.5);
@@ -48,7 +50,7 @@ export function countBadge(count: number): HTMLElement {
   el.textContent = String(count);
   el.style.top = "0";
   el.style.right = "0";
-  el.style.transform = "translate(42%, -46%)";
+  el.style.transform = `translate(${COUNT_OUT * 100}%, -${COUNT_OUT * 100}%)`;
   el.style.minWidth = `${COUNT_BADGE_HEIGHT}px`;
   el.style.height = `${COUNT_BADGE_HEIGHT}px`;
   el.style.padding = "0 3px";
@@ -69,7 +71,7 @@ export function roleBadgeElement(role: unknown): HTMLElement | null {
   el.textContent = badge.letter;
   el.style.bottom = "0";
   el.style.left = "0";
-  el.style.transform = "translate(-38%, 40%)";
+  el.style.transform = `translate(-${ROLE_OUT * 100}%, ${ROLE_OUT * 100}%)`;
   el.style.width = `${BADGE_SIZE}px`;
   el.style.height = `${BADGE_SIZE}px`;
   el.style.borderRadius = "999px";
@@ -88,8 +90,14 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
 
   const left = hasRole ? roleOverflow() : 0;
   const right = countEl ? countOverflow(countWidth(count)) : 0;
-  const vertical = (hasRole ? BADGE_SIZE * 0.4 : 0) +
-    (countEl ? COUNT_BADGE_HEIGHT * 0.46 : 0);
+  // Les deux badges occupent des coins HORIZONTALEMENT opposés (compteur en
+  // haut à droite, rôle en bas à gauche) : à une abscisse donnée un seul
+  // déborde. Sommer les deux écarterait les pastilles empilées du double du
+  // nécessaire — d'où le max, et non la somme.
+  const vertical = Math.max(
+    hasRole ? BADGE_SIZE * ROLE_OUT : 0,
+    countEl ? COUNT_BADGE_HEIGHT * COUNT_OUT : 0,
+  );
 
   el.dataset.w = String(
     label.length * (isGateway ? 8.5 : 7) + (isGateway ? 20 : 16) + left + right,

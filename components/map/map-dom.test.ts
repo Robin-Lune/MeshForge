@@ -508,3 +508,28 @@ describe("paintMarker", () => {
     expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("9");
   });
 });
+
+describe("mesure verticale des badges empilés", () => {
+  it("ne cumule PAS les deux débordements verticaux", () => {
+    // Compteur en haut à droite, rôle en bas à gauche : coins horizontalement
+    // opposés. Sommer écarterait les pastilles empilées du double du besoin.
+    const seul = pillElement({ label: "N1", role: "ROUTER", lastSeen: now() });
+    const deux = pillElement({
+      label: "GW",
+      role: "ROUTER",
+      isGateway: true,
+      lastSeen: now(),
+    });
+    const compteurSeul = pillElement({
+      label: "GW",
+      isGateway: true,
+      lastSeen: now(),
+    });
+
+    const surplus = (el: HTMLElement, base: number) =>
+      Number(el.dataset.h) - base;
+    expect(surplus(deux, 24)).toBe(
+      Math.max(surplus(seul, 20), surplus(compteurSeul, 24)),
+    );
+  });
+});
