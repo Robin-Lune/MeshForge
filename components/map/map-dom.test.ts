@@ -432,8 +432,8 @@ describe("contraste de l'anneau « pont »", () => {
     for (const step of FRESHNESS_STEPS.slice(0, -1)) {
       expect(contrast(rgb(GATEWAY_COLOR), rgb(step.bg))).toBeGreaterThan(3);
     }
-    // Le liseré blanc du biseau joue ce rôle sur le palier sombre.
-    expect(countBadge(5).style.background).toContain("rgb(255, 255, 255)");
+    // Le liseré blanc de la capsule joue ce rôle sur le palier sombre.
+    expect(countBadge(5).style.borderLeft).toContain("rgb(255, 255, 255)");
   });
 
   it("ne porte que l'anneau et l'ombre de la pastille", () => {

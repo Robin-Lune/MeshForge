@@ -10,79 +10,68 @@ export const BRIDGE_RING = "#2563eb";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
 export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4)`;
 
-// Biseaux d'angle : le glyphe vit DANS la pastille, séparé du libellé par un
-// liseré blanc en diagonale. Aucun débordement, donc rien à réserver pour
-// l'anti-collision — c'est ce qui permet d'empiler serré.
-const BEVEL_W = 17; // largeur du biseau, glyphe compris
-const BEVEL_EDGE = 1.5; // épaisseur du liseré blanc
+// Capsules d'extrémité : le glyphe vit DANS la pastille, séparé du libellé par
+// un liseré blanc vertical. Aucun débordement, donc rien à réserver pour
+// l'anti-collision — c'est ce qui permet d'empiler serré. Le liseré est ce qui
+// rend l'approche viable : sans lui, aucune couleur de capsule ne contrasterait
+// à la fois avec le vert vif du premier palier et le gris sombre du dernier.
+const CAP_W = 16; // largeur utile d'une capsule, glyphe compris
+const CAP_EDGE = "1.5px solid #fff";
+const PILL_INNER_RADIUS = "5.5px";
 // Épaisseur de l'anneau « pont ». Posé en box-shadow, il ne participe pas à la
 // boîte de mise en page : sans réserve explicite, deux pastilles empilées voient
 // leurs anneaux se recouvrir.
 const BRIDGE_EXTENT = 3;
 
-// Largeur utile d'un compteur : ~5,5 px par chiffre au-delà du premier.
+// ~5,5 px par chiffre au-delà du premier.
 const countWidth = (count: number): number =>
-  BEVEL_W + Math.max(0, String(count).length - 1) * 5.5;
+  CAP_W + Math.max(0, String(count).length - 1) * 5.5;
 
-// Le liseré est tracé par un dégradé à 45° plutôt que par une bordure : une
-// bordure ne peut pas suivre une diagonale. Les paliers sont en pixels pour que
-// l'épaisseur du trait ne dépende pas de la taille du biseau.
-function bevelBackground(color: string, corner: "right" | "left"): string {
-  // 45deg part du bas-gauche, 225deg du haut-droit : dans les deux cas la
-  // portion transparente laisse voir la pastille et le biseau occupe le coin.
-  const angle = corner === "right" ? "45deg" : "225deg";
-  const cut = BEVEL_W - 6;
-  return (
-    `linear-gradient(${angle}, transparent 0 ${cut}px, ` +
-    `#fff ${cut}px ${cut + BEVEL_EDGE}px, ${color} ${cut + BEVEL_EDGE}px)`
-  );
-}
-
-function bevelBase(el: HTMLElement): void {
+function capsuleBase(el: HTMLElement): void {
   el.style.position = "absolute";
   el.style.top = "0";
   el.style.bottom = "0";
   el.style.display = "flex";
   el.style.alignItems = "center";
+  el.style.justifyContent = "center";
   el.style.font = "700 9px/1 ui-sans-serif, system-ui, sans-serif";
-  // Le survol doit atteindre la pastille, pas le biseau.
+  // Le survol doit atteindre la pastille, pas la capsule.
   el.style.pointerEvents = "none";
   // Le glyphe n'est pas du texte de la pastille : sans cela, textContent et le
   // nom accessible deviennent « GW5R ».
   el.setAttribute("aria-hidden", "true");
 }
 
-// Reste affiché à 0 : c'est ce biseau qui identifie une passerelle.
+// Reste affichée à 0 : c'est elle qui identifie une passerelle.
 export function countBadge(count: number): HTMLElement {
   const el = document.createElement("div");
-  bevelBase(el);
+  capsuleBase(el);
   el.className = "mf-badge-count";
   el.textContent = String(count);
   el.style.right = "0";
   el.style.width = `${countWidth(count)}px`;
-  el.style.justifyContent = "flex-end";
-  el.style.paddingRight = "4px";
-  el.style.borderRadius = "0 5.5px 5.5px 0";
-  el.style.background = bevelBackground(GATEWAY_COLOR, "right");
+  el.style.borderLeft = CAP_EDGE;
+  el.style.borderRadius = `0 ${PILL_INNER_RADIUS} ${PILL_INNER_RADIUS} 0`;
+  el.style.background = GATEWAY_COLOR;
   el.style.color = GATEWAY_INK;
   el.style.fontVariantNumeric = "tabular-nums";
   return el;
 }
 
-// Coin opposé au compteur : les deux biseaux ne se disputent jamais la place.
+// Extrémité opposée au compteur : les deux capsules ne se disputent jamais la
+// place.
 export function roleBadgeElement(role: unknown): HTMLElement | null {
   const badge = roleBadge(typeof role === "string" ? role : null);
   if (!badge) return null;
   const el = document.createElement("div");
-  bevelBase(el);
+  capsuleBase(el);
   el.className = "mf-badge-role";
   el.textContent = badge.letter;
   el.style.left = "0";
-  el.style.width = `${BEVEL_W}px`;
-  el.style.justifyContent = "flex-start";
-  el.style.paddingLeft = "4px";
-  el.style.borderRadius = "5.5px 0 0 5.5px";
-  el.style.background = bevelBackground("#1f2937", "left");
+  el.style.width = `${CAP_W}px`;
+  el.style.borderRight = CAP_EDGE;
+  el.style.borderRadius = `${PILL_INNER_RADIUS} 0 0 ${PILL_INNER_RADIUS}`;
+  el.style.background = "#1f2937";
   el.style.color = "#fff";
   return el;
 }
@@ -96,25 +85,24 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const count = countEl ? Number(countEl.textContent) : 0;
   const ring = el.dataset.bridge === "true" ? BRIDGE_EXTENT : 0;
 
-  // Les biseaux sont INTÉRIEURS : ils élargissent la pastille au lieu d'en
+  // Les capsules sont INTÉRIEURES : elles élargissent la pastille au lieu d'en
   // déborder. Seul l'anneau, posé en box-shadow, reste hors de la boîte.
-  const bevels =
-    (hasRole ? BEVEL_W : 0) + (countEl ? countWidth(count) : 0);
+  const capsules = (hasRole ? CAP_W : 0) + (countEl ? countWidth(count) : 0);
 
-  // Le libellé doit s'écarter des biseaux, qui le recouvriraient sinon.
+  // Le libellé doit s'écarter des capsules, qui le recouvriraient sinon.
   const padY = isGateway ? 4 : 3;
   const padX = isGateway ? 8 : 6;
   el.style.padding = [
     `${padY}px`,
-    `${countEl ? countWidth(count) + 2 : padX}px`,
+    `${countEl ? countWidth(count) + 3 : padX}px`,
     `${padY}px`,
-    `${hasRole ? BEVEL_W + 2 : padX}px`,
+    `${hasRole ? CAP_W + 3 : padX}px`,
   ].join(" ");
 
   el.dataset.w = String(
     label.length * (isGateway ? 8.5 : 7) +
       (isGateway ? 20 : 16) +
-      bevels +
+      capsules +
       ring * 2,
   );
   el.dataset.h = String((isGateway ? 24 : 20) + ring * 2);
