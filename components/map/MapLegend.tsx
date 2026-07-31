@@ -76,12 +76,9 @@ export function MapLegend({
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Marques
             </div>
-            {/* Deux colonnes : les libellés courts de ROLE_BADGES y tiennent,
-                l'infobulle garde la version explicite. */}
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <div className="flex min-w-0 items-center gap-1.5">
-                {/* Échantillon fidèle à la carte : un fragment de pastille, sa
-                    capsule et le liseré qui les sépare. */}
+                {/* Fragment de pastille réel : capsule, liseré, corps. */}
                 <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
                   <span className="w-2" style={{ background: FRESHNESS_STEPS[1].bg }} />
                   <span
@@ -107,8 +104,8 @@ export function MapLegend({
                   <span className="min-w-0 whitespace-nowrap">{badge.short}</span>
                 </div>
               ))}
-              {/* Sur toute la largeur : le libellé doit dire QUI capte, sinon
-                  « ≥ 2 gateways » se lit comme un compte de nodes. */}
+              {/* Le libellé doit dire QUI capte : « ≥ 2 gateways » seul se lit
+                  comme un compte de nodes captés. */}
               <div className="col-span-2 flex min-w-0 items-center gap-1.5">
                 <span
                   className="inline-flex h-5 min-w-8 flex-none items-center justify-center rounded-[6px] border border-white px-1 text-[10px] font-semibold"
@@ -131,8 +128,6 @@ export function MapLegend({
                 <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
                   Regroupements
                 </div>
-                {/* Les ronds chiffrés remplacent les pastilles en dézoom :
-                    décrire une marque absente de l'écran est du bruit. */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span

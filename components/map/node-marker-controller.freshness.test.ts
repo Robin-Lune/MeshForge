@@ -242,8 +242,6 @@ describe("clusters", () => {
 
 describe("signal de présence des clusters", () => {
   it("annonce leur apparition puis leur disparition", () => {
-    // Fondé sur la présence RÉELLE : un seuil de zoom et l'affichage divergent
-    // aux niveaux où quelques clusters subsistent.
     const { clustersChanges } = setup(
       [{ nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false }],
       [{ cluster: true, cluster_id: 7, point_count: 12, hasGateway: 0 }],

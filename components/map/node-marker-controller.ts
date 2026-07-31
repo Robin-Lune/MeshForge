@@ -13,8 +13,8 @@ import {
 import { resolvePillSpread } from "./pill-spread";
 import { haversineKm } from "@/lib/geo";
 
-// Jeu entre deux pastilles empilées. Les capsules ne débordant plus, les
-// bordures blanches suffisent à séparer deux corps jointifs.
+// Les capsules ne débordant plus, les bordures blanches suffisent à séparer
+// deux corps jointifs.
 const PILL_GAP = 0;
 
 export type NodeMapFilters = {
@@ -391,9 +391,8 @@ export function createNodeMarkerController({
       if (!next[id]) onScreen[id].remove();
     }
     onScreen = next;
-    // La légende ne décrit les regroupements que quand ils sont à l'écran.
-    // Fondé sur la PRÉSENCE réelle plutôt que sur un seuil de zoom : les deux
-    // divergent aux niveaux où quelques clusters subsistent.
+    // Présence RÉELLE plutôt que seuil de zoom : les deux divergent aux
+    // niveaux où quelques clusters subsistent parmi les pastilles.
     const avecClusters = Object.keys(next).some((id) => id.startsWith("c"));
     if (avecClusters !== clustersVisible) {
       clustersVisible = avecClusters;

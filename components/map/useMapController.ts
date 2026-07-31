@@ -67,7 +67,6 @@ export function useMapController({
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
   // Une panne de /api/coverage doit être distinguée d'une carte sans mesure.
   const [coverageError, setCoverageError] = useState(false);
-  // Pilote l'affichage de la section « Regroupements » de la légende.
   const [clustersVisible, setClustersVisible] = useState(false);
 
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());

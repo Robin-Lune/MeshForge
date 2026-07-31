@@ -101,7 +101,6 @@ describe("MapLegend — légende de base", () => {
 
 describe("MapLegend — section regroupements", () => {
   it("reste absente tant qu'aucun rond n'est à l'écran", () => {
-    // Décrire une marque que la carte n'affiche pas est du bruit.
     render(<MapLegend {...props({ clusters: false })} />);
     expect(screen.queryByText("Regroupements")).not.toBeInTheDocument();
     expect(screen.queryByText("Nodes groupés")).not.toBeInTheDocument();

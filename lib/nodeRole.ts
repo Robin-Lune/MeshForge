@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
-// `title` explique le rôle dans l'infobulle, `short` tient dans la légende où
-// la place est comptée. Les deux sont nécessaires : un libellé assez court pour
-// la légende serait trop sec au survol d'un node.
+// `title` pour l'infobulle, `short` pour la légende où la place est comptée.
 export type RoleBadge = { letter: string; title: string; short: string };
 
 // Source de vérité de la capsule de rôle : la légende itère cette table, donc
