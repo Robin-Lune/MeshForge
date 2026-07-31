@@ -202,8 +202,7 @@ export function MapLegend({
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="h-4 w-10 flex-none rounded-sm border border-dashed border-black/30 dark:border-white/30" />
                   <span className="min-w-0 break-words">
-                    <strong>Non exploré</strong> — aucune mesure attribuable, ne
-                    signifie pas absence de réseau
+                    <strong>Non exploré</strong> — aucune mesure
                   </span>
                 </div>
               </>
