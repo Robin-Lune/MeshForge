@@ -73,6 +73,17 @@ describe("pillElement", () => {
     expect(Number(avecRole.dataset.h)).toBeGreaterThan(Number(nu.dataset.h));
   });
 
+  it("ne pose PAS de position inline : MapLibre en est propriétaire", () => {
+    // .maplibregl-marker vaut position: absolute ; un style inline le
+    // supplanterait et la pastille s'étirerait sur toute la largeur de la carte.
+    const el = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
+    expect(el.style.position).toBe("");
+    // Les badges restent positionnés dans l'absolu du marker.
+    expect(
+      el.querySelector<HTMLElement>(".mf-badge-role")?.style.position,
+    ).toBe("absolute");
+  });
+
   it("masque les badges aux lecteurs d'écran et garde le libellé lisible", () => {
     const gw = pillElement({
       label: "GW",

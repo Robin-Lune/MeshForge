@@ -101,7 +101,10 @@ export function pillElement(p: Record<string, unknown>): HTMLElement {
   const isGateway = p.isGateway === true;
   const label = String(p.label ?? "");
   const el = document.createElement("div");
-  el.style.position = "relative";
+  // NE PAS poser `position` ici : MapLibre applique .maplibregl-marker
+  // (position: absolute) sur l'élément, et un style inline le supplanterait —
+  // la pastille redeviendrait un bloc en flux, étiré sur toute la largeur.
+  // Ce `position: absolute` sert déjà de référent aux badges.
 
   const text = document.createElement("span");
   text.textContent = label;
