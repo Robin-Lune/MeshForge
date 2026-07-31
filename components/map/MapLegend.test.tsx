@@ -25,13 +25,13 @@ const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
 describe("MapLegend — légende de base", () => {
   it("affiche les entrées quand elle est ouverte", () => {
     render(<MapLegend {...props()} />);
-    expect(screen.getByText(/Gateway MQTT/)).toBeInTheDocument();
+    expect(screen.getByText("Gateway /1h")).toBeInTheDocument();
     expect(screen.getByText("Direct 0-hop")).toBeInTheDocument();
   });
 
   it("masque les entrées quand elle est fermée", () => {
     render(<MapLegend {...props({ open: false })} />);
-    expect(screen.queryByText(/Gateway MQTT/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Gateway /1h")).not.toBeInTheDocument();
   });
 
   it("documente TOUS les paliers de fraîcheur", () => {
@@ -49,14 +49,14 @@ describe("MapLegend — légende de base", () => {
     // seul canal d'explication.
     render(<MapLegend {...props()} />);
     for (const badge of ROLE_BADGES) {
-      expect(screen.getByText(badge.title)).toBeInTheDocument();
+      expect(screen.getByText(badge.short)).toBeInTheDocument();
     }
   });
 
   it("décrit le compteur des passerelles et l'anneau", () => {
     render(<MapLegend {...props()} />);
-    expect(screen.getByText(/nodes entendus\/1h/)).toBeInTheDocument();
-    expect(screen.getByText("Vu par plusieurs gateways")).toBeInTheDocument();
+    expect(screen.getByText("Gateway /1h")).toBeInTheDocument();
+    expect(screen.getByText("≥ 2 gateways")).toBeInTheDocument();
   });
 
   it("ne décrit pas de « node visible » générique", () => {

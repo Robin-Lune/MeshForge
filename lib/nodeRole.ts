@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
-export type RoleBadge = { letter: string; title: string };
+// `title` explique le rôle dans l'infobulle, `short` tient dans la légende où
+// la place est comptée. Les deux sont nécessaires : un libellé assez court pour
+// la légende serait trop sec au survol d'un node.
+export type RoleBadge = { letter: string; title: string; short: string };
 
 // Source de vérité de la capsule de rôle : la légende itère cette table, donc
 // une lettre ajoutée ici y apparaît sans intervention (cf. MapLegend.test.tsx).
 export const ROLE_BADGES: readonly RoleBadge[] = [
-  { letter: "R", title: "Relaie le trafic (routeur ou répéteur)" },
-  { letter: "C", title: "Capteur — publie de la télémétrie" },
-  { letter: "T", title: "Tracker — position mobile par nature" },
-  { letter: "?", title: "Rôle inconnu du décodeur" },
+  { letter: "R", title: "Relaie le trafic (routeur ou répéteur)", short: "Relais" },
+  { letter: "C", title: "Capteur — publie de la télémétrie", short: "Capteur" },
+  { letter: "T", title: "Tracker — position mobile par nature", short: "Tracker" },
+  { letter: "?", title: "Rôle inconnu du décodeur", short: "Rôle inconnu" },
 ] as const;
 
 const [RELAIS_BADGE, CAPTEUR_BADGE, TRACKER_BADGE, INCONNU_BADGE] = ROLE_BADGES;

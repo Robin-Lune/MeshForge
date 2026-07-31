@@ -68,62 +68,50 @@ export function MapLegend({
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Marques
             </div>
-            <div className="flex min-w-0 items-center gap-2">
-              {/* Échantillon fidèle à la carte : un fragment de pastille, sa
-                  capsule et le liseré qui les sépare. */}
-              <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
-                <span
-                  className="w-3"
-                  style={{ background: FRESHNESS_STEPS[1].bg }}
-                />
-                <span
-                  className="inline-flex w-4 items-center justify-center border-l-[1.5px] border-white"
-                  style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
-                >
-                  5
-                </span>
-              </span>
-              <span className="min-w-0 break-words">
-                Gateway MQTT — nodes entendus/1h
-              </span>
-            </div>
-            {/* Itère la source de vérité : une lettre ajoutée à ROLE_BADGES
-                apparaît ici sans intervention. Les capsules étant aria-hidden
-                et sans infobulle, cette liste est leur seule explication. */}
-            {ROLE_BADGES.map((badge) => (
-              <div key={badge.letter} className="flex min-w-0 items-center gap-2">
+            {/* Deux colonnes : les libellés courts de ROLE_BADGES y tiennent,
+                l'infobulle garde la version explicite. */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {/* Échantillon fidèle à la carte : un fragment de pastille, sa
+                    capsule et le liseré qui les sépare. */}
                 <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
+                  <span className="w-2" style={{ background: FRESHNESS_STEPS[1].bg }} />
                   <span
-                    className="inline-flex w-4 items-center justify-center border-r-[1.5px] border-white"
-                    style={{
-                      background: ROLE_CAPSULE,
-                      color: ROLE_CAPSULE_INK,
-                    }}
+                    className="inline-flex w-4 items-center justify-center border-l-[1.5px] border-white"
+                    style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
                   >
-                    {badge.letter}
+                    5
                   </span>
-                  <span
-                    className="w-3"
-                    style={{ background: FRESHNESS_STEPS[1].bg }}
-                  />
                 </span>
-                <span className="min-w-0 break-words">{badge.title}</span>
+                <span className="min-w-0 whitespace-nowrap">Gateway /1h</span>
               </div>
-            ))}
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="inline-flex h-5 min-w-9 flex-none items-center justify-center rounded-[7px] border border-white px-1.5 text-[10px] font-semibold"
-                style={{
-                  background: FRESHNESS_STEPS[0].bg,
-                  color: FRESHNESS_STEPS[0].fg,
-                  boxShadow: `0 0 0 3px ${BRIDGE_RING}`,
-                }}
-              >
-                N
-              </span>
-              <span className="min-w-0 break-words">
-                Vu par plusieurs gateways
-              </span>
+              {ROLE_BADGES.map((badge) => (
+                <div key={badge.letter} className="flex min-w-0 items-center gap-1.5">
+                  <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
+                    <span
+                      className="inline-flex w-4 items-center justify-center border-r-[1.5px] border-white"
+                      style={{ background: ROLE_CAPSULE, color: ROLE_CAPSULE_INK }}
+                    >
+                      {badge.letter}
+                    </span>
+                    <span className="w-2" style={{ background: FRESHNESS_STEPS[1].bg }} />
+                  </span>
+                  <span className="min-w-0 whitespace-nowrap">{badge.short}</span>
+                </div>
+              ))}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="inline-flex h-5 min-w-8 flex-none items-center justify-center rounded-[6px] border border-white px-1 text-[10px] font-semibold"
+                  style={{
+                    background: FRESHNESS_STEPS[0].bg,
+                    color: FRESHNESS_STEPS[0].fg,
+                    boxShadow: `0 0 0 3px ${BRIDGE_RING}`,
+                  }}
+                >
+                  N
+                </span>
+                <span className="min-w-0 whitespace-nowrap">≥ 2 gateways</span>
+              </div>
             </div>
 
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
