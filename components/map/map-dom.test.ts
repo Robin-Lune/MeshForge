@@ -5,7 +5,6 @@
 import { describe, it, expect } from "vitest";
 import {
   BRIDGE_RING,
-  BRIDGE_RING_EDGE,
   BRIDGE_SHADOW,
   PILL_SHADOW,
   clusterElement,
@@ -387,10 +386,8 @@ describe("mesure du compteur", () => {
 
 describe("contraste de l'anneau « pont »", () => {
   // L'anneau doit trancher sur les DEUX fonds de carte ET sur la rampe verte.
-  // Aucune couleur unique n'y parvient : le fuchsia tient sur fond clair et sur
-  // les pastilles, le filet blanc fournit l'arête sur fond sombre. Seuil 3:1
-  // (WCAG 2.1 SC 1.4.11, éléments non textuels). Le filet est en rgba :
-  // composité sur le fond avant mesure.
+  // Le bleu y parvient seul, sans filet de renfort. Seuil 3:1 (WCAG 2.1
+  // SC 1.4.11, éléments non textuels).
   const TUILE_CLAIRE = "#f2efe9";
   const TUILE_SOMBRE = "#1b2230";
 
@@ -413,27 +410,9 @@ describe("contraste de l'anneau « pont »", () => {
     const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (hi + 0.05) / (lo + 0.05);
   };
-  const over = (
-    rgba: [number, number, number, number],
-    bg: string,
-  ): [number, number, number] => {
-    const back = rgb(bg);
-    return [0, 1, 2].map(
-      (i) => rgba[3] * rgba[i] + (1 - rgba[3]) * back[i],
-    ) as [number, number, number];
-  };
-
-  const EDGE: [number, number, number, number] = [255, 255, 255, 0.92];
-
-  it("la prune porte l'anneau sur fond clair", () => {
+  it("le bleu porte l'anneau sur les deux fonds de carte", () => {
     expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_CLAIRE))).toBeGreaterThan(3);
-  });
-
-  it("le filet porte l'anneau sur fond sombre, là où la prune s'efface", () => {
-    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeLessThan(3);
-    expect(
-      contrast(over(EDGE, TUILE_SOMBRE), rgb(TUILE_SOMBRE)),
-    ).toBeGreaterThan(3);
+    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeGreaterThan(3);
   });
 
   it("l'anneau se détache des paliers où un pont peut apparaître", () => {
@@ -456,9 +435,8 @@ describe("contraste de l'anneau « pont »", () => {
     expect(countBadge(5).style.border).toContain("rgb(255, 255, 255)");
   });
 
-  it("est bien composé de la prune puis du filet", () => {
+  it("ne porte que l'anneau et l'ombre de la pastille", () => {
     expect(BRIDGE_SHADOW).toContain(BRIDGE_RING);
-    expect(BRIDGE_SHADOW).toContain(BRIDGE_RING_EDGE);
   });
 });
 

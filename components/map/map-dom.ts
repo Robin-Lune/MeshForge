@@ -3,20 +3,19 @@ import { freshnessColor, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
 import { roleBadge } from "@/lib/nodeRole";
 import { SNAP_CELL_M } from "@/lib/privacy";
 
-// Aucune couleur unique ne contraste à la fois sur tuile claire et sur tuile
-// sombre : la prune tient sur fond clair et sur la rampe verte, le filet blanc
-// lui donne son arête sur fond sombre. Contrastes vérifiés dans map-dom.test.ts.
-export const BRIDGE_RING = "#6b21a8";
-export const BRIDGE_RING_EDGE = "rgba(255,255,255,0.92)";
+// Anneau « pont ». Le bleu tient sur les DEUX fonds de carte et sur la rampe
+// verte : aucun filet de renfort n'est nécessaire, contrairement à l'ambre ou à
+// la prune. Contrastes vérifiés dans map-dom.test.ts.
+export const BRIDGE_RING = "#2563eb";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
-export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RING_EDGE}, 0 1px 3px rgba(0,0,0,0.4)`;
+export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4)`;
 
 const BADGE_SIZE = 14;
 const COUNT_BADGE_HEIGHT = 15;
-// Épaisseur totale de l'anneau « pont » (3 px + filet 1,5 px). Posé en
-// box-shadow, il ne participe pas à la boîte de mise en page : sans réserve
-// explicite, deux pastilles empilées voient leurs anneaux se recouvrir.
-const BRIDGE_EXTENT = 4.5;
+// Épaisseur de l'anneau « pont ». Posé en box-shadow, il ne participe pas à la
+// boîte de mise en page : sans réserve explicite, deux pastilles empilées voient
+// leurs anneaux se recouvrir.
+const BRIDGE_EXTENT = 3;
 
 // Part du badge posée HORS de la pastille, par axe. Les translations en sont
 // dérivées : les deux ne peuvent pas diverger. resolvePillSpread ne lit que

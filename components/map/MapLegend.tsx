@@ -4,7 +4,7 @@ import type { CoverageMetric, CoverageSelection } from "@/types";
 import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
 import { FRESHNESS_STEPS, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
 import { ROLE_BADGES } from "@/lib/nodeRole";
-import { BRIDGE_RING, BRIDGE_RING_EDGE } from "./map-dom";
+import { BRIDGE_RING } from "./map-dom";
 
 type MapLegendProps = {
   open: boolean;
@@ -100,7 +100,7 @@ export function MapLegend({
                 style={{
                   background: FRESHNESS_STEPS[0].bg,
                   color: FRESHNESS_STEPS[0].fg,
-                  boxShadow: `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RING_EDGE}`,
+                  boxShadow: `0 0 0 3px ${BRIDGE_RING}`,
                 }}
               >
                 N
