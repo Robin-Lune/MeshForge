@@ -4,7 +4,13 @@ import type { CoverageMetric, CoverageSelection } from "@/types";
 import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
 import { FRESHNESS_STEPS, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
 import { ROLE_BADGES } from "@/lib/nodeRole";
-import { BRIDGE_RING, ROLE_CAPSULE, ROLE_CAPSULE_INK } from "./map-dom";
+import {
+  BRIDGE_RING,
+  CLUSTER_PLAIN,
+  CLUSTER_PLAIN_INK,
+  ROLE_CAPSULE,
+  ROLE_CAPSULE_INK,
+} from "./map-dom";
 
 type MapLegendProps = {
   open: boolean;
@@ -115,6 +121,32 @@ export function MapLegend({
                 <span className="min-w-0 whitespace-nowrap">
                   Capté par ≥ 2 gateways
                 </span>
+              </div>
+            </div>
+
+            <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+              Regroupements
+            </div>
+            {/* Les ronds chiffrés remplacent les pastilles en dézoom : sans
+                entrée, leurs deux couleurs sont indéchiffrables. */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
+                  style={{ background: CLUSTER_PLAIN, color: CLUSTER_PLAIN_INK }}
+                >
+                  12
+                </span>
+                <span className="min-w-0 whitespace-nowrap">Nodes groupés</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
+                  style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
+                >
+                  12
+                </span>
+                <span className="min-w-0 whitespace-nowrap">Dont 1 gateway</span>
               </div>
             </div>
 

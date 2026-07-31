@@ -214,6 +214,8 @@ describe("applyBridgeHighlight", () => {
   });
 });
 
+const { CLUSTER_PLAIN } = await import("./map-dom");
+
 describe("clusters", () => {
   it("ne repeint ni n'annote un cluster", () => {
     // Les clusters n'ont ni fraîcheur ni rôle : le repeint doit les sauter.
@@ -232,6 +234,6 @@ describe("clusters", () => {
       controller.applyBridgeHighlight();
     }).not.toThrow();
     // Le cluster garde son fond de cluster, pas une couleur de fraîcheur.
-    expect(cluster?.style.background).toBe(asRgb("#3b82f6"));
+    expect(cluster?.style.background).toBe(asRgb(CLUSTER_PLAIN));
   });
 });

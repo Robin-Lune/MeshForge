@@ -13,10 +13,9 @@ import {
 import { resolvePillSpread } from "./pill-spread";
 import { haversineKm } from "@/lib/geo";
 
-// Jeu entre deux pastilles empilées. Les capsules ne débordent plus de la
-// pastille : seule cette valeur, et l'anneau des ponts, séparent encore les
-// corps.
-const PILL_GAP = 2;
+// Jeu entre deux pastilles empilées. Les capsules ne débordant plus, les
+// bordures blanches suffisent à séparer deux corps jointifs.
+const PILL_GAP = 0;
 
 export type NodeMapFilters = {
   search: string;

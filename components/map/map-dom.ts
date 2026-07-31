@@ -7,6 +7,10 @@ import { SNAP_CELL_M } from "@/lib/privacy";
 // rampe verte, sans filet de renfort. Contrastes vérifiés dans map-dom.test.ts.
 export const BRIDGE_RING = "#2563eb";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
+// Cluster sans passerelle. Neutre CLAIR : un neutre sombre aurait la même
+// luminance que le bleu passerelle, et les deux états seraient indistinguables.
+export const CLUSTER_PLAIN = "#b8c0cc";
+export const CLUSTER_PLAIN_INK = "#0f1c2e";
 export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4)`;
 
 // Capsules d'extrémité : le glyphe vit DANS la pastille, séparé du libellé par
@@ -213,10 +217,10 @@ export function clusterElement(p: Record<string, unknown>): HTMLElement {
   const size = count >= 50 ? 44 : count >= 10 ? 38 : 32;
   const el = document.createElement("div");
   el.textContent = String(p.point_count_abbreviated ?? count);
-  el.style.background = hasGateway ? GATEWAY_COLOR : "#3b82f6";
+  el.style.background = hasGateway ? GATEWAY_COLOR : CLUSTER_PLAIN;
   // Encre partagée : une couleur codée en dur ici redeviendrait illisible au
   // prochain changement de GATEWAY_COLOR.
-  el.style.color = hasGateway ? GATEWAY_INK : "#fff";
+  el.style.color = hasGateway ? GATEWAY_INK : CLUSTER_PLAIN_INK;
   el.style.font = "700 13px/1 ui-sans-serif, system-ui, sans-serif";
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;
