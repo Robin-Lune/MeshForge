@@ -78,11 +78,8 @@ describe("pillElement", () => {
   });
 
   it("ne pose PAS de position inline : MapLibre en est propriétaire", () => {
-    // .maplibregl-marker vaut position: absolute ; un style inline le
-    // supplanterait et la pastille s'étirerait sur toute la largeur de la carte.
     const el = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
     expect(el.style.position).toBe("");
-    // Les capsules restent positionnées dans l'absolu du marker.
     expect(
       el.querySelector<HTMLElement>(".mf-badge-role")?.style.position,
     ).toBe("absolute");
@@ -500,6 +497,8 @@ describe("paintMarker", () => {
 describe("séparation perceptuelle de la rampe", () => {
   // Deux paliers voisins doivent se distinguer À L'ŒIL, pas seulement être
   // lisibles. ΔE CIE76 : ~2 = limite du perceptible, 10 = franc.
+  // Deux paliers voisins doivent se distinguer à l'œil, pas seulement être
+  // lisibles.
   it("sépare franchement chaque palier de son voisin", () => {
     for (let i = 1; i < FRESHNESS_STEPS.length; i++) {
       expect(

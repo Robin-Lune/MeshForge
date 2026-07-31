@@ -31,7 +31,7 @@ const PILL_INNER_RADIUS = "5.5px";
 // leurs anneaux se recouvrir.
 const BRIDGE_EXTENT = 3;
 
-// ~5,5 px par chiffre au-delà du premier.
+// 5,5 px = largeur d'un chiffre à 9 px gras, tabular-nums.
 const countWidth = (count: number): number =>
   CAP_W + Math.max(0, String(count).length - 1) * 5.5;
 

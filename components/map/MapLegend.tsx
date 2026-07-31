@@ -63,8 +63,6 @@ export function MapLegend({
         <div className="pointer-events-auto mb-2 w-fit max-w-full rounded-lg bg-white/95 px-3 py-2 text-xs leading-tight text-zinc-800 shadow ring-1 ring-black/10 dark:bg-zinc-900/90 dark:text-zinc-100 dark:ring-white/15">
           <div className="grid gap-1.5">
             <div className="font-semibold">Dernière réception</div>
-            {/* Trois colonnes : les libellés sont assez courts pour tenir dans
-                la largeur imposée par les entrées « Marques ». */}
             <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
               {FRESHNESS_STEPS.map((step) => (
                 <div key={step.label} className="flex min-w-0 items-center gap-1.5">
@@ -167,8 +165,7 @@ export function MapLegend({
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Liens
             </div>
-            {/* Deux colonnes : « Lien via » se répétait sur chaque ligne, le
-                titre de section le dit déjà. */}
+            {/* Le titre de section porte déjà « Lien ». */}
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span

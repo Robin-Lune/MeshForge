@@ -26,6 +26,7 @@ Pensé pour le réseau réunionnais (compatible Gaulix : `EU_868`, profil `LONG_
 Fonctionnalités principales :
 
 - Carte temps réel MapLibre GL avec clustering, filtres et SSE.
+- Pastilles colorées par **dernière réception** (5 paliers), avec capsule de rôle et compteur de nodes entendus en direct pour les gateways.
 - Toile de liaisons depuis les gateways : 0-hop = portée radio directe ; mesh pointillé = via relais.
 - Détail node : historique 30 j, SNR par gateway, distance, télémétrie, voisinage réseau.
 - Diagnostic NeighborInfo / Traceroute : mini-carte de voisinage, voisins radio directs et chemins segmentés avec SNR par saut.
@@ -112,6 +113,17 @@ docker compose up -d
 
 Lance TimescaleDB + Mosquitto. `db/init.sql` est joué au premier démarrage du
 volume.
+
+Pour peupler une base de dev :
+
+```bash
+yarn seed
+```
+
+Charge le maillage de démonstration et la grille qui couvre tous les cas
+d'affichage (paliers de fraîcheur, rôles, compteurs à un et trois chiffres,
+nœuds non localisés). Les dates y sont figées à l'insertion : rejouer la
+commande pour retrouver des nœuds dans le palier « moins d'une heure ».
 
 ### 3. Lancer les process applicatifs
 
@@ -313,6 +325,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 | `yarn test:coverage`        | Tests + couverture (seuils cliquet, joué en CI) |
 | `yarn typecheck`            | `tsc --noEmit` (TypeScript strict)           |
 | `yarn lint`                 | ESLint                                       |
+| `yarn seed`                 | Peuple la base de dev (maillage + cas d'affichage) |
 | `yarn create-admin`         | Crée un compte admin (DB, bcrypt)            |
 | `yarn docker:prod`          | Build + lance tout le stack en Docker (prod) |
 

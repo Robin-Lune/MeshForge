@@ -110,8 +110,7 @@ describe("SELECT_GATEWAY_ACTIVITY", () => {
 
   it("ne compte QUE les réceptions directes de la dernière heure", async () => {
     // L'invariant central du compteur : « capté » veut dire entendu en radio
-    // directe, pas reçu via un relais. Un hop_count NULL est écarté par la
-    // comparaison, un hop inconnu ne devant pas passer pour direct.
+    // directe, pas reçu via un relais.
     const sql = await sqlDuCompteur();
     expect(sql).toContain("p.hop_count = 0");
     expect(sql).toContain("INTERVAL '1 hour'");
