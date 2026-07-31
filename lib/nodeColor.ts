@@ -3,7 +3,7 @@
 // Couleur d'un marker = fraîcheur du node. Les paires fond/texte sont vérifiées
 // en contraste par nodeColor.test.ts : ne pas retoucher une teinte sans le
 // relancer.
-// Identité « passerelle » : badge compteur et cluster contenant une passerelle.
+// Identité « passerelle » : capsule compteur et cluster en contenant une.
 // Bleu depuis que le vert Meshtastic porte la fraîcheur — une couleur, un sens.
 export const GATEWAY_COLOR = "#0951a5";
 export const GATEWAY_INK = "#ffffff";

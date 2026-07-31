@@ -16,7 +16,7 @@ describe("roleBadge", () => {
   });
 
   it("ne marque AUCUN node de la famille CLIENT", () => {
-    // CLIENT est le défaut Meshtastic : l'absence de badge EST le signal.
+    // CLIENT est le défaut Meshtastic : l'absence de capsule EST le signal.
     for (const r of [
       "CLIENT",
       "CLIENT_MUTE",
@@ -39,7 +39,7 @@ describe("roleBadge", () => {
     expect(roleBadge("LOST_AND_FOUND")?.letter).toBe("?");
   });
 
-  it("n'expose que des badges présents dans ROLE_BADGES", () => {
+  it("n'expose que des entrées présentes dans ROLE_BADGES", () => {
     // La légende itère ROLE_BADGES : une lettre produite hors de cette table
     // n'y serait jamais documentée.
     for (const role of ["ROUTER", "SENSOR", "TRACKER", "42"]) {

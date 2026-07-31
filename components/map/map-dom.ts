@@ -3,9 +3,8 @@ import { freshnessColor, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
 import { roleBadge } from "@/lib/nodeRole";
 import { SNAP_CELL_M } from "@/lib/privacy";
 
-// Anneau « pont ». Le bleu tient sur les DEUX fonds de carte et sur la rampe
-// verte : aucun filet de renfort n'est nécessaire, contrairement à l'ambre ou à
-// la prune. Contrastes vérifiés dans map-dom.test.ts.
+// Anneau « pont ». Le bleu tient seul sur les deux fonds de carte et sur la
+// rampe verte, sans filet de renfort. Contrastes vérifiés dans map-dom.test.ts.
 export const BRIDGE_RING = "#2563eb";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
 export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4)`;
@@ -42,7 +41,7 @@ function capsuleBase(el: HTMLElement): void {
   // Le survol doit atteindre la pastille, pas la capsule.
   el.style.pointerEvents = "none";
   // Le glyphe n'est pas du texte de la pastille : sans cela, textContent et le
-  // nom accessible deviennent « GW5R ».
+  // nom accessible l'agrègent.
   el.setAttribute("aria-hidden", "true");
 }
 
@@ -80,9 +79,6 @@ export function roleBadgeElement(role: unknown): HTMLElement | null {
   return el;
 }
 
-// La marge n'est réservée que pour les badges RÉELLEMENT posés : l'appliquer à
-// toute pastille écarterait de leur position la majorité des markers, qui n'en
-// portent aucun.
 function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const hasRole = el.querySelector(".mf-badge-role") !== null;
   const countEl = el.querySelector<HTMLElement>(".mf-badge-count");
@@ -119,7 +115,7 @@ export function pillElement(p: Record<string, unknown>): HTMLElement {
   // NE PAS poser `position` ici : MapLibre applique .maplibregl-marker
   // (position: absolute) sur l'élément, et un style inline le supplanterait —
   // la pastille redeviendrait un bloc en flux, étiré sur toute la largeur.
-  // Ce `position: absolute` sert déjà de référent aux badges.
+  // Ce `position: absolute` sert déjà de référent aux capsules.
 
   const text = document.createElement("span");
   text.textContent = label;
@@ -169,8 +165,8 @@ export function paintCount(el: HTMLElement, count: number): void {
   if (!badge) return;
   if (badge.textContent === String(count)) return;
   badge.textContent = String(count);
-  // Un compteur à deux ou trois chiffres élargit le badge : sans remesure, il
-  // déborde sur la pastille voisine.
+  // Un compteur à deux ou trois chiffres élargit la capsule : sans remesure,
+  // elle déborde sur la pastille voisine.
   measurePill(el, el.dataset.label ?? "", el.dataset.gateway === "true");
 }
 
@@ -218,8 +214,8 @@ export function clusterElement(p: Record<string, unknown>): HTMLElement {
   const el = document.createElement("div");
   el.textContent = String(p.point_count_abbreviated ?? count);
   el.style.background = hasGateway ? GATEWAY_COLOR : "#3b82f6";
-  // Encre partagée avec le badge passerelle : une couleur de texte codée en dur
-  // ici deviendrait illisible au prochain changement de GATEWAY_COLOR.
+  // Encre partagée : une couleur codée en dur ici redeviendrait illisible au
+  // prochain changement de GATEWAY_COLOR.
   el.style.color = hasGateway ? GATEWAY_INK : "#fff";
   el.style.font = "700 13px/1 ui-sans-serif, system-ui, sans-serif";
   el.style.width = `${size}px`;
@@ -276,8 +272,8 @@ export function hoverCard(p: Record<string, unknown>): HTMLElement {
     el.appendChild(sig);
   }
 
-  // Seul canal d'explication des lettres de badge : elles sont aria-hidden et
-  // ne peuvent pas porter d'infobulle propre.
+  // Seul canal d'explication des lettres : les capsules sont aria-hidden et ne
+  // peuvent pas porter d'infobulle propre.
   const badge = roleBadge(typeof p.role === "string" ? p.role : null);
   if (badge) {
     const role = document.createElement("div");

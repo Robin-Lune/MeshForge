@@ -88,8 +88,8 @@ export function MapLegend({
               </span>
             </div>
             {/* Itère la source de vérité : une lettre ajoutée à ROLE_BADGES
-                apparaît ici sans intervention. Les badges étant aria-hidden et
-                sans infobulle, cette liste est leur seule explication. */}
+                apparaît ici sans intervention. Les capsules étant aria-hidden
+                et sans infobulle, cette liste est leur seule explication. */}
             {ROLE_BADGES.map((badge) => (
               <div key={badge.letter} className="flex min-w-0 items-center gap-2">
                 <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">

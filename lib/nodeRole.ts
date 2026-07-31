@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 export type RoleBadge = { letter: string; title: string };
 
-// Source de vérité du badge de rôle : la légende itère cette table, donc une
-// lettre ajoutée ici y apparaît sans intervention (cf. MapLegend.test.tsx).
+// Source de vérité de la capsule de rôle : la légende itère cette table, donc
+// une lettre ajoutée ici y apparaît sans intervention (cf. MapLegend.test.tsx).
 export const ROLE_BADGES: readonly RoleBadge[] = [
   { letter: "R", title: "Relaie le trafic (routeur ou répéteur)" },
   { letter: "C", title: "Capteur — publie de la télémétrie" },
@@ -15,7 +15,7 @@ const [RELAIS_BADGE, CAPTEUR_BADGE, TRACKER_BADGE, INCONNU_BADGE] = ROLE_BADGES;
 
 const RELAIS = new Set(["ROUTER", "ROUTER_CLIENT", "ROUTER_LATE", "REPEATER"]);
 const TRACKERS = new Set(["TRACKER", "TAK_TRACKER", "TAK"]);
-// Rôles connus SANS badge. CLIENT est le défaut Meshtastic : un badge s'y
+// Rôles connus SANS capsule. CLIENT est le défaut Meshtastic : une capsule s'y
 // poserait sur la quasi-totalité du parc et ne distinguerait plus rien.
 const CLIENTS = new Set([
   "CLIENT",

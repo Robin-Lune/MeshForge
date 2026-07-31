@@ -126,7 +126,7 @@ const SELECT_OBSERVATIONS = `
   GROUP BY 1, 2
 `;
 
-// Badge compteur des passerelles. Requête SÉPARÉE de la toile, et c'est le
+// Compteur des passerelles. Requête SÉPARÉE de la toile, et c'est le
 // point : une arête n'existe que si ses deux extrémités sont affichables, une
 // barrière posée pour tracer des liens. Le compteur, lui, n'a besoin d'aucune
 // position — la lui appliquer le priverait justement des nodes que la carte ne
@@ -135,7 +135,7 @@ const SELECT_OBSERVATIONS = `
 // Régime « agrégat » de docs/analytics.md : la sortie est (id de passerelle,
 // nombre). L'identifiant de passerelle est déjà public, aucun node capté n'est
 // nommé, donc rien ne permet d'isoler un node — aucune barrière individuelle.
-// La passerelle doit rester localisée : sans marker, pas de badge à porter.
+// La passerelle doit rester localisée : sans marker, pas de capsule à porter.
 //
 // hop_count = 0 STRICTEMENT : au-delà le paquet est arrivé relayé, la passerelle
 // ne l'a pas capté. hop_count NULL (hops_away absent du fil) est écarté par la

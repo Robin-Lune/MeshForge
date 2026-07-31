@@ -63,12 +63,12 @@ describe("pillElement", () => {
     expect(Number(gw.dataset.w)).toBeGreaterThan(Number(node.dataset.w));
   });
 
-  it("n'élargit que pour les biseaux réellement posés, et jamais en hauteur", () => {
+  it("n'élargit que pour les capsules réellement posées, et jamais en hauteur", () => {
     const nu = pillElement({ label: "AB", role: "CLIENT", lastSeen: now() });
     const avecRole = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
     expect(Number(nu.dataset.w)).toBe("AB".length * 7 + 16);
     expect(Number(avecRole.dataset.w)).toBeGreaterThan(Number(nu.dataset.w));
-    // Les biseaux étant INTÉRIEURS, la hauteur ne bouge pas : c'est elle qui
+    // Les capsules étant INTÉRIEURES, la hauteur ne bouge pas : c'est elle qui
     // commande l'écartement des pastilles empilées.
     expect(Number(nu.dataset.h)).toBe(20);
     expect(Number(avecRole.dataset.h)).toBe(20);
@@ -79,13 +79,13 @@ describe("pillElement", () => {
     // supplanterait et la pastille s'étirerait sur toute la largeur de la carte.
     const el = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
     expect(el.style.position).toBe("");
-    // Les badges restent positionnés dans l'absolu du marker.
+    // Les capsules restent positionnées dans l'absolu du marker.
     expect(
       el.querySelector<HTMLElement>(".mf-badge-role")?.style.position,
     ).toBe("absolute");
   });
 
-  it("masque les badges aux lecteurs d'écran et garde le libellé lisible", () => {
+  it("masque les capsules aux lecteurs d'écran et garde le libellé lisible", () => {
     const gw = pillElement({
       label: "GW",
       isGateway: true,
@@ -95,20 +95,20 @@ describe("pillElement", () => {
     for (const badge of gw.querySelectorAll("[class^=mf-badge]")) {
       expect(badge.getAttribute("aria-hidden")).toBe("true");
     }
-    // textContent agrège les badges (« GW0R ») : le libellé se lit dans
-    // dataset.label, seule source fiable une fois les badges posés.
+    // textContent agrège les capsules (« RGW0 ») : le libellé se lit dans
+    // dataset.label, seule source fiable une fois les capsules posées.
     expect(gw.dataset.label).toBe("GW");
   });
 
-  it("porte un badge compteur à 0 dès qu'il s'agit d'une passerelle", () => {
-    // Le badge identifie la passerelle : il ne doit pas dépendre de l'activité.
+  it("porte un compteur à 0 dès qu'il s'agit d'une passerelle", () => {
+    // La capsule identifie la passerelle : elle ne doit pas dépendre de l'activité.
     const gw = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
     expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("0");
     const node = pillElement({ label: "N", lastSeen: now() });
     expect(node.querySelector(".mf-badge-count")).toBeNull();
   });
 
-  it("porte un badge de rôle seulement hors famille CLIENT", () => {
+  it("porte une capsule de rôle seulement hors famille CLIENT", () => {
     const routeur = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
     expect(routeur.querySelector(".mf-badge-role")?.textContent).toBe("R");
     const client = pillElement({ label: "C1", role: "CLIENT", lastSeen: now() });
@@ -143,7 +143,7 @@ describe("countBadge / roleBadgeElement", () => {
     expect(countBadge(12).textContent).toBe("12");
   });
 
-  it("ne pose de badge que hors famille CLIENT", () => {
+  it("ne pose de capsule que hors famille CLIENT", () => {
     expect(roleBadgeElement("SENSOR")?.textContent).toBe("C");
     expect(roleBadgeElement("CLIENT")).toBeNull();
     expect(roleBadgeElement(null)).toBeNull();
@@ -258,8 +258,8 @@ describe("hoverCard", () => {
     expect(t).toContain("Vu ");
   });
 
-  it("explique la lettre du badge, seul canal disponible", () => {
-    // Les badges sont aria-hidden et sans infobulle propre.
+  it("explique la lettre de la capsule, seul canal disponible", () => {
+    // Les capsules sont aria-hidden et sans infobulle propre.
     expect(hoverCard({ nodeId: "!a", role: "SENSOR" }).textContent).toContain(
       "Capteur",
     );
@@ -335,7 +335,7 @@ describe("coverageCard", () => {
 });
 
 describe("paintRole", () => {
-  it("pose le badge quand le rôle arrive après la création du marker", () => {
+  it("pose la capsule quand le rôle arrive après la création du marker", () => {
     // nodeinfo tardif : le marker existe déjà et n'est pas recréé, seul l'état
     // passerelle le ferait.
     const el = pillElement({ label: "N1", lastSeen: now() });
@@ -344,13 +344,13 @@ describe("paintRole", () => {
     expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
   });
 
-  it("retire le badge quand le node est rétrogradé en CLIENT", () => {
+  it("retire la capsule quand le node est rétrogradé en CLIENT", () => {
     const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
     paintRole(el, "CLIENT");
     expect(el.querySelector(".mf-badge-role")).toBeNull();
   });
 
-  it("ne duplique pas le badge quand le rôle est inchangé", () => {
+  it("ne duplique pas la capsule quand le rôle est inchangé", () => {
     const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
     paintRole(el, "ROUTER");
     paintRole(el, "ROUTER_LATE");
@@ -367,8 +367,7 @@ describe("paintRole", () => {
 
 describe("mesure du compteur", () => {
   it("élargit la pastille quand le compteur gagne des chiffres", () => {
-    // Sinon le badge déborde sur la pastille voisine, la collision même que la
-    // marge doit empêcher.
+    // Sinon la capsule déborde sur la pastille voisine.
     const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
     const unChiffre = Number(el.dataset.w);
     paintCount(el, 127);
@@ -416,8 +415,6 @@ describe("contraste de l'anneau « pont »", () => {
   });
 
   it("l'anneau se détache des paliers où un pont peut apparaître", () => {
-    // Vert et prune sont quasi complémentaires : c'est ce qui rend l'anneau
-    // lisible sur une pastille, là où l'ambre échouait.
     // L'anneau ne peut PAS atteindre les paliers anciens : il dérive des
     // observations, fenêtre de 7 jours, donc un node-pont a forcément été vu
     // dans les 7 jours. Les paliers concernés sont les trois premiers.
@@ -426,13 +423,12 @@ describe("contraste de l'anneau « pont »", () => {
     }
   });
 
-  it("le badge passerelle se détache des paliers clairs", () => {
+  it("la capsule passerelle se détache des paliers clairs", () => {
     // Une passerelle peut vieillir jusqu'au dernier palier, sombre : là, c'est
-    // la bordure blanche du badge qui le délimite, pas son fond.
+    // le liseré blanc de la capsule qui la délimite, pas son fond.
     for (const step of FRESHNESS_STEPS.slice(0, -1)) {
       expect(contrast(rgb(GATEWAY_COLOR), rgb(step.bg))).toBeGreaterThan(3);
     }
-    // Le liseré blanc de la capsule joue ce rôle sur le palier sombre.
     expect(countBadge(5).style.borderLeft).toContain("rgb(255, 255, 255)");
   });
 
@@ -502,31 +498,6 @@ describe("paintMarker", () => {
     delete gw.dataset.label;
     expect(() => paintCount(gw, 9)).not.toThrow();
     expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("9");
-  });
-});
-
-describe("mesure verticale des badges empilés", () => {
-  it("ne cumule PAS les deux débordements verticaux", () => {
-    // Compteur en haut à droite, rôle en bas à gauche : coins horizontalement
-    // opposés. Sommer écarterait les pastilles empilées du double du besoin.
-    const seul = pillElement({ label: "N1", role: "ROUTER", lastSeen: now() });
-    const deux = pillElement({
-      label: "GW",
-      role: "ROUTER",
-      isGateway: true,
-      lastSeen: now(),
-    });
-    const compteurSeul = pillElement({
-      label: "GW",
-      isGateway: true,
-      lastSeen: now(),
-    });
-
-    const surplus = (el: HTMLElement, base: number) =>
-      Number(el.dataset.h) - base;
-    expect(surplus(deux, 24)).toBe(
-      Math.max(surplus(seul, 20), surplus(compteurSeul, 24)),
-    );
   });
 });
 

@@ -35,10 +35,8 @@ describe("MapLegend — légende de base", () => {
   });
 
   it("documente TOUS les paliers de fraîcheur", () => {
-    // La couleur d'une pastille n'est lisible que si la légende la décrit :
-    // sans ces entrées, les teintes seraient aussi opaques que le hash du
-    // node_id qu'elles remplacent. Le test itère sur la source de vérité pour
-    // qu'un palier ajouté sans entrée de légende fasse échouer la suite.
+    // Itère la source de vérité : un palier ajouté sans entrée de légende fait
+    // échouer la suite.
     render(<MapLegend {...props()} />);
     expect(screen.getByText("Dernière réception")).toBeInTheDocument();
     for (const step of FRESHNESS_STEPS) {
@@ -46,10 +44,9 @@ describe("MapLegend — légende de base", () => {
     }
   });
 
-  it("décrit TOUTES les lettres de badge produites", () => {
-    // Les badges sont aria-hidden et sans infobulle : la légende est leur seul
-    // canal d'explication. Itérer la source de vérité fait échouer la suite si
-    // une lettre est ajoutée sans entrée.
+  it("décrit TOUTES les lettres de capsule produites", () => {
+    // Les capsules sont aria-hidden et sans infobulle : la légende est leur
+    // seul canal d'explication.
     render(<MapLegend {...props()} />);
     for (const badge of ROLE_BADGES) {
       expect(screen.getByText(badge.title)).toBeInTheDocument();
@@ -62,9 +59,9 @@ describe("MapLegend — légende de base", () => {
     expect(screen.getByText("Vu par plusieurs gateways")).toBeInTheDocument();
   });
 
-  it("ne décrit plus de « node visible » bleu générique", () => {
-    // L'ancienne légende montrait des pastilles bleues fixes qui n'existaient
-    // sur aucune carte : la couleur dépend désormais de la fraîcheur.
+  it("ne décrit pas de « node visible » générique", () => {
+    // La couleur d'une pastille dépend de la fraîcheur : une entrée décrivant
+    // un node « normal » n'aurait aucune couleur à montrer.
     render(<MapLegend {...props()} />);
     expect(screen.queryByText("Node visible")).not.toBeInTheDocument();
   });

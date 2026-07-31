@@ -169,7 +169,7 @@ describe("applyFreshness", () => {
     expect(el.querySelector(".mf-badge-count")?.textContent).toBe("6");
   });
 
-  it("pose le badge de rôle arrivé après la création du marker", () => {
+  it("pose la capsule de rôle arrivée après la création du marker", () => {
     const { controller, nodes, elementOf } = setup([
       { nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false },
     ]);

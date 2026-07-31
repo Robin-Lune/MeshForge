@@ -39,7 +39,7 @@ describe("contraste de la rampe", () => {
     expect(contrast(oldest.bg, "#f2efe9")).toBeGreaterThan(1.5);
   });
 
-  it("le badge gateway reste lisible", () => {
+  it("la capsule gateway reste lisible", () => {
     expect(contrast(GATEWAY_COLOR, GATEWAY_INK)).toBeGreaterThanOrEqual(4.5);
   });
 });
