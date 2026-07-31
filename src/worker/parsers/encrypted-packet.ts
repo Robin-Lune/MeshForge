@@ -1,11 +1,12 @@
-import { createCipheriv, createDecipheriv } from "crypto";
 import protobuf from "protobufjs";
 import type { ParsedPacket, RawMeshtasticPacket } from "../../../types";
+import { decryptMeshtasticPayload } from "../../../lib/meshtastic-crypto";
 import { deviceRoleName, hardwareModelName } from "../meshtastic/enums";
 import { decodePosition, decodeTraceSnr } from "./parser-utils";
 import { neighborReports } from "./neighbor-info";
 import { tracerouteInfo } from "./traceroute";
-import { matchingTextMarker } from "./text-message";
+
+export { encryptMeshtasticPayload } from "../../../lib/meshtastic-crypto";
 
 const PORTNUM = {
   TEXT_MESSAGE_APP: 1,
@@ -15,11 +16,6 @@ const PORTNUM = {
   NEIGHBORINFO_APP: 71,
   TELEMETRY_APP: 67,
 } as const;
-
-const DEFAULT_PSK = Buffer.from([
-  0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
-  0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01,
-]);
 
 const PROTO = `
 syntax = "proto3";
@@ -195,58 +191,6 @@ export function parseChannelKeys(raw: string | undefined): ChannelKeys {
   );
 }
 
-export function encryptMeshtasticPayload(
-  payload: Uint8Array,
-  keyB64: string,
-  packetId: number,
-  from: number,
-): Buffer {
-  const key = normalizeKey(keyB64);
-  const cipher = createCipheriv(
-    cipherName(key),
-    key,
-    nonce(packetId, from),
-  );
-  return Buffer.concat([cipher.update(payload), cipher.final()]);
-}
-
-function decryptMeshtasticPayload(
-  payload: Uint8Array,
-  keyB64: string,
-  packetId: number,
-  from: number,
-): Buffer {
-  const key = normalizeKey(keyB64);
-  const decipher = createDecipheriv(cipherName(key), key, nonce(packetId, from));
-  return Buffer.concat([decipher.update(payload), decipher.final()]);
-}
-
-function normalizeKey(keyB64: string): Buffer {
-  const key = Buffer.from(keyB64, "base64");
-  if (key.length === 16 || key.length === 32) return key;
-  if (key.length === 1) {
-    if (key[0] === 0) return Buffer.alloc(0);
-    const psk = Buffer.from(DEFAULT_PSK);
-    psk[psk.length - 1] = (psk[psk.length - 1] + key[0] - 1) & 0xff;
-    return psk;
-  }
-
-  const normalized = Buffer.alloc(key.length < 16 ? 16 : 32);
-  key.copy(normalized);
-  return normalized;
-}
-
-function cipherName(key: Buffer): "aes-128-ctr" | "aes-256-ctr" {
-  return key.length === 32 ? "aes-256-ctr" : "aes-128-ctr";
-}
-
-function nonce(packetId: number, from: number): Buffer {
-  const out = Buffer.alloc(16);
-  out.writeUInt32LE(packetId >>> 0, 0);
-  out.writeUInt32LE(from >>> 0, 8);
-  return out;
-}
-
 function toNodeId(num: number): string {
   return "!" + (num >>> 0).toString(16).padStart(8, "0");
 }
@@ -353,7 +297,8 @@ export function parseEncryptedPacket(
   }
 
   if (data.portnum === PORTNUM.TEXT_MESSAGE_APP) {
-    return packetFromText(packet, envelope, channel, baseRaw, data.payload, debug);
+    debug?.(`drop: texte non ingéré (${channel})`);
+    return null;
   }
 
   if (data.portnum === PORTNUM.NODEINFO_APP) {
@@ -394,32 +339,6 @@ export function parseEncryptedPacket(
 
   debug?.(`drop: portnum ignoré (${data.portnum ?? "absent"})`);
   return null;
-}
-
-function packetFromText(
-  packet: NonNullable<DecodedEnvelope["packet"]>,
-  envelope: DecodedEnvelope,
-  channel: string,
-  raw: RawMeshtasticPacket,
-  payload: Uint8Array,
-  debug?: DebugLog,
-): ParsedPacket | null {
-  const text = Buffer.from(payload).toString("utf8");
-  const textRaw: RawMeshtasticPacket = {
-    ...raw,
-    type: "text",
-    payload: text,
-  };
-  const marker = matchingTextMarker(textRaw);
-  if (!marker) {
-    debug?.(`drop: texte sans marqueur autorisé (${channel})`);
-    return null;
-  }
-  debug?.(`allow: texte ${marker} (${channel})`);
-
-  return basePacket(packet, envelope, channel, textRaw, {
-    packetType: "text",
-  });
 }
 
 function packetFromPosition(

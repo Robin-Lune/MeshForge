@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const ADMIN_LINKS = [
   { href: "/admin/trames", label: "Trames" },
+  { href: "/admin/annonces", label: "Annonces" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/contributeurs", label: "Contributeurs" },
 ];

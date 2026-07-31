@@ -259,7 +259,7 @@ describe("parseEncryptedPacket", () => {
     expect(parsed?.airUtilTx).toBeCloseTo(1.2);
   });
 
-  it("drop un /e/ TEXT_MESSAGE_APP sans /URGENT", () => {
+  it("n'ingère pas les /e/ TEXT_MESSAGE_APP dans MeshForge", () => {
     const parsed = parseEncryptedPacket(
       TOPIC,
       envelope(1, Buffer.from("message banal", "utf8")),
@@ -268,18 +268,6 @@ describe("parseEncryptedPacket", () => {
     );
 
     expect(parsed).toBeNull();
-  });
-
-  it("laisse passer un /e/ TEXT_MESSAGE_APP contenant /URGENT", () => {
-    const parsed = parseEncryptedPacket(
-      TOPIC,
-      envelope(1, Buffer.from("test /URGENT besoin radio", "utf8")),
-      CHANNELS,
-      parseChannelKeys("Fr_Balise:AQ=="),
-    );
-
-    expect(parsed?.packetType).toBe("text");
-    expect(parsed?.raw.payload).toBe("test /URGENT besoin radio");
   });
 
   it("ignore les canaux sans clé connue", () => {
