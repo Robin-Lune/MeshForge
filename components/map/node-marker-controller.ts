@@ -13,6 +13,11 @@ import {
 import { resolvePillSpread } from "./pill-spread";
 import { haversineKm } from "@/lib/geo";
 
+// Jeu entre deux pastilles empilées. Les capsules ne débordent plus de la
+// pastille : seule cette valeur, et l'anneau des ponts, séparent encore les
+// corps.
+const PILL_GAP = 2;
+
 export type NodeMapFilters = {
   search: string;
   role: string;
@@ -272,7 +277,7 @@ export function createNodeMarkerController({
         h: Number(element.dataset.h) || 22,
       };
     });
-    const offsets = resolvePillSpread(boxes);
+    const offsets = resolvePillSpread(boxes, PILL_GAP);
     const anchors = new Map<string, LngLat>();
 
     ids.forEach((id, index) => {

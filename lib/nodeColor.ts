@@ -20,14 +20,14 @@ export type FreshnessStep = {
 export const FRESHNESS_STEPS: readonly FreshnessStep[] = [
   // Bornes STRICTES (hours < maxHours), d'où « < » et non « ≤ ». Le dernier
   // palier récupère l'égalité, d'où « ≥ ».
-  // Déclinaison du vert Meshtastic (#67EA94) : la saturation s'éteint avec
-  // l'âge. Le dernier palier bascule en gris SOMBRE à texte blanc — c'est ce qui
-  // libère la plage claire pour les quatre autres, tous contraints de rester
-  // clairs par leur encre.
+  // Déclinaison du vert Meshtastic (#67EA94) : le vert s'éteint sur les deux
+  // premiers paliers, les trois derniers descendent en gris de plus en plus
+  // sombre. Le dernier passe au texte blanc — c'est ce qui libère la plage
+  // claire pour les autres, tous contraints d'y rester par leur encre.
   { maxHours: 1, bg: "#66ea95", fg: "#0f1c2e", label: "< 1 h" },
-  { maxHours: 24, bg: "#81d9a3", fg: "#0f1c2e", label: "< 24 h" },
-  { maxHours: 24 * 7, bg: "#a6d3ba", fg: "#0f1c2e", label: "< 7 j" },
-  { maxHours: 24 * 14, bg: "#dadddb", fg: "#0f1c2e", label: "< 14 j" },
+  { maxHours: 24, bg: "#a6d3ba", fg: "#0f1c2e", label: "< 24 h" },
+  { maxHours: 24 * 7, bg: "#dadddb", fg: "#0f1c2e", label: "< 7 j" },
+  { maxHours: 24 * 14, bg: "#a5a8a8", fg: "#0f1c2e", label: "< 14 j" },
   { maxHours: Infinity, bg: "#363b3f", fg: "#ffffff", label: "≥ 14 j" },
 ] as const;
 

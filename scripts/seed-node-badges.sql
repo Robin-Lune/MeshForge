@@ -4,6 +4,10 @@
 -- Préfixe '!zb' : 'z' n'est PAS un chiffre hexadécimal, donc ces DELETE ne
 -- peuvent atteindre aucun node réel (les node_id Meshtastic sont "!" + hex(8)).
 -- Ne jamais préfixer un seed par une lettre hexadécimale nue.
+--
+-- Les dates sont figées à l'INSERTION : un node semé « il y a 2 min » quitte le
+-- palier « < 1 h » une heure plus tard. Rejouer le seed (npm run seed) pour
+-- retrouver les paliers récents.
 
 DELETE FROM packets WHERE gateway_id LIKE '!zb%' OR node_id LIKE '!zb%';
 DELETE FROM nodes WHERE node_id LIKE '!zb%';

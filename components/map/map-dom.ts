@@ -16,9 +16,9 @@ export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4
 // rend l'approche viable : sans lui, aucune couleur de capsule ne contrasterait
 // à la fois avec le vert vif du premier palier et le gris sombre du dernier.
 const CAP_W = 16; // largeur utile d'une capsule, glyphe compris
-// Neutre choisi pour trancher sur TOUTE la rampe, et pas seulement sur ses
-// paliers clairs : une encre quasi noire se confondait avec le palier « ≥ 14 j ».
-export const ROLE_CAPSULE = "#54585e";
+// Violet : la rampe occupant désormais le vert PUIS les gris, un neutre s'y
+// confondrait. Teinte distincte du bleu des passerelles, glyphe blanc AAA.
+export const ROLE_CAPSULE = "#6d28d9";
 export const ROLE_CAPSULE_INK = "#ffffff";
 const CAP_EDGE = "1.5px solid #fff";
 const PILL_INNER_RADIUS = "5.5px";
