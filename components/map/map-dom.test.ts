@@ -63,15 +63,15 @@ describe("pillElement", () => {
     expect(Number(gw.dataset.w)).toBeGreaterThan(Number(node.dataset.w));
   });
 
-  it("ne réserve de marge que pour les badges réellement posés", () => {
+  it("n'élargit que pour les biseaux réellement posés, et jamais en hauteur", () => {
     const nu = pillElement({ label: "AB", role: "CLIENT", lastSeen: now() });
     const avecRole = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
-    // Une pastille sans badge garde les dimensions historiques : la marge
-    // s'appliquerait sinon à la quasi-totalité du parc, qui n'en porte aucun.
     expect(Number(nu.dataset.w)).toBe("AB".length * 7 + 16);
-    expect(Number(nu.dataset.h)).toBe(20);
     expect(Number(avecRole.dataset.w)).toBeGreaterThan(Number(nu.dataset.w));
-    expect(Number(avecRole.dataset.h)).toBeGreaterThan(Number(nu.dataset.h));
+    // Les biseaux étant INTÉRIEURS, la hauteur ne bouge pas : c'est elle qui
+    // commande l'écartement des pastilles empilées.
+    expect(Number(nu.dataset.h)).toBe(20);
+    expect(Number(avecRole.dataset.h)).toBe(20);
   });
 
   it("ne pose PAS de position inline : MapLibre en est propriétaire", () => {
@@ -432,7 +432,8 @@ describe("contraste de l'anneau « pont »", () => {
     for (const step of FRESHNESS_STEPS.slice(0, -1)) {
       expect(contrast(rgb(GATEWAY_COLOR), rgb(step.bg))).toBeGreaterThan(3);
     }
-    expect(countBadge(5).style.border).toContain("rgb(255, 255, 255)");
+    // Le liseré blanc du biseau joue ce rôle sur le palier sombre.
+    expect(countBadge(5).style.background).toContain("rgb(255, 255, 255)");
   });
 
   it("ne porte que l'anneau et l'ombre de la pastille", () => {
@@ -587,6 +588,20 @@ describe("réserve de l'anneau dans la boîte de collision", () => {
     paintBridge(el, false);
     expect(Number(el.dataset.w)).toBe(sans.w);
     expect(Number(el.dataset.h)).toBe(sans.h);
+  });
+
+  it("ne remesure pas quand l'état de pont est inchangé", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    paintBridge(el, true);
+    const w = el.dataset.w;
+    paintBridge(el, true);
+    expect(el.dataset.w).toBe(w);
+  });
+
+  it("tolère un élément sans dataset de libellé", () => {
+    const nu = document.createElement("div");
+    expect(() => paintBridge(nu, true)).not.toThrow();
+    expect(nu.dataset.w).toBeDefined();
   });
 
   it("pose et retire l'ombre correspondante", () => {

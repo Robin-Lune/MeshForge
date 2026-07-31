@@ -10,78 +10,79 @@ export const BRIDGE_RING = "#2563eb";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
 export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4)`;
 
-const BADGE_SIZE = 14;
-const COUNT_BADGE_HEIGHT = 15;
+// Biseaux d'angle : le glyphe vit DANS la pastille, séparé du libellé par un
+// liseré blanc en diagonale. Aucun débordement, donc rien à réserver pour
+// l'anti-collision — c'est ce qui permet d'empiler serré.
+const BEVEL_W = 17; // largeur du biseau, glyphe compris
+const BEVEL_EDGE = 1.5; // épaisseur du liseré blanc
 // Épaisseur de l'anneau « pont ». Posé en box-shadow, il ne participe pas à la
 // boîte de mise en page : sans réserve explicite, deux pastilles empilées voient
 // leurs anneaux se recouvrir.
 const BRIDGE_EXTENT = 3;
 
-// Part du badge posée HORS de la pastille, par axe. Les translations en sont
-// dérivées : les deux ne peuvent pas diverger. resolvePillSpread ne lit que
-// dataset.w/h, donc un débordement non compté y ramène les chevauchements.
-const ROLE_OUT_X = 0.38;
-const ROLE_OUT_Y = 0.4;
-const COUNT_OUT_X = 0.42;
-const COUNT_OUT_Y = 0.46;
-const pct = (v: number): string => `${v * 100}%`;
-const roleOverflow = (): number => BADGE_SIZE * ROLE_OUT_X;
-const countOverflow = (width: number): number => width * COUNT_OUT_X;
-// countBadge : min-width 15px, +3px de padding de chaque côté, ~5px par chiffre.
+// Largeur utile d'un compteur : ~5,5 px par chiffre au-delà du premier.
 const countWidth = (count: number): number =>
-  Math.max(COUNT_BADGE_HEIGHT, 6 + String(count).length * 5.5);
+  BEVEL_W + Math.max(0, String(count).length - 1) * 5.5;
 
-function badgeBase(el: HTMLElement): void {
+// Le liseré est tracé par un dégradé à 45° plutôt que par une bordure : une
+// bordure ne peut pas suivre une diagonale. Les paliers sont en pixels pour que
+// l'épaisseur du trait ne dépende pas de la taille du biseau.
+function bevelBackground(color: string, corner: "right" | "left"): string {
+  // 45deg part du bas-gauche, 225deg du haut-droit : dans les deux cas la
+  // portion transparente laisse voir la pastille et le biseau occupe le coin.
+  const angle = corner === "right" ? "45deg" : "225deg";
+  const cut = BEVEL_W - 6;
+  return (
+    `linear-gradient(${angle}, transparent 0 ${cut}px, ` +
+    `#fff ${cut}px ${cut + BEVEL_EDGE}px, ${color} ${cut + BEVEL_EDGE}px)`
+  );
+}
+
+function bevelBase(el: HTMLElement): void {
   el.style.position = "absolute";
+  el.style.top = "0";
+  el.style.bottom = "0";
   el.style.display = "flex";
   el.style.alignItems = "center";
-  el.style.justifyContent = "center";
-  el.style.border = "1.5px solid #fff";
-  el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3)";
-  el.style.font = "700 8.5px/1 ui-sans-serif, system-ui, sans-serif";
-  // Le survol doit atteindre la pastille, pas le badge. Conséquence : un badge
-  // ne peut pas porter d'infobulle propre — son sens vit dans la légende et
-  // dans hoverCard.
+  el.style.font = "700 9px/1 ui-sans-serif, system-ui, sans-serif";
+  // Le survol doit atteindre la pastille, pas le biseau.
   el.style.pointerEvents = "none";
-  // Les badges ne sont pas du texte : sans cela, textContent et le nom
-  // accessible de la pastille deviennent « GW3R ».
+  // Le glyphe n'est pas du texte de la pastille : sans cela, textContent et le
+  // nom accessible deviennent « GW5R ».
   el.setAttribute("aria-hidden", "true");
 }
 
-// Reste affiché à 0 : c'est ce badge qui identifie une passerelle.
+// Reste affiché à 0 : c'est ce biseau qui identifie une passerelle.
 export function countBadge(count: number): HTMLElement {
   const el = document.createElement("div");
-  badgeBase(el);
+  bevelBase(el);
   el.className = "mf-badge-count";
   el.textContent = String(count);
-  el.style.top = "0";
   el.style.right = "0";
-  el.style.transform = `translate(${pct(COUNT_OUT_X)}, -${pct(COUNT_OUT_Y)})`;
-  el.style.minWidth = `${COUNT_BADGE_HEIGHT}px`;
-  el.style.height = `${COUNT_BADGE_HEIGHT}px`;
-  el.style.padding = "0 3px";
-  el.style.borderRadius = "999px";
-  el.style.background = GATEWAY_COLOR;
+  el.style.width = `${countWidth(count)}px`;
+  el.style.justifyContent = "flex-end";
+  el.style.paddingRight = "4px";
+  el.style.borderRadius = "0 5.5px 5.5px 0";
+  el.style.background = bevelBackground(GATEWAY_COLOR, "right");
   el.style.color = GATEWAY_INK;
   el.style.fontVariantNumeric = "tabular-nums";
   return el;
 }
 
-// Coin bas-gauche : diagonale opposée au compteur.
+// Coin opposé au compteur : les deux biseaux ne se disputent jamais la place.
 export function roleBadgeElement(role: unknown): HTMLElement | null {
   const badge = roleBadge(typeof role === "string" ? role : null);
   if (!badge) return null;
   const el = document.createElement("div");
-  badgeBase(el);
+  bevelBase(el);
   el.className = "mf-badge-role";
   el.textContent = badge.letter;
-  el.style.bottom = "0";
   el.style.left = "0";
-  el.style.transform = `translate(-${pct(ROLE_OUT_X)}, ${pct(ROLE_OUT_Y)})`;
-  el.style.width = `${BADGE_SIZE}px`;
-  el.style.height = `${BADGE_SIZE}px`;
-  el.style.borderRadius = "999px";
-  el.style.background = "#1f2937";
+  el.style.width = `${BEVEL_W}px`;
+  el.style.justifyContent = "flex-start";
+  el.style.paddingLeft = "4px";
+  el.style.borderRadius = "5.5px 0 0 5.5px";
+  el.style.background = bevelBackground("#1f2937", "left");
   el.style.color = "#fff";
   return el;
 }
@@ -95,22 +96,28 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const count = countEl ? Number(countEl.textContent) : 0;
   const ring = el.dataset.bridge === "true" ? BRIDGE_EXTENT : 0;
 
-  const left = Math.max(hasRole ? roleOverflow() : 0, ring);
-  const right = Math.max(countEl ? countOverflow(countWidth(count)) : 0, ring);
-  // Les deux badges occupent des coins HORIZONTALEMENT opposés (compteur en
-  // haut à droite, rôle en bas à gauche) : à une abscisse donnée un seul
-  // déborde. Sommer les deux écarterait les pastilles empilées du double du
-  // nécessaire — d'où le max, et non la somme.
-  const vertical = Math.max(
-    hasRole ? BADGE_SIZE * ROLE_OUT_Y : 0,
-    countEl ? COUNT_BADGE_HEIGHT * COUNT_OUT_Y : 0,
-    ring,
-  );
+  // Les biseaux sont INTÉRIEURS : ils élargissent la pastille au lieu d'en
+  // déborder. Seul l'anneau, posé en box-shadow, reste hors de la boîte.
+  const bevels =
+    (hasRole ? BEVEL_W : 0) + (countEl ? countWidth(count) : 0);
+
+  // Le libellé doit s'écarter des biseaux, qui le recouvriraient sinon.
+  const padY = isGateway ? 4 : 3;
+  const padX = isGateway ? 8 : 6;
+  el.style.padding = [
+    `${padY}px`,
+    `${countEl ? countWidth(count) + 2 : padX}px`,
+    `${padY}px`,
+    `${hasRole ? BEVEL_W + 2 : padX}px`,
+  ].join(" ");
 
   el.dataset.w = String(
-    label.length * (isGateway ? 8.5 : 7) + (isGateway ? 20 : 16) + left + right,
+    label.length * (isGateway ? 8.5 : 7) +
+      (isGateway ? 20 : 16) +
+      bevels +
+      ring * 2,
   );
-  el.dataset.h = String((isGateway ? 24 : 20) + vertical);
+  el.dataset.h = String((isGateway ? 24 : 20) + ring * 2);
 }
 
 export function pillElement(p: Record<string, unknown>): HTMLElement {
@@ -130,7 +137,6 @@ export function pillElement(p: Record<string, unknown>): HTMLElement {
   el.style.font = isGateway
     ? "700 13px/1 ui-sans-serif, system-ui, sans-serif"
     : "600 11px/1 ui-sans-serif, system-ui, sans-serif";
-  el.style.padding = isGateway ? "4px 8px" : "3px 6px";
   el.style.borderRadius = "7px";
   el.style.border = isGateway
     ? "2px solid rgba(255,255,255,0.95)"
