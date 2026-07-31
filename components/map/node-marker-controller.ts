@@ -3,9 +3,19 @@ import maplibregl from "maplibre-gl";
 import type { HopFilter } from "./MapFilters";
 import { bestTargets, type HoverEdge } from "./hover-edges";
 import { lerp, lineFeature, type LngLat } from "./map-data";
-import { clusterElement, hoverCard, pillElement } from "./map-dom";
+import {
+  clusterElement,
+  hoverCard,
+  paintBridge,
+  paintMarker,
+  pillElement,
+} from "./map-dom";
 import { resolvePillSpread } from "./pill-spread";
 import { haversineKm } from "@/lib/geo";
+
+// Les capsules ne débordant plus, les bordures blanches suffisent à séparer
+// deux corps jointifs.
+const PILL_GAP = 0;
 
 export type NodeMapFilters = {
   search: string;
@@ -23,13 +33,16 @@ type NodeMarkerControllerOptions = {
   getMinHopByNode: () => Map<string, number>;
   getBridgeNodeIds: () => Set<string>;
   getHoverByNode: () => Map<string, HoverEdge[]>;
+  getDirectCountByGateway: () => Map<string, number>;
   onOpenNode: (nodeId: string) => void;
+  onClustersChange: (visible: boolean) => void;
 };
 
 export type NodeMarkerController = {
   refreshNodes: () => void;
   updateMarkers: () => void;
   applyBridgeHighlight: () => void;
+  applyFreshness: () => void;
   clearSelection: () => void;
   popupIsOpen: () => boolean;
   destroy: () => void;
@@ -54,13 +67,16 @@ export function createNodeMarkerController({
   getMinHopByNode,
   getBridgeNodeIds,
   getHoverByNode,
+  getDirectCountByGateway,
   onOpenNode,
+  onClustersChange,
 }: NodeMarkerControllerOptions): NodeMarkerController {
   let alive = true;
   let pinnedNodeId: string | null = null;
   let activeMeshNodeId: string | null = null;
   let meshRaf: number | null = null;
   let visualAnchors = new Map<string, LngLat>();
+  let clustersVisible = false;
   const markers: Record<string, maplibregl.Marker> = {};
   let onScreen: Record<string, maplibregl.Marker> = {};
 
@@ -178,9 +194,15 @@ export function createNodeMarkerController({
 
   const openNodePopup = (
     nodeId: string,
-    properties: Record<string, unknown>,
     marker: maplibregl.Marker,
   ): void => {
+    // Lu depuis l'index à l'ouverture : les écouteurs sont attachés une seule
+    // fois et captureraient sinon les propriétés figées à la création. La fiche
+    // est le seul canal d'explication des capsules, qui, elles, sont repeintes.
+    const properties = (nodes.get(nodeId)?.properties ?? {}) as Record<
+      string,
+      unknown
+    >;
     const card = hoverCard(properties);
     card.style.cursor = "pointer";
     card.addEventListener("click", (event) => {
@@ -230,11 +252,33 @@ export function createNodeMarkerController({
     const bridges = getBridgeNodeIds();
     for (const id in onScreen) {
       if (!id.startsWith("n")) continue;
-      const element = onScreen[id].getElement();
-      element.style.boxShadow = bridges.has(id.slice(1))
-        ? "0 0 0 3px #2563eb, 0 1px 3px rgba(0,0,0,0.4)"
-        : "0 1px 3px rgba(0,0,0,0.35)";
+      paintBridge(onScreen[id].getElement(), bridges.has(id.slice(1)));
     }
+  };
+
+  // Un node change de palier par le seul écoulement du temps, sans qu'aucun
+  // paquet n'arrive : sans repeint périodique la couleur devient fausse. Le rôle
+  // y passe aussi, l'élément DOM n'étant recréé qu'au changement d'état
+  // passerelle.
+  const applyFreshness = (respread = true): void => {
+    const now = Date.now();
+    const directCounts = getDirectCountByGateway();
+    for (const id in onScreen) {
+      if (!id.startsWith("n")) continue;
+      // Un node absent de l'index est en cours de rafraîchissement, pas mort :
+      // le peindre depuis {} le ferait clignoter en « ≥ 14 j » sans rôle.
+      const feature = nodes.get(id.slice(1));
+      if (!feature) continue;
+      paintMarker(
+        onScreen[id].getElement(),
+        feature.properties as Record<string, unknown>,
+        directCounts,
+        now,
+      );
+    }
+    // Les capsules ont pu changer de largeur : sans réespacement, les pastilles
+    // se recouvrent jusqu'au prochain déplacement de carte.
+    if (respread) spreadPills();
   };
 
   const spreadPills = (): void => {
@@ -249,7 +293,7 @@ export function createNodeMarkerController({
         h: Number(element.dataset.h) || 22,
       };
     });
-    const offsets = resolvePillSpread(boxes);
+    const offsets = resolvePillSpread(boxes, PILL_GAP);
     const anchors = new Map<string, LngLat>();
 
     ids.forEach((id, index) => {
@@ -328,7 +372,7 @@ export function createNodeMarkerController({
           const nodeId = String(properties.nodeId);
           element.addEventListener("mouseenter", () => {
             if (tapToPreview || pinnedNodeId) return;
-            openNodePopup(nodeId, properties, currentMarker);
+            openNodePopup(nodeId, currentMarker);
             drawMesh(nodeId);
           });
           element.addEventListener("mouseleave", () => {
@@ -344,7 +388,7 @@ export function createNodeMarkerController({
               return;
             }
             pinnedNodeId = nodeId;
-            openNodePopup(nodeId, properties, currentMarker);
+            openNodePopup(nodeId, currentMarker);
             clearMesh();
             drawMesh(nodeId);
           });
@@ -361,8 +405,19 @@ export function createNodeMarkerController({
       if (!next[id]) onScreen[id].remove();
     }
     onScreen = next;
-    spreadPills();
+    // Présence RÉELLE plutôt que seuil de zoom : les deux divergent aux
+    // niveaux où quelques clusters subsistent parmi les pastilles.
+    const avecClusters = Object.keys(next).some((id) => id.startsWith("c"));
+    if (avecClusters !== clustersVisible) {
+      clustersVisible = avecClusters;
+      onClustersChange(avecClusters);
+    }
+    // Les repeints AVANT l'espacement : paintBridge, paintCount et paintRole
+    // réécrivent dataset.w/h, que spreadPills lit. L'ordre inverse résolvait les
+    // chevauchements sur des dimensions périmées.
     applyBridgeHighlight();
+    applyFreshness(false);
+    spreadPills();
   };
 
   const clearSelection = (): void => {
@@ -374,6 +429,9 @@ export function createNodeMarkerController({
 
   const destroy = (): void => {
     alive = false;
+    // Sans cela, un contrôleur recréé sur une carte sans cluster n'émettrait
+    // jamais `false` et la légende garderait une section sans objet.
+    if (clustersVisible) onClustersChange(false);
     clearSelection();
     Object.values(markers).forEach((marker) => marker.remove());
     onScreen = {};
@@ -383,6 +441,7 @@ export function createNodeMarkerController({
     refreshNodes,
     updateMarkers,
     applyBridgeHighlight,
+    applyFreshness,
     clearSelection,
     popupIsOpen: () => hoverPopup.isOpen(),
     destroy,

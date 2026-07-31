@@ -29,7 +29,7 @@ export default function MapView({
     [search, role, sinceH, hopFilter, coverage],
   );
 
-  const { roleOptions, coverageError } = useMapController({
+  const { roleOptions, coverageError, clustersVisible } = useMapController({
     containerRef,
     bounds,
     minZoom,
@@ -47,6 +47,7 @@ export default function MapView({
         onToggle={() => setLegendOpen((open) => !open)}
         coverage={coverage}
         coverageError={coverageError}
+        clusters={clustersVisible}
       />
       <MapFilters
         search={search}

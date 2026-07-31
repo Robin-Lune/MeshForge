@@ -1,5 +1,4 @@
 import type { PublicNode } from "@/types";
-import { nodeColor } from "@/lib/nodeColor";
 
 export type LngLat = [number, number];
 
@@ -41,8 +40,12 @@ export function nodeFeature(n: MarkerNode): GeoJSON.Feature {
       lastSnr: n.lastSnr ?? null,
       role: n.role ?? "",
       isGateway,
-      isMobile: n.isMobile ?? false,
-      color: nodeColor(n.nodeId, isGateway),
+      // Défaut PRUDENT, aligné sur is_mobile BOOLEAN DEFAULT TRUE : NodeUpdate
+      // ne transporte pas ce champ, et un `?? false` ferait annoncer « position
+      // exacte » pour un node dont le serveur a floué la position.
+      isMobile: n.isMobile ?? true,
+      // Pas de `color` : elle dépend du temps écoulé, pas de la donnée. Elle est
+      // calculée au rendu et repeinte par applyFreshness().
     },
   };
 }

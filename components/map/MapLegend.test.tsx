@@ -10,6 +10,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MapLegend } from "@/components/map/MapLegend";
+import { FRESHNESS_STEPS } from "@/lib/nodeColor";
+import { ROLE_BADGES } from "@/lib/nodeRole";
 import type { CoverageSelection } from "@/types";
 
 const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
@@ -17,19 +19,52 @@ const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
   onToggle: () => {},
   coverage: "off" as CoverageSelection,
   coverageError: false,
+  clusters: false,
   ...over,
 });
 
 describe("MapLegend — légende de base", () => {
   it("affiche les entrées quand elle est ouverte", () => {
     render(<MapLegend {...props()} />);
-    expect(screen.getByText("Gateway MQTT")).toBeInTheDocument();
-    expect(screen.getByText("Lien direct 0-hop")).toBeInTheDocument();
+    expect(screen.getByText("Gateway /1h")).toBeInTheDocument();
+    expect(screen.getByText("Direct 0-hop")).toBeInTheDocument();
   });
 
   it("masque les entrées quand elle est fermée", () => {
     render(<MapLegend {...props({ open: false })} />);
-    expect(screen.queryByText("Gateway MQTT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gateway /1h")).not.toBeInTheDocument();
+  });
+
+  it("documente TOUS les paliers de fraîcheur", () => {
+    // Itère la source de vérité : un palier ajouté sans entrée de légende fait
+    // échouer la suite.
+    render(<MapLegend {...props()} />);
+    expect(screen.getByText("Dernière réception")).toBeInTheDocument();
+    for (const step of FRESHNESS_STEPS) {
+      expect(screen.getByText(step.label)).toBeInTheDocument();
+    }
+  });
+
+  it("décrit TOUTES les lettres de capsule produites", () => {
+    // Les capsules sont aria-hidden et sans infobulle : la légende est leur
+    // seul canal d'explication.
+    render(<MapLegend {...props()} />);
+    for (const badge of ROLE_BADGES) {
+      expect(screen.getByText(badge.short)).toBeInTheDocument();
+    }
+  });
+
+  it("décrit le compteur des passerelles et l'anneau", () => {
+    render(<MapLegend {...props()} />);
+    expect(screen.getByText("Gateway /1h")).toBeInTheDocument();
+    expect(screen.getByText("Capté par ≥ 2 gateways")).toBeInTheDocument();
+  });
+
+  it("ne décrit pas de « node visible » générique", () => {
+    // La couleur d'une pastille dépend de la fraîcheur : une entrée décrivant
+    // un node « normal » n'aurait aucune couleur à montrer.
+    render(<MapLegend {...props()} />);
+    expect(screen.queryByText("Node visible")).not.toBeInTheDocument();
   });
 
   it("libelle le bouton selon l'état et expose aria-expanded", () => {
@@ -61,6 +96,21 @@ describe("MapLegend — légende de base", () => {
     // s'accumuleraient.
     render(<MapLegend {...props()} />);
     expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+});
+
+describe("MapLegend — section regroupements", () => {
+  it("reste absente tant qu'aucun rond n'est à l'écran", () => {
+    render(<MapLegend {...props({ clusters: false })} />);
+    expect(screen.queryByText("Regroupements")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nodes groupés")).not.toBeInTheDocument();
+  });
+
+  it("apparaît avec les ronds et décrit leurs deux états", () => {
+    render(<MapLegend {...props({ clusters: true })} />);
+    expect(screen.getByText("Regroupements")).toBeInTheDocument();
+    expect(screen.getByText("Nodes groupés")).toBeInTheDocument();
+    expect(screen.getByText("Dont 1 gateway")).toBeInTheDocument();
   });
 });
 

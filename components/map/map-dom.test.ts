@@ -4,42 +4,195 @@
 // Aucun mock — ni MapLibre, ni réseau, ni base. Seul un document est requis.
 import { describe, it, expect } from "vitest";
 import {
+  BRIDGE_RING,
+  BRIDGE_SHADOW,
+  PILL_SHADOW,
   clusterElement,
+  countBadge,
   coverageCard,
   hoverCard,
+  paintBridge,
+  paintCount,
+  paintFreshness,
+  paintMarker,
+  paintRole,
   pillElement,
+  ROLE_CAPSULE,
+  ROLE_CAPSULE_INK,
+  roleBadgeElement,
 } from "@/components/map/map-dom";
-import { GATEWAY_COLOR } from "@/lib/nodeColor";
+import { FRESHNESS_STEPS, GATEWAY_COLOR } from "@/lib/nodeColor";
+import { contrast, deltaE } from "@/lib/test-color";
+
+const now = () => new Date().toISOString();
+const daysAgo = (d: number) =>
+  new Date(Date.now() - d * 86_400_000).toISOString();
+
+// jsdom normalise les couleurs en rgb() : on compare donc via un élément témoin
+// plutôt qu'à la chaîne hexadécimale brute.
+function asRgb(hex: string): string {
+  const probe = document.createElement("div");
+  probe.style.background = hex;
+  return probe.style.background;
+}
 
 describe("pillElement", () => {
   it("rend le libellé et marque un node ordinaire", () => {
-    const el = pillElement({ label: "StD", color: "#3b82f6" });
+    const el = pillElement({ label: "StD", lastSeen: now() });
     expect(el.textContent).toBe("StD");
     expect(el.dataset.gateway).toBe("false");
-    expect(el.dataset.h).toBe("20");
+  });
+
+  it("colore la pastille selon la fraîcheur, pas selon le node", () => {
+    const seen = now();
+    const frais = pillElement({ label: "AA", lastSeen: seen });
+    const vieux = pillElement({ label: "AA", lastSeen: daysAgo(30) });
+    expect(frais.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
+    expect(vieux.style.background).toBe(
+      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
+    );
+    // Même date, identifiants différents : la teinte ne dépend plus du node.
+    const autre = pillElement({ label: "ZZ", lastSeen: seen });
+    expect(autre.style.background).toBe(frais.style.background);
   });
 
   it("distingue visuellement une passerelle", () => {
-    const node = pillElement({ label: "AB" });
-    const gw = pillElement({ label: "AB", isGateway: true });
+    const node = pillElement({ label: "AB", lastSeen: now() });
+    const gw = pillElement({ label: "AB", isGateway: true, lastSeen: now() });
     expect(gw.dataset.gateway).toBe("true");
-    expect(gw.dataset.h).toBe("24");
     // La passerelle passe au-dessus dans la pile.
     expect(Number(gw.style.zIndex)).toBeGreaterThan(Number(node.style.zIndex));
     // Et elle est plus large à libellé égal (police plus grande).
     expect(Number(gw.dataset.w)).toBeGreaterThan(Number(node.dataset.w));
   });
 
+  it("n'élargit que pour les capsules réellement posées, et jamais en hauteur", () => {
+    const nu = pillElement({ label: "AB", role: "CLIENT", lastSeen: now() });
+    const avecRole = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
+    expect(Number(nu.dataset.w)).toBe("AB".length * 7 + 16);
+    expect(Number(avecRole.dataset.w)).toBeGreaterThan(Number(nu.dataset.w));
+    // Les capsules étant INTÉRIEURES, la hauteur ne bouge pas : c'est elle qui
+    // commande l'écartement des pastilles empilées.
+    expect(Number(nu.dataset.h)).toBe(20);
+    expect(Number(avecRole.dataset.h)).toBe(20);
+  });
+
+  it("ne pose PAS de position inline : MapLibre en est propriétaire", () => {
+    const el = pillElement({ label: "AB", role: "ROUTER", lastSeen: now() });
+    expect(el.style.position).toBe("");
+    expect(
+      el.querySelector<HTMLElement>(".mf-badge-role")?.style.position,
+    ).toBe("absolute");
+  });
+
+  it("masque les capsules aux lecteurs d'écran et garde le libellé lisible", () => {
+    const gw = pillElement({
+      label: "GW",
+      isGateway: true,
+      role: "ROUTER",
+      lastSeen: now(),
+    });
+    for (const badge of gw.querySelectorAll("[class^=mf-badge]")) {
+      expect(badge.getAttribute("aria-hidden")).toBe("true");
+    }
+    // textContent agrège les capsules (« RGW0 ») : le libellé se lit dans
+    // dataset.label, seule source fiable une fois les capsules posées.
+    expect(gw.dataset.label).toBe("GW");
+  });
+
+  it("porte un compteur à 0 dès qu'il s'agit d'une passerelle", () => {
+    // La capsule identifie la passerelle : elle ne doit pas dépendre de l'activité.
+    const gw = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("0");
+    const node = pillElement({ label: "N", lastSeen: now() });
+    expect(node.querySelector(".mf-badge-count")).toBeNull();
+  });
+
+  it("porte une capsule de rôle seulement hors famille CLIENT", () => {
+    const routeur = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
+    expect(routeur.querySelector(".mf-badge-role")?.textContent).toBe("R");
+    const client = pillElement({ label: "C1", role: "CLIENT", lastSeen: now() });
+    expect(client.querySelector(".mf-badge-role")).toBeNull();
+  });
+
   it("tolère des propriétés absentes", () => {
     const el = pillElement({});
     expect(el.textContent).toBe("");
     expect(el.dataset.gateway).toBe("false");
+    // Sans date, on retombe sur le palier le plus ancien plutôt que sur du vide.
+    expect(el.style.background).toBe(
+      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
+    );
+  });
+
+  it("ignore un rôle non textuel", () => {
+    expect(pillElement({ label: "A", role: 7 }).querySelector(".mf-badge-role"))
+      .toBeNull();
   });
 
   it("fait croître la largeur estimée avec le libellé", () => {
     const court = pillElement({ label: "A" });
     const long = pillElement({ label: "ABCDEFGH" });
     expect(Number(long.dataset.w)).toBeGreaterThan(Number(court.dataset.w));
+  });
+});
+
+describe("countBadge / roleBadgeElement", () => {
+  it("affiche le compte tel quel, zéro compris", () => {
+    expect(countBadge(0).textContent).toBe("0");
+    expect(countBadge(12).textContent).toBe("12");
+  });
+
+  it("ne pose de capsule que hors famille CLIENT", () => {
+    expect(roleBadgeElement("SENSOR")?.textContent).toBe("C");
+    expect(roleBadgeElement("CLIENT")).toBeNull();
+    expect(roleBadgeElement(null)).toBeNull();
+  });
+
+  it("ne porte pas d'infobulle : pointer-events la rendrait inatteignable", () => {
+    const badge = roleBadgeElement("SENSOR");
+    expect(badge?.style.pointerEvents).toBe("none");
+    expect(badge?.title).toBe("");
+  });
+});
+
+describe("paintFreshness / paintCount", () => {
+  it("vieillit une pastille montée à date de réception constante", () => {
+    const seen = "2026-07-31T12:00:00Z";
+    const el = pillElement({ label: "AA", lastSeen: seen });
+    paintFreshness(el, seen, Date.parse("2026-07-31T12:10:00Z"));
+    expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
+    paintFreshness(el, seen, Date.parse("2026-08-03T12:00:00Z"));
+    expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[2].bg));
+    expect(el.style.color).toBe(asRgb(FRESHNESS_STEPS[2].fg));
+  });
+
+  it("accepte un instant de référence explicite", () => {
+    const el = pillElement({ label: "AA" });
+    const seen = new Date("2026-07-31T12:00:00Z").toISOString();
+    paintFreshness(el, seen, Date.parse("2026-07-31T12:30:00Z"));
+    expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
+  });
+
+  it("retombe sur le palier ancien si la date n'est pas une chaîne", () => {
+    const el = pillElement({ label: "AA", lastSeen: now() });
+    paintFreshness(el, 12345);
+    expect(el.style.background).toBe(
+      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
+    );
+  });
+
+  it("met à jour le compteur d'une passerelle", () => {
+    const gw = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    paintCount(gw, 7);
+    expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("7");
+    paintCount(gw, 0);
+    expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("0");
+  });
+
+  it("ne casse rien sur une pastille sans compteur", () => {
+    const node = pillElement({ label: "N", lastSeen: now() });
+    expect(() => paintCount(node, 3)).not.toThrow();
   });
 });
 
@@ -94,6 +247,41 @@ describe("hoverCard", () => {
     expect(hoverCard({ nodeId: "!a", lastSnr: -7.5 }).textContent).toContain("-7.5");
     expect(hoverCard({ nodeId: "!a", lastSnr: null }).textContent).not.toContain("Signal");
   });
+
+  it("tolère une fiche entièrement vide", () => {
+    expect(() => hoverCard({})).not.toThrow();
+  });
+
+  it("affiche la date quand elle existe", () => {
+    const t = hoverCard({ nodeId: "!a", lastSeen: "2026-07-31T12:00:00Z" })
+      .textContent ?? "";
+    expect(t).toContain("Vu ");
+  });
+
+  it("explique la lettre de la capsule, seul canal disponible", () => {
+    // Les capsules sont aria-hidden et sans infobulle propre.
+    expect(hoverCard({ nodeId: "!a", role: "SENSOR" }).textContent).toContain(
+      "Capteur",
+    );
+    expect(hoverCard({ nodeId: "!a", role: "CLIENT" }).textContent).not.toContain(
+      "Capteur",
+    );
+    expect(hoverCard({ nodeId: "!a", role: 7 }).textContent).not.toContain(
+      "Capteur",
+    );
+  });
+
+  it("qualifie la précision de position", () => {
+    // is_mobile vaut TRUE par défaut (prudence vie privée) : seul un FALSE
+    // explicite atteste d'une position exacte.
+    expect(hoverCard({ nodeId: "!a", isMobile: false }).textContent).toContain(
+      "Position exacte",
+    );
+    expect(hoverCard({ nodeId: "!a", isMobile: true }).textContent).toContain(
+      "approximative",
+    );
+    expect(hoverCard({ nodeId: "!a" }).textContent).toContain("approximative");
+  });
 });
 
 describe("coverageCard", () => {
@@ -143,5 +331,240 @@ describe("coverageCard", () => {
     const t = coverageCard({}, 14).textContent ?? "";
     expect(t).toContain("z14");
     expect(t).toContain("0");
+  });
+});
+
+describe("paintRole", () => {
+  it("pose la capsule quand le rôle arrive après la création du marker", () => {
+    // nodeinfo tardif : le marker existe déjà et n'est pas recréé, seul l'état
+    // passerelle le ferait.
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    expect(el.querySelector(".mf-badge-role")).toBeNull();
+    paintRole(el, "ROUTER");
+    expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
+  });
+
+  it("retire la capsule quand le node est rétrogradé en CLIENT", () => {
+    const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
+    paintRole(el, "CLIENT");
+    expect(el.querySelector(".mf-badge-role")).toBeNull();
+  });
+
+  it("ne duplique pas la capsule quand le rôle est inchangé", () => {
+    const el = pillElement({ label: "R1", role: "ROUTER", lastSeen: now() });
+    paintRole(el, "ROUTER");
+    paintRole(el, "ROUTER_LATE");
+    expect(el.querySelectorAll(".mf-badge-role")).toHaveLength(1);
+  });
+
+  it("remesure la pastille", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    const avant = Number(el.dataset.w);
+    paintRole(el, "ROUTER");
+    expect(Number(el.dataset.w)).toBeGreaterThan(avant);
+  });
+});
+
+describe("mesure du compteur", () => {
+  it("élargit LA CAPSULE et la pastille quand le compteur gagne des chiffres", () => {
+    // La capsule est posée à `count = 0` : sans redimensionnement elle resterait
+    // large d'un chiffre pendant que la pastille réserve la place de trois.
+    const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    const capsule = el.querySelector<HTMLElement>(".mf-badge-count")!;
+    const unChiffre = { w: Number(el.dataset.w), cap: capsule.style.width };
+
+    paintCount(el, 24);
+    const deuxChiffres = parseFloat(capsule.style.width);
+    expect(deuxChiffres).toBeGreaterThan(parseFloat(unChiffre.cap));
+
+    paintCount(el, 137);
+    expect(parseFloat(capsule.style.width)).toBeGreaterThan(deuxChiffres);
+    expect(Number(el.dataset.w)).toBeGreaterThan(unChiffre.w);
+    // La pastille réserve exactement ce que la capsule occupe, plus 3 px.
+    expect(el.style.paddingRight).toBe(
+      `${parseFloat(capsule.style.width) + 3}px`,
+    );
+  });
+
+  it("ne remesure pas quand le compte est inchangé", () => {
+    const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    paintCount(el, 5);
+    const apres = el.dataset.w;
+    paintCount(el, 5);
+    expect(el.dataset.w).toBe(apres);
+  });
+});
+
+describe("contraste de l'anneau « pont »", () => {
+  // L'anneau doit trancher sur les DEUX fonds de carte ET sur la rampe verte.
+  // Le bleu y parvient seul, sans filet de renfort. Seuil 3:1 (WCAG 2.1
+  // SC 1.4.11, éléments non textuels).
+  const TUILE_CLAIRE = "#f2efe9";
+  const TUILE_SOMBRE = "#1b2230";
+
+  it("le bleu porte l'anneau sur les deux fonds de carte", () => {
+    expect(contrast(BRIDGE_RING, TUILE_CLAIRE)).toBeGreaterThan(3);
+    expect(contrast(BRIDGE_RING, TUILE_SOMBRE)).toBeGreaterThan(3);
+  });
+
+  it("l'anneau se détache des paliers où un pont peut apparaître", () => {
+    // L'anneau ne peut PAS atteindre les paliers anciens : il dérive des
+    // observations, fenêtre de 7 jours, donc un node-pont a forcément été vu
+    // dans les 7 jours. Les paliers concernés sont les trois premiers.
+    for (const step of FRESHNESS_STEPS.slice(0, 3)) {
+      expect(contrast(BRIDGE_RING, step.bg)).toBeGreaterThan(3);
+    }
+  });
+
+  it("la capsule passerelle se détache des paliers clairs", () => {
+    // Une passerelle peut vieillir jusqu'au dernier palier, sombre : là, c'est
+    // le liseré blanc de la capsule qui la délimite, pas son fond.
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(contrast(GATEWAY_COLOR, step.bg)).toBeGreaterThan(3);
+    }
+    expect(countBadge(5).style.borderLeft).toContain("rgb(255, 255, 255)");
+  });
+
+  it("ne porte que l'anneau et l'ombre de la pastille", () => {
+    expect(BRIDGE_SHADOW).toContain(BRIDGE_RING);
+  });
+});
+
+describe("paintMarker", () => {
+  const counts = new Map([["!gw", 4]]);
+
+  it("repeint fraîcheur, rôle et compteur d'une passerelle", () => {
+    const el = pillElement({
+      label: "GW",
+      nodeId: "!gw",
+      isGateway: true,
+      lastSeen: now(),
+    });
+    paintMarker(
+      el,
+      { nodeId: "!gw", isGateway: true, lastSeen: daysAgo(30), role: "ROUTER" },
+      counts,
+    );
+    expect(el.style.background).toBe(
+      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
+    );
+    expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
+    expect(el.querySelector(".mf-badge-count")?.textContent).toBe("4");
+  });
+
+  it("retombe à 0 pour une passerelle absente de l'index", () => {
+    const el = pillElement({
+      label: "GW",
+      nodeId: "!autre",
+      isGateway: true,
+      lastSeen: now(),
+    });
+    paintMarker(el, { nodeId: "!autre", isGateway: true }, counts);
+    expect(el.querySelector(".mf-badge-count")?.textContent).toBe("0");
+  });
+
+  it("ne touche pas au compteur d'un node ordinaire", () => {
+    const el = pillElement({ label: "N1", nodeId: "!n1", lastSeen: now() });
+    paintMarker(el, { nodeId: "!n1", lastSeen: now() }, counts);
+    expect(el.querySelector(".mf-badge-count")).toBeNull();
+  });
+
+  it("accepte un instant de référence", () => {
+    const el = pillElement({ label: "N1", nodeId: "!n1", lastSeen: now() });
+    paintMarker(
+      el,
+      { nodeId: "!n1", lastSeen: "2026-07-31T12:00:00Z" },
+      counts,
+      Date.parse("2026-07-31T12:10:00Z"),
+    );
+    expect(el.style.background).toBe(asRgb(FRESHNESS_STEPS[0].bg));
+  });
+
+  it("tolère un élément sans dataset de libellé", () => {
+    // paintRole/paintCount sont exportés : rien ne garantit qu'on les appelle
+    // sur une pastille issue de pillElement.
+    const nu = document.createElement("div");
+    expect(() => paintRole(nu, "ROUTER")).not.toThrow();
+    expect(nu.dataset.w).toBeDefined();
+
+    const gw = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
+    delete gw.dataset.label;
+    expect(() => paintCount(gw, 9)).not.toThrow();
+    expect(gw.querySelector(".mf-badge-count")?.textContent).toBe("9");
+  });
+});
+
+describe("séparation perceptuelle de la rampe", () => {
+  // Deux paliers voisins doivent se distinguer À L'ŒIL, pas seulement être
+  // lisibles. ΔE CIE76 : ~2 = limite du perceptible, 10 = franc.
+  // Deux paliers voisins doivent se distinguer à l'œil, pas seulement être
+  // lisibles.
+  it("sépare franchement chaque palier de son voisin", () => {
+    for (let i = 1; i < FRESHNESS_STEPS.length; i++) {
+      expect(
+        deltaE(FRESHNESS_STEPS[i].bg, FRESHNESS_STEPS[i - 1].bg),
+      ).toBeGreaterThan(15);
+    }
+  });
+
+  it("sépare le dernier palier de tous les autres", () => {
+    // Il porte l'information « ce node ne répond plus » : il doit être
+    // reconnaissable sans comparer à son voisin.
+    const dernier = FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg;
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(deltaE(dernier, step.bg)).toBeGreaterThan(30);
+    }
+  });
+});
+
+describe("réserve de l'anneau dans la boîte de collision", () => {
+  it("élargit la pastille quand l'anneau est posé", () => {
+    // L'anneau est un box-shadow : hors flux, donc invisible pour
+    // resolvePillSpread tant qu'on ne le réserve pas.
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    const sans = { w: Number(el.dataset.w), h: Number(el.dataset.h) };
+    paintBridge(el, true);
+    expect(Number(el.dataset.w)).toBeGreaterThan(sans.w);
+    expect(Number(el.dataset.h)).toBeGreaterThan(sans.h);
+    paintBridge(el, false);
+    expect(Number(el.dataset.w)).toBe(sans.w);
+    expect(Number(el.dataset.h)).toBe(sans.h);
+  });
+
+  it("ne remesure pas quand l'état de pont est inchangé", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    paintBridge(el, true);
+    const w = el.dataset.w;
+    paintBridge(el, true);
+    expect(el.dataset.w).toBe(w);
+  });
+
+  it("tolère un élément sans dataset de libellé", () => {
+    const nu = document.createElement("div");
+    expect(() => paintBridge(nu, true)).not.toThrow();
+    expect(nu.dataset.w).toBeDefined();
+  });
+
+  it("pose et retire l'ombre correspondante", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    expect(el.style.boxShadow).toBe(PILL_SHADOW);
+    paintBridge(el, true);
+    expect(el.style.boxShadow).toBe(BRIDGE_SHADOW);
+    paintBridge(el, false);
+    expect(el.style.boxShadow).toBe(PILL_SHADOW);
+  });
+});
+
+describe("contraste de la capsule de rôle", () => {
+  it("garde son glyphe lisible", () => {
+    expect(contrast(ROLE_CAPSULE, ROLE_CAPSULE_INK)).toBeGreaterThanOrEqual(7);
+  });
+
+  it("se détache des paliers clairs", () => {
+    // Sur le palier sombre c'est le liseré blanc qui la délimite, comme la
+    // capsule passerelle : aucune couleur ne tient sur les deux extrêmes.
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(contrast(ROLE_CAPSULE, step.bg)).toBeGreaterThan(3);
+    }
   });
 });

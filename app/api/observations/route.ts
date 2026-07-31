@@ -2,7 +2,8 @@ import { getObservations } from "@/lib/queries/observations";
 
 export const dynamic = "force-dynamic";
 
-// Arêtes de la toile mesh (gateway × node entendu).
+// Toile mesh (arêtes gateway × node entendu) et activité directe des
+// passerelles sur la dernière heure.
 export async function GET() {
   return Response.json(await getObservations());
 }

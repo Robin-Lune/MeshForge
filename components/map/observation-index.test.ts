@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Observation } from "@/types";
-import { bridgeNodeIds, indexObservations } from "./observation-index";
+import {
+  bridgeNodeIds,
+  indexGatewayActivity,
+  indexObservations,
+} from "./observation-index";
 import type { LngLat } from "./map-data";
 
 const observation = (
@@ -31,15 +35,25 @@ describe("indexObservations", () => {
     });
   });
 
+  it("traite un hop inconnu comme lointain plutôt que comme direct", () => {
+    // bestHop null (hop_count absent du paquet) ne doit surtout pas devenir 0 :
+    // un lien serait alors annoncé « direct » sans preuve. Le repli à 9 le
+    // range hors de tous les filtres de proximité.
+    const index = indexObservations([observation({ bestHop: null })]);
+    expect(index.minHopByNode.get("!node")).toBe(9);
+  });
+
   it("conserve le hop minimal et toutes les gateways entendues", () => {
     const index = indexObservations([
       observation({ gatewayId: "!gw1", bestHop: 2 }),
       observation({ gatewayId: "!gw2", bestHop: 1 }),
+      // Hop plus GRAND que le minimum déjà retenu : ne doit pas l'écraser.
+      observation({ gatewayId: "!gw3", bestHop: 3 }),
     ]);
 
     expect(index.minHopByNode.get("!node")).toBe(1);
     expect(index.heardByNode.get("!node")).toEqual(
-      new Set(["!gw1", "!gw2"]),
+      new Set(["!gw1", "!gw2", "!gw3"]),
     );
   });
 
@@ -98,5 +112,51 @@ describe("bridgeNodeIds", () => {
         20,
       ),
     ).toEqual(new Set());
+  });
+
+  it("ignore un node dont la position est inconnue", () => {
+    // Sans position, la distance n'est pas calculable : l'anneau ne peut pas
+    // être décidé, et l'inventer serait pire que de s'abstenir.
+    expect(
+      bridgeNodeIds(
+        new Map([["!inconnu", new Set(["!gw1", "!gw2"])]]),
+        () => null,
+        20,
+      ),
+    ).toEqual(new Set());
+  });
+
+  it("ignore les gateways sans position et le node lui-même", () => {
+    // Un node qui est sa propre gateway ne se « ponte » pas tout seul, et une
+    // gateway non localisée ne peut pas compter dans le seuil de distance.
+    const positions = new Map<string, LngLat>([
+      ["!node", [55.5, -21.1]],
+      ["!near", [55.51, -21.1]],
+    ]);
+    const positionOf = (id: string): LngLat | null =>
+      positions.get(id) ?? null;
+
+    expect(
+      bridgeNodeIds(
+        new Map([["!node", new Set(["!node", "!near", "!sansPosition"])]]),
+        positionOf,
+        20,
+      ),
+    ).toEqual(new Set());
+  });
+});
+
+describe("indexGatewayActivity", () => {
+  it("indexe les compteurs par passerelle", () => {
+    const counts = indexGatewayActivity([
+      { gatewayId: "!gw1", directNodes1h: 7 },
+      { gatewayId: "!gw2", directNodes1h: 0 },
+    ]);
+    expect(counts.get("!gw1")).toBe(7);
+    expect(counts.get("!gw2")).toBe(0);
+  });
+
+  it("laisse absente une passerelle sans ligne", () => {
+    expect(indexGatewayActivity([]).has("!gw")).toBe(false);
   });
 });

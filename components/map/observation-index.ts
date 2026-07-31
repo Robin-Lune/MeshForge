@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { Observation } from "@/types";
+import type { GatewayActivity, Observation } from "@/types";
 import type { HoverEdge } from "./hover-edges";
 import type { LngLat } from "./map-data";
 import { haversineKm } from "@/lib/geo";
@@ -74,6 +74,12 @@ export function indexObservations(observations: Observation[]): ObservationIndex
   }
 
   return { minHopByNode, heardByNode, hoverByNode };
+}
+
+export function indexGatewayActivity(
+  activity: GatewayActivity[],
+): Map<string, number> {
+  return new Map(activity.map((a) => [a.gatewayId, a.directNodes1h]));
 }
 
 // Un node reçoit l'anneau « pont » s'il est entendu par au moins deux gateways

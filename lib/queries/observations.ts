@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import type { Observation } from "../../types";
+import type {
+  GatewayActivity,
+  Observation,
+  ObservationsResponse,
+} from "../../types";
 
 // pg : MIN(hop_count) (smallint) en number/string, AVG(snr)::real en number,
 // COUNT(*) (bigint) en string.
@@ -12,6 +16,11 @@ interface ObservationRow {
   snr: number | null;
   packets: string | number;
   source?: string;
+}
+
+interface GatewayActivityRow {
+  gatewayId: string;
+  directNodes1h: string | number;
 }
 
 // Normalise les arêtes (coercition bestHop/packets ; snr/bestHop null préservés).
@@ -26,6 +35,15 @@ export function toObservations(rows: ObservationRow[]): Observation[] {
       r.source === "neighbor" || r.source === "traceroute"
         ? r.source
         : "gateway",
+  }));
+}
+
+export function toGatewayActivity(
+  rows: GatewayActivityRow[],
+): GatewayActivity[] {
+  return rows.map((r) => ({
+    gatewayId: r.gatewayId,
+    directNodes1h: Number(r.directNodes1h),
   }));
 }
 
@@ -108,7 +126,50 @@ const SELECT_OBSERVATIONS = `
   GROUP BY 1, 2
 `;
 
-export async function getObservations(): Promise<Observation[]> {
-  const { rows } = await pool.query<ObservationRow>(SELECT_OBSERVATIONS);
-  return toObservations(rows);
+// Compteur des passerelles. Requête SÉPARÉE de la toile, et c'est le
+// point : une arête n'existe que si ses deux extrémités sont affichables, une
+// barrière posée pour tracer des liens. Le compteur, lui, n'a besoin d'aucune
+// position — la lui appliquer le priverait justement des nodes que la carte ne
+// montre jamais (sans GPS, retirés), qui sont sa seule raison d'être.
+//
+// Régime « agrégat » de docs/analytics.md : la sortie est (id de passerelle,
+// nombre). L'identifiant de passerelle est déjà public, aucun node capté n'est
+// nommé, donc rien ne permet d'isoler un node — aucune barrière individuelle.
+// La passerelle doit rester localisée : sans marker, pas de capsule à porter.
+//
+// hop_count = 0 STRICTEMENT : au-delà le paquet est arrivé relayé, la passerelle
+// ne l'a pas capté. hop_count NULL (hops_away absent du fil) est écarté par la
+// comparaison — un hop inconnu ne doit pas être compté comme direct.
+const SELECT_GATEWAY_ACTIVITY = `
+  SELECT
+    p.gateway_id                 AS "gatewayId",
+    COUNT(DISTINCT p.node_id)    AS "directNodes1h"
+  FROM packets p
+  JOIN nodes gw ON gw.node_id = p.gateway_id
+  -- La jointure garantit déjà gateway_id NOT NULL ; COUNT(DISTINCT) ignore les
+  -- node_id nuls. Seule l'auto-écoute reste à écarter.
+  WHERE p.gateway_id <> p.node_id
+    AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
+    AND NOT gw.excluded
+    AND p.hop_count = 0
+    AND p.received_at > NOW() - INTERVAL '1 hour'
+  GROUP BY p.gateway_id
+`;
+
+// allSettled et non all : le compteur est un agrément, la toile porte les liens,
+// l'anneau « pont » et le filtre par hops. Une dégradation du premier ne doit pas
+// emporter le second.
+export async function getObservations(): Promise<ObservationsResponse> {
+  const [edges, activity] = await Promise.allSettled([
+    pool.query<ObservationRow>(SELECT_OBSERVATIONS),
+    pool.query<GatewayActivityRow>(SELECT_GATEWAY_ACTIVITY),
+  ]);
+  if (edges.status === "rejected") throw edges.reason;
+  return {
+    edges: toObservations(edges.value.rows),
+    gatewayActivity:
+      activity.status === "fulfilled"
+        ? toGatewayActivity(activity.value.rows)
+        : [],
+  };
 }
