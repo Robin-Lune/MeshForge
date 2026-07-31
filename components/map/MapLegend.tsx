@@ -44,6 +44,12 @@ const COVERAGE_SCALE: Record<
   ],
 };
 
+// Palier servant de corps aux échantillons de capsule, et palier du pont. Nommés
+// pour qu'un palier inséré en tête de rampe ne change pas silencieusement les
+// couleurs de démonstration.
+const ECHANTILLON_CORPS = FRESHNESS_STEPS[1];
+const ECHANTILLON_PONT = FRESHNESS_STEPS[0];
+
 export function MapLegend({
   open,
   onToggle,
@@ -80,7 +86,7 @@ export function MapLegend({
               <div className="flex min-w-0 items-center gap-1.5">
                 {/* Fragment de pastille réel : capsule, liseré, corps. */}
                 <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
-                  <span className="w-2" style={{ background: FRESHNESS_STEPS[1].bg }} />
+                  <span className="w-2" style={{ background: ECHANTILLON_CORPS.bg }} />
                   <span
                     className="inline-flex w-4 items-center justify-center border-l-[1.5px] border-white"
                     style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
@@ -99,7 +105,7 @@ export function MapLegend({
                     >
                       {badge.letter}
                     </span>
-                    <span className="w-2" style={{ background: FRESHNESS_STEPS[1].bg }} />
+                    <span className="w-2" style={{ background: ECHANTILLON_CORPS.bg }} />
                   </span>
                   <span className="min-w-0 whitespace-nowrap">{badge.short}</span>
                 </div>
@@ -110,8 +116,8 @@ export function MapLegend({
                 <span
                   className="inline-flex h-5 min-w-8 flex-none items-center justify-center rounded-[6px] border border-white px-1 text-[10px] font-semibold"
                   style={{
-                    background: FRESHNESS_STEPS[0].bg,
-                    color: FRESHNESS_STEPS[0].fg,
+                    background: ECHANTILLON_PONT.bg,
+                    color: ECHANTILLON_PONT.fg,
                     boxShadow: `0 0 0 3px ${BRIDGE_RING}`,
                   }}
                 >

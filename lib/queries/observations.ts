@@ -146,8 +146,9 @@ const SELECT_GATEWAY_ACTIVITY = `
     COUNT(DISTINCT p.node_id)    AS "directNodes1h"
   FROM packets p
   JOIN nodes gw ON gw.node_id = p.gateway_id
-  WHERE p.gateway_id IS NOT NULL AND p.node_id IS NOT NULL
-    AND p.gateway_id <> p.node_id
+  -- La jointure garantit déjà gateway_id NOT NULL ; COUNT(DISTINCT) ignore les
+  -- node_id nuls. Seule l'auto-écoute reste à écarter.
+  WHERE p.gateway_id <> p.node_id
     AND gw.last_lat IS NOT NULL AND gw.last_lon IS NOT NULL
     AND NOT gw.excluded
     AND p.hop_count = 0
@@ -155,13 +156,20 @@ const SELECT_GATEWAY_ACTIVITY = `
   GROUP BY p.gateway_id
 `;
 
+// allSettled et non all : le compteur est un agrément, la toile porte les liens,
+// l'anneau « pont » et le filtre par hops. Une dégradation du premier ne doit pas
+// emporter le second.
 export async function getObservations(): Promise<ObservationsResponse> {
-  const [edges, activity] = await Promise.all([
+  const [edges, activity] = await Promise.allSettled([
     pool.query<ObservationRow>(SELECT_OBSERVATIONS),
     pool.query<GatewayActivityRow>(SELECT_GATEWAY_ACTIVITY),
   ]);
+  if (edges.status === "rejected") throw edges.reason;
   return {
-    edges: toObservations(edges.rows),
-    gatewayActivity: toGatewayActivity(activity.rows),
+    edges: toObservations(edges.value.rows),
+    gatewayActivity:
+      activity.status === "fulfilled"
+        ? toGatewayActivity(activity.value.rows)
+        : [],
   };
 }

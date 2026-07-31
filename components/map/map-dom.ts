@@ -19,9 +19,10 @@ export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4
 // rend l'approche viable : sans lui, aucune couleur de capsule ne contrasterait
 // à la fois avec le vert vif du premier palier et le gris sombre du dernier.
 const CAP_W = 16; // largeur utile d'une capsule, glyphe compris
-// Violet : la rampe occupant désormais le vert PUIS les gris, un neutre s'y
-// confondrait. Teinte distincte du bleu des passerelles, glyphe blanc AAA.
-export const ROLE_CAPSULE = "#6d28d9";
+// Violet : la rampe occupant le vert PUIS les gris, un neutre s'y confondrait.
+// Assombri jusqu'à trancher sur TOUS les paliers clairs — cf. map-dom.test.ts,
+// qui mesure au lieu de faire confiance à ce commentaire.
+export const ROLE_CAPSULE = "#5b21b6";
 export const ROLE_CAPSULE_INK = "#ffffff";
 const CAP_EDGE = "1.5px solid #fff";
 const PILL_INNER_RADIUS = "5.5px";
@@ -94,8 +95,8 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const capsules = (hasRole ? CAP_W : 0) + (countEl ? countWidth(count) : 0);
 
   // Le libellé doit s'écarter des capsules, qui le recouvriraient sinon.
-  const padY = isGateway ? 4 : 3;
-  const padX = isGateway ? 8 : 6;
+  const padY = 3;
+  const padX = 6;
   el.style.padding = [
     `${padY}px`,
     `${countEl ? countWidth(count) + 3 : padX}px`,
@@ -103,13 +104,11 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
     `${hasRole ? CAP_W + 3 : padX}px`,
   ].join(" ");
 
+  // Le gras élargit légèrement le glyphe à taille égale.
   el.dataset.w = String(
-    label.length * (isGateway ? 8.5 : 7) +
-      (isGateway ? 20 : 16) +
-      capsules +
-      ring * 2,
+    label.length * (isGateway ? 7.5 : 7) + 16 + capsules + ring * 2,
   );
-  el.dataset.h = String((isGateway ? 24 : 20) + ring * 2);
+  el.dataset.h = String(20 + ring * 2);
 }
 
 export function pillElement(p: Record<string, unknown>): HTMLElement {
@@ -126,13 +125,12 @@ export function pillElement(p: Record<string, unknown>): HTMLElement {
   el.appendChild(text);
 
   paintFreshness(el, p.lastSeen);
-  el.style.font = isGateway
-    ? "700 13px/1 ui-sans-serif, system-ui, sans-serif"
-    : "600 11px/1 ui-sans-serif, system-ui, sans-serif";
+  // Même gabarit pour tous : seule la graisse distingue une passerelle, dont la
+  // capsule compteur assure déjà l'identification. Un corps plus grand coûtait
+  // 6 px de hauteur qui écartaient les pastilles empilées.
+  el.style.font = `${isGateway ? 700 : 600} 11px/1 ui-sans-serif, system-ui, sans-serif`;
   el.style.borderRadius = "7px";
-  el.style.border = isGateway
-    ? "2px solid rgba(255,255,255,0.95)"
-    : "1.5px solid rgba(255,255,255,0.9)";
+  el.style.border = "1.5px solid rgba(255,255,255,0.92)";
   el.style.boxShadow = PILL_SHADOW;
   el.style.cursor = "pointer";
   el.style.whiteSpace = "nowrap";
@@ -169,8 +167,10 @@ export function paintCount(el: HTMLElement, count: number): void {
   if (!badge) return;
   if (badge.textContent === String(count)) return;
   badge.textContent = String(count);
-  // Un compteur à deux ou trois chiffres élargit la capsule : sans remesure,
-  // elle déborde sur la pastille voisine.
+  // La capsule est posée à `count = 0` par pillElement : sans cette ligne elle
+  // resterait large d'un chiffre pendant que la pastille réserve la place de
+  // trois, laissant une bande morte puis débordant.
+  badge.style.width = `${countWidth(count)}px`;
   measurePill(el, el.dataset.label ?? "", el.dataset.gateway === "true");
 }
 
@@ -179,7 +179,9 @@ export function paintCount(el: HTMLElement, count: number): void {
 export function paintRole(el: HTMLElement, role: unknown): void {
   const badge = roleBadge(typeof role === "string" ? role : null);
   const current = el.querySelector<HTMLElement>(".mf-badge-role");
-  if (badge && current?.textContent === badge.letter) return;
+  // Sortie anticipée dans les DEUX sens : sans le second cas, la famille CLIENT
+  // — la quasi-totalité du parc — remesurerait à chaque frame de panoramique.
+  if (badge ? current?.textContent === badge.letter : !current) return;
 
   current?.remove();
   const next = roleBadgeElement(role);

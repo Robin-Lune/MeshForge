@@ -9,8 +9,8 @@
 -- palier « < 1 h » une heure plus tard. Rejouer le seed (npm run seed) pour
 -- retrouver les paliers récents.
 
-DELETE FROM packets WHERE gateway_id LIKE '!zb%' OR node_id LIKE '!zb%';
-DELETE FROM nodes WHERE node_id LIKE '!zb%';
+DELETE FROM packets WHERE gateway_id LIKE '!z%' OR node_id LIKE '!z%';
+DELETE FROM nodes WHERE node_id LIKE '!z%';
 
 -- Rangée 1 : les cinq paliers de fraîcheur, tout le reste constant.
 INSERT INTO nodes (node_id,long_name,short_name,hw_model,role,is_mobile,
@@ -46,10 +46,15 @@ INSERT INTO nodes (node_id,long_name,short_name,hw_model,role,is_mobile,
  ('!zb31','Position floutée','PFl','TBEAM','CLIENT',   TRUE, -21.17,55.13, 90, NOW()-INTERVAL '4 min', NOW()-INTERVAL '40 days', FALSE),
 
 -- Rangée 4 : passerelles. gateway_override force le statut indépendamment du
--- trafic, pour tester le badge compteur dans ses trois états.
+-- trafic, pour tester le compteur dans tous ses états — dont deux et trois
+-- chiffres, qui élargissent la capsule et doivent réespacer la pile.
  ('!zb40','Gateway active','GWA','HELTEC_V4','ROUTER',FALSE,-21.21,55.10, 99, NOW()-INTERVAL '1 min',  NOW()-INTERVAL '60 days', TRUE),
  ('!zb41','Gateway silencieuse','GWS','HELTEC_V4','ROUTER',FALSE,-21.21,55.16, 99, NOW()-INTERVAL '2 hours', NOW()-INTERVAL '60 days', TRUE),
  ('!zb42','Gateway vieille','GWV','HELTEC_V4','ROUTER',FALSE,-21.21,55.22, 15, NOW()-INTERVAL '20 days', NOW()-INTERVAL '60 days', TRUE),
+
+-- Passerelles à compteur large, empilées pour éprouver l'anti-collision.
+ ('!zb43','Gateway 2 chiffres','GW2','HELTEC_V4','ROUTER',FALSE,-21.25,55.10, 97, NOW()-INTERVAL '1 min', NOW()-INTERVAL '60 days', TRUE),
+ ('!zb44','Gateway 3 chiffres','GW3','HELTEC_V4','ROUTER',FALSE,-21.2502,55.1002, 97, NOW()-INTERVAL '1 min', NOW()-INTERVAL '60 days', TRUE),
 
 -- Nœud « pont » : entendu par les deux passerelles à moins de 20 km.
  ('!zb50','Pont deux gateways','PNT','HELTEC_V4','CLIENT',FALSE,-21.21,55.13, 70, NOW()-INTERVAL '5 min', NOW()-INTERVAL '30 days', FALSE),
@@ -82,6 +87,19 @@ INSERT INTO badge_edges VALUES
  -- Gateway vieille : plus rien depuis longtemps.
  ('!zb42','!zb05',-13, -124, 0, 2, 40000);
 
+-- Compteurs larges : 24 et 137 nodes captés en direct dans l'heure. Les nodes
+-- écoutés n'existent pas dans `nodes` — sans importance, le compteur est un
+-- agrégat par passerelle qui n'applique aucune barrière au node capté.
+INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel, snr, rssi, hop_count)
+SELECT NOW() - (g * INTERVAL '1 minute'), '!zb43',
+       '!zc' || lpad(g::text, 6, '0'), 'position', 'Fr_Balise', -5, -110, 0
+FROM generate_series(1, 24) g;
+
+INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel, snr, rssi, hop_count)
+SELECT NOW() - ((g % 55) * INTERVAL '1 minute'), '!zb44',
+       '!zd' || lpad(g::text, 6, '0'), 'position', 'Fr_Balise', -5, -110, 0
+FROM generate_series(1, 137) g;
+
 INSERT INTO packets (received_at, gateway_id, node_id, packet_type, channel, snr, rssi, hop_count)
 SELECT
   NOW() - (e.age_min * INTERVAL '1 minute'),
@@ -90,5 +108,7 @@ FROM badge_edges e CROSS JOIN LATERAL generate_series(1, e.cnt) g;
 
 DROP TABLE badge_edges;
 
--- Attendu : compteurs 5 / 0 / 0, les trois affichés ; !zb50 porte l'anneau ;
+-- Attendu : compteurs 5 / 0 / 0 sur la rangée 4, puis 24 et 137 sur la pile
+-- !zb43/!zb44 — la capsule doit s'élargir et les deux pastilles se réespacer.
+-- !zb50 porte l'anneau ;
 -- rangée 2 = R R R R C T T T, puis 4 sans badge, ? ?, puis 1 sans badge.

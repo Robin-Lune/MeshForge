@@ -183,17 +183,19 @@ describe("applyFreshness", () => {
     expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
   });
 
-  it("tolère un marker dont le node a disparu de l'index", () => {
+  it("laisse intacte une pastille dont le node a quitté l'index", () => {
+    // L'index est rafraîchi en bloc : peindre depuis {} ferait clignoter la
+    // pastille en « ≥ 14 j » sans rôle avant qu'elle ne revienne.
     const { controller, nodes, elementOf } = setup([
-      { nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false },
+      { nodeId: "!n1", label: "N1", role: "ROUTER", lastSeen: now(), isGateway: false },
     ]);
     const el = elementOf("!n1");
+    const avant = el.style.background;
     nodes.delete("!n1");
+
     expect(() => controller.applyFreshness()).not.toThrow();
-    // Sans date connue, la pastille retombe sur le palier le plus ancien.
-    expect(el.style.background).toBe(
-      asRgb(FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg),
-    );
+    expect(el.style.background).toBe(avant);
+    expect(el.querySelector(".mf-badge-role")?.textContent).toBe("R");
   });
 });
 
@@ -242,11 +244,16 @@ describe("clusters", () => {
 
 describe("signal de présence des clusters", () => {
   it("annonce leur apparition puis leur disparition", () => {
-    const { clustersChanges } = setup(
+    const { controller, clustersChanges } = setup(
       [{ nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false }],
       [{ cluster: true, cluster_id: 7, point_count: 12, hasGateway: 0 }],
     );
     expect(clustersChanges).toEqual([true]);
+
+    // La destruction doit rendre la main : sans elle, un contrôleur recréé sur
+    // une carte sans cluster laisserait la légende afficher une section vide.
+    controller.destroy();
+    expect(clustersChanges).toEqual([true, false]);
   });
 
   it("reste muet quand la carte n'en affiche aucun", () => {

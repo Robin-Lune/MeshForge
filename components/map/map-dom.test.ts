@@ -17,9 +17,12 @@ import {
   paintMarker,
   paintRole,
   pillElement,
+  ROLE_CAPSULE,
+  ROLE_CAPSULE_INK,
   roleBadgeElement,
 } from "@/components/map/map-dom";
 import { FRESHNESS_STEPS, GATEWAY_COLOR } from "@/lib/nodeColor";
+import { contrast, deltaE } from "@/lib/test-color";
 
 const now = () => new Date().toISOString();
 const daysAgo = (d: number) =>
@@ -366,12 +369,24 @@ describe("paintRole", () => {
 });
 
 describe("mesure du compteur", () => {
-  it("élargit la pastille quand le compteur gagne des chiffres", () => {
-    // Sinon la capsule déborde sur la pastille voisine.
+  it("élargit LA CAPSULE et la pastille quand le compteur gagne des chiffres", () => {
+    // La capsule est posée à `count = 0` : sans redimensionnement elle resterait
+    // large d'un chiffre pendant que la pastille réserve la place de trois.
     const el = pillElement({ label: "GW", isGateway: true, lastSeen: now() });
-    const unChiffre = Number(el.dataset.w);
-    paintCount(el, 127);
-    expect(Number(el.dataset.w)).toBeGreaterThan(unChiffre);
+    const capsule = el.querySelector<HTMLElement>(".mf-badge-count")!;
+    const unChiffre = { w: Number(el.dataset.w), cap: capsule.style.width };
+
+    paintCount(el, 24);
+    const deuxChiffres = parseFloat(capsule.style.width);
+    expect(deuxChiffres).toBeGreaterThan(parseFloat(unChiffre.cap));
+
+    paintCount(el, 137);
+    expect(parseFloat(capsule.style.width)).toBeGreaterThan(deuxChiffres);
+    expect(Number(el.dataset.w)).toBeGreaterThan(unChiffre.w);
+    // La pastille réserve exactement ce que la capsule occupe, plus 3 px.
+    expect(el.style.paddingRight).toBe(
+      `${parseFloat(capsule.style.width) + 3}px`,
+    );
   });
 
   it("ne remesure pas quand le compte est inchangé", () => {
@@ -390,28 +405,9 @@ describe("contraste de l'anneau « pont »", () => {
   const TUILE_CLAIRE = "#f2efe9";
   const TUILE_SOMBRE = "#1b2230";
 
-  const rgb = (hex: string): [number, number, number] =>
-    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
-      number,
-      number,
-      number,
-    ];
-  const channel = (v: number): number => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  const luminance = ([r, g, b]: [number, number, number]): number =>
-    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-  const contrast = (
-    a: [number, number, number],
-    b: [number, number, number],
-  ): number => {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-  };
   it("le bleu porte l'anneau sur les deux fonds de carte", () => {
-    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_CLAIRE))).toBeGreaterThan(3);
-    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeGreaterThan(3);
+    expect(contrast(BRIDGE_RING, TUILE_CLAIRE)).toBeGreaterThan(3);
+    expect(contrast(BRIDGE_RING, TUILE_SOMBRE)).toBeGreaterThan(3);
   });
 
   it("l'anneau se détache des paliers où un pont peut apparaître", () => {
@@ -419,7 +415,7 @@ describe("contraste de l'anneau « pont »", () => {
     // observations, fenêtre de 7 jours, donc un node-pont a forcément été vu
     // dans les 7 jours. Les paliers concernés sont les trois premiers.
     for (const step of FRESHNESS_STEPS.slice(0, 3)) {
-      expect(contrast(rgb(BRIDGE_RING), rgb(step.bg))).toBeGreaterThan(3);
+      expect(contrast(BRIDGE_RING, step.bg)).toBeGreaterThan(3);
     }
   });
 
@@ -427,7 +423,7 @@ describe("contraste de l'anneau « pont »", () => {
     // Une passerelle peut vieillir jusqu'au dernier palier, sombre : là, c'est
     // le liseré blanc de la capsule qui la délimite, pas son fond.
     for (const step of FRESHNESS_STEPS.slice(0, -1)) {
-      expect(contrast(rgb(GATEWAY_COLOR), rgb(step.bg))).toBeGreaterThan(3);
+      expect(contrast(GATEWAY_COLOR, step.bg)).toBeGreaterThan(3);
     }
     expect(countBadge(5).style.borderLeft).toContain("rgb(255, 255, 255)");
   });
@@ -504,31 +500,6 @@ describe("paintMarker", () => {
 describe("séparation perceptuelle de la rampe", () => {
   // Deux paliers voisins doivent se distinguer À L'ŒIL, pas seulement être
   // lisibles. ΔE CIE76 : ~2 = limite du perceptible, 10 = franc.
-  const rgb = (hex: string): [number, number, number] =>
-    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
-      number,
-      number,
-      number,
-    ];
-  const lab = (c: [number, number, number]): [number, number, number] => {
-    const f = (v: number): number => {
-      v /= 255;
-      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    };
-    const [r, g, b] = c.map(f);
-    const X = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.9505;
-    const Y = r * 0.2126 + g * 0.7152 + b * 0.0722;
-    const Z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.089;
-    const k = (t: number): number =>
-      t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
-    return [116 * k(Y) - 16, 500 * (k(X) - k(Y)), 200 * (k(Y) - k(Z))];
-  };
-  const deltaE = (a: string, b: string): number => {
-    const [l1, a1, b1] = lab(rgb(a));
-    const [l2, a2, b2] = lab(rgb(b));
-    return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
-  };
-
   it("sépare franchement chaque palier de son voisin", () => {
     for (let i = 1; i < FRESHNESS_STEPS.length; i++) {
       expect(
@@ -582,5 +553,19 @@ describe("réserve de l'anneau dans la boîte de collision", () => {
     expect(el.style.boxShadow).toBe(BRIDGE_SHADOW);
     paintBridge(el, false);
     expect(el.style.boxShadow).toBe(PILL_SHADOW);
+  });
+});
+
+describe("contraste de la capsule de rôle", () => {
+  it("garde son glyphe lisible", () => {
+    expect(contrast(ROLE_CAPSULE, ROLE_CAPSULE_INK)).toBeGreaterThanOrEqual(7);
+  });
+
+  it("se détache des paliers clairs", () => {
+    // Sur le palier sombre c'est le liseré blanc qui la délimite, comme la
+    // capsule passerelle : aucune couleur ne tient sur les deux extrêmes.
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(contrast(ROLE_CAPSULE, step.bg)).toBeGreaterThan(3);
+    }
   });
 });

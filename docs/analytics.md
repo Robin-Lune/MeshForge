@@ -68,6 +68,13 @@ Ce qui le rend acceptable :
 3. **La passerelle, elle, reste soumise aux barrières individuelles** : non
    localisée ou retirée, elle n'a pas de marker, donc pas de badge.
 
+**Objection examinée et écartée :** à la limite, une passerelle n'entendant qu'un
+seul node retiré verrait son compteur trahir la présence de ce node. Le compteur
+ne publie toutefois aucune granularité de position au-delà de « à portée directe
+de cette passerelle » — soit un disque de plusieurs kilomètres, largement plus
+grossier que le flou de 500 m appliqué aux marqueurs. Rien ne s'en déduit qui ne
+soit déjà déductible de la carte.
+
 **Divergence assumée avec les tuiles de couverture**, qui excluent l'opt-out
 RGPD alors qu'elles sont elles aussi un agrégat. La différence tient à ce que
 chaque sortie publie : une tuile porte une **position** (celle du node retiré,

@@ -270,7 +270,10 @@ export function useMapController({
             update.nodeId,
             (update.shortName ?? properties.shortName) as string,
           );
-          properties.lastSeen = update.lastSeen ?? "";
+          // NodeUpdate.lastSeen est nullable : l'écraser par "" ferait passer au
+          // palier le plus ancien un node qui vient précisément de parler, et
+          // le ferait disparaître sous le filtre « depuis N h ».
+          properties.lastSeen = update.lastSeen ?? properties.lastSeen;
         } else {
           nodesById.current.set(update.nodeId, nodeFeature(update));
         }
@@ -289,6 +292,13 @@ export function useMapController({
       if (!document.hidden) loadObservations();
     }, FRESHNESS_TICK_MS);
 
+    // Sans ce rattrapage, un onglet masqué plusieurs heures revient avec des
+    // compteurs périmés jusqu'au tick suivant.
+    const onVisibility = (): void => {
+      if (!document.hidden) loadObservations();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       alive = false;
       if (nodeControllerRef.current === nodeController) {
@@ -299,6 +309,7 @@ export function useMapController({
       }
       eventSource.close();
       window.clearInterval(freshnessTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
       if (observationsTimer !== null) {
         window.clearTimeout(observationsTimer);
       }

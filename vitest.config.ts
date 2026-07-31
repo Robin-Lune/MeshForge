@@ -38,6 +38,8 @@ export default defineConfig({
       exclude: [
         "**/*.test.*",
         "**/*.d.ts",
+        // Outillage de test, pas du code applicatif.
+        "lib/test-color.ts",
         // Fichiers de cadrage Next sans logique propre.
         "app/**/layout.tsx",
         "app/**/loading.tsx",
@@ -56,12 +58,12 @@ export default defineConfig({
       // Historique du cliquet — ces valeurs ne doivent que MONTER :
       //   introduction de la configuration : 31,31 / 36,97 / 33,44 / 31,24
       //   couche de couverture testée      : 35,66 / 40,74 / 37,57 / 35,92
-      //   fraîcheur des pastilles          : 49,03 / 48,18 / 44,72 / 49,61
+      //   fraîcheur des pastilles          : 49,77 / 48,21 / 45,42 / 50,31
       thresholds: {
         statements: 49,
         branches: 48,
-        functions: 44,
-        lines: 49,
+        functions: 45,
+        lines: 50,
       },
     },
   },
