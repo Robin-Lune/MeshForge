@@ -56,11 +56,9 @@ describe("MapLegend — légende de base", () => {
     }
   });
 
-  it("dit que le compteur dépasse ce que la carte affiche", () => {
+  it("décrit le compteur des passerelles et l'anneau", () => {
     render(<MapLegend {...props()} />);
-    expect(
-      screen.getByText(/y compris ceux que la carte n'affiche pas/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/nodes entendus\/1h/)).toBeInTheDocument();
     expect(screen.getByText("Vu par plusieurs gateways")).toBeInTheDocument();
   });
 

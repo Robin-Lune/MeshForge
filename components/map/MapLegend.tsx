@@ -72,8 +72,7 @@ export function MapLegend({
                 5
               </span>
               <span className="min-w-0 break-words">
-                Gateway MQTT — nodes entendus en direct sur 1 h, y compris ceux
-                que la carte n&apos;affiche pas
+                Gateway MQTT — nodes entendus/1h
               </span>
             </div>
             {/* Itère la source de vérité : une lettre ajoutée à ROLE_BADGES
