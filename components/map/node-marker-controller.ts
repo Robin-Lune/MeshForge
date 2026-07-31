@@ -35,6 +35,7 @@ type NodeMarkerControllerOptions = {
   getHoverByNode: () => Map<string, HoverEdge[]>;
   getDirectCountByGateway: () => Map<string, number>;
   onOpenNode: (nodeId: string) => void;
+  onClustersChange: (visible: boolean) => void;
 };
 
 export type NodeMarkerController = {
@@ -68,12 +69,14 @@ export function createNodeMarkerController({
   getHoverByNode,
   getDirectCountByGateway,
   onOpenNode,
+  onClustersChange,
 }: NodeMarkerControllerOptions): NodeMarkerController {
   let alive = true;
   let pinnedNodeId: string | null = null;
   let activeMeshNodeId: string | null = null;
   let meshRaf: number | null = null;
   let visualAnchors = new Map<string, LngLat>();
+  let clustersVisible = false;
   const markers: Record<string, maplibregl.Marker> = {};
   let onScreen: Record<string, maplibregl.Marker> = {};
 
@@ -388,6 +391,14 @@ export function createNodeMarkerController({
       if (!next[id]) onScreen[id].remove();
     }
     onScreen = next;
+    // La légende ne décrit les regroupements que quand ils sont à l'écran.
+    // Fondé sur la PRÉSENCE réelle plutôt que sur un seuil de zoom : les deux
+    // divergent aux niveaux où quelques clusters subsistent.
+    const avecClusters = Object.keys(next).some((id) => id.startsWith("c"));
+    if (avecClusters !== clustersVisible) {
+      clustersVisible = avecClusters;
+      onClustersChange(avecClusters);
+    }
     spreadPills();
     applyBridgeHighlight();
     applyFreshness();

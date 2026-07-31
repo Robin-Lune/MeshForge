@@ -67,6 +67,8 @@ export function useMapController({
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
   // Une panne de /api/coverage doit être distinguée d'une carte sans mesure.
   const [coverageError, setCoverageError] = useState(false);
+  // Pilote l'affichage de la section « Regroupements » de la légende.
+  const [clustersVisible, setClustersVisible] = useState(false);
 
   const nodesById = useRef<Map<string, GeoJSON.Feature>>(new Map());
   const observationsRef = useRef<ObservationIndex>(emptyObservationIndex());
@@ -144,6 +146,7 @@ export function useMapController({
       getDirectCountByGateway: () => directCountsRef.current,
       onOpenNode: (nodeId) =>
         routerRef.current.push(`/node/${encodeURIComponent(nodeId)}`),
+      onClustersChange: setClustersVisible,
     });
     nodeControllerRef.current = nodeController;
 
@@ -306,5 +309,5 @@ export function useMapController({
     };
   }, [bounds, containerRef, minZoom]);
 
-  return { roleOptions, coverageError };
+  return { roleOptions, coverageError, clustersVisible };
 }

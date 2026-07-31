@@ -105,6 +105,7 @@ function setup(nodesProps: Props[], clusterProps: Props[] = []) {
 
   const directCounts = new Map<string, number>();
   const bridges = new Set<string>();
+  const clustersChanges: boolean[] = [];
 
   const controller = createNodeMarkerController({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,6 +124,7 @@ function setup(nodesProps: Props[], clusterProps: Props[] = []) {
     getHoverByNode: () => new Map(),
     getDirectCountByGateway: () => directCounts,
     onOpenNode: () => {},
+    onClustersChange: (v: boolean) => clustersChanges.push(v),
   });
 
   controller.updateMarkers();
@@ -131,7 +133,7 @@ function setup(nodesProps: Props[], clusterProps: Props[] = []) {
       [...nodes.keys()].indexOf(nodeId)
     ];
 
-  return { controller, nodes, directCounts, bridges, elementOf };
+  return { controller, nodes, directCounts, bridges, elementOf, clustersChanges };
 }
 
 beforeEach(() => {
@@ -235,5 +237,24 @@ describe("clusters", () => {
     }).not.toThrow();
     // Le cluster garde son fond de cluster, pas une couleur de fraîcheur.
     expect(cluster?.style.background).toBe(asRgb(CLUSTER_PLAIN));
+  });
+});
+
+describe("signal de présence des clusters", () => {
+  it("annonce leur apparition puis leur disparition", () => {
+    // Fondé sur la présence RÉELLE : un seuil de zoom et l'affichage divergent
+    // aux niveaux où quelques clusters subsistent.
+    const { clustersChanges } = setup(
+      [{ nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false }],
+      [{ cluster: true, cluster_id: 7, point_count: 12, hasGateway: 0 }],
+    );
+    expect(clustersChanges).toEqual([true]);
+  });
+
+  it("reste muet quand la carte n'en affiche aucun", () => {
+    const { clustersChanges } = setup([
+      { nodeId: "!n1", label: "N1", lastSeen: now(), isGateway: false },
+    ]);
+    expect(clustersChanges).toEqual([]);
   });
 });

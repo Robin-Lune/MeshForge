@@ -17,6 +17,7 @@ type MapLegendProps = {
   onToggle: () => void;
   coverage: CoverageSelection;
   coverageError: boolean;
+  clusters: boolean;
 };
 
 // Paliers affichés pour la métrique active. Les libellés des comptages sont
@@ -48,6 +49,7 @@ export function MapLegend({
   onToggle,
   coverage,
   coverageError,
+  clusters,
 }: MapLegendProps) {
   return (
     <div className="pointer-events-none absolute bottom-14 sm:bottom-6 left-2 right-2 z-[120] sm:right-auto">
@@ -124,31 +126,42 @@ export function MapLegend({
               </div>
             </div>
 
-            <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
-              Regroupements
-            </div>
-            {/* Les ronds chiffrés remplacent les pastilles en dézoom : sans
-                entrée, leurs deux couleurs sont indéchiffrables. */}
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span
-                  className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
-                  style={{ background: CLUSTER_PLAIN, color: CLUSTER_PLAIN_INK }}
-                >
-                  12
-                </span>
-                <span className="min-w-0 whitespace-nowrap">Nodes groupés</span>
-              </div>
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span
-                  className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
-                  style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
-                >
-                  12
-                </span>
-                <span className="min-w-0 whitespace-nowrap">Dont 1 gateway</span>
-              </div>
-            </div>
+            {clusters && (
+              <>
+                <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
+                  Regroupements
+                </div>
+                {/* Les ronds chiffrés remplacent les pastilles en dézoom :
+                    décrire une marque absente de l'écran est du bruit. */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
+                      style={{
+                        background: CLUSTER_PLAIN,
+                        color: CLUSTER_PLAIN_INK,
+                      }}
+                    >
+                      12
+                    </span>
+                    <span className="min-w-0 whitespace-nowrap">
+                      Nodes groupés
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow"
+                      style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
+                    >
+                      12
+                    </span>
+                    <span className="min-w-0 whitespace-nowrap">
+                      Dont 1 gateway
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="mt-1 border-t border-black/10 pt-1.5 font-semibold dark:border-white/15">
               Liens

@@ -19,6 +19,7 @@ const props = (over: Partial<Parameters<typeof MapLegend>[0]> = {}) => ({
   onToggle: () => {},
   coverage: "off" as CoverageSelection,
   coverageError: false,
+  clusters: false,
   ...over,
 });
 
@@ -95,6 +96,22 @@ describe("MapLegend — légende de base", () => {
     // s'accumuleraient.
     render(<MapLegend {...props()} />);
     expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+});
+
+describe("MapLegend — section regroupements", () => {
+  it("reste absente tant qu'aucun rond n'est à l'écran", () => {
+    // Décrire une marque que la carte n'affiche pas est du bruit.
+    render(<MapLegend {...props({ clusters: false })} />);
+    expect(screen.queryByText("Regroupements")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nodes groupés")).not.toBeInTheDocument();
+  });
+
+  it("apparaît avec les ronds et décrit leurs deux états", () => {
+    render(<MapLegend {...props({ clusters: true })} />);
+    expect(screen.getByText("Regroupements")).toBeInTheDocument();
+    expect(screen.getByText("Nodes groupés")).toBeInTheDocument();
+    expect(screen.getByText("Dont 1 gateway")).toBeInTheDocument();
   });
 });
 
