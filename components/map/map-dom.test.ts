@@ -7,10 +7,12 @@ import {
   BRIDGE_RING,
   BRIDGE_RING_EDGE,
   BRIDGE_SHADOW,
+  PILL_SHADOW,
   clusterElement,
   countBadge,
   coverageCard,
   hoverCard,
+  paintBridge,
   paintCount,
   paintFreshness,
   paintMarker,
@@ -384,10 +386,11 @@ describe("mesure du compteur", () => {
 });
 
 describe("contraste de l'anneau « pont »", () => {
-  // L'anneau doit trancher sur les DEUX fonds de carte. Aucune couleur unique
-  // n'y parvient : l'ambre tient sur fond sombre, le filet ardoise fournit
-  // l'arête sur fond clair. Seuil 3:1 (WCAG 2.1 SC 1.4.11, éléments non
-  // textuels). Le filet est en rgba : composité sur le fond avant mesure.
+  // L'anneau doit trancher sur les DEUX fonds de carte ET sur la rampe verte.
+  // Aucune couleur unique n'y parvient : le fuchsia tient sur fond clair et sur
+  // les pastilles, le filet blanc fournit l'arête sur fond sombre. Seuil 3:1
+  // (WCAG 2.1 SC 1.4.11, éléments non textuels). Le filet est en rgba :
+  // composité sur le fond avant mesure.
   const TUILE_CLAIRE = "#f2efe9";
   const TUILE_SOMBRE = "#1b2230";
 
@@ -420,26 +423,40 @@ describe("contraste de l'anneau « pont »", () => {
     ) as [number, number, number];
   };
 
-  const EDGE: [number, number, number, number] = [15, 23, 42, 0.55];
+  const EDGE: [number, number, number, number] = [255, 255, 255, 0.92];
 
-  it("l'ambre porte l'anneau sur fond sombre", () => {
-    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeGreaterThan(3);
+  it("la prune porte l'anneau sur fond clair", () => {
+    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_CLAIRE))).toBeGreaterThan(3);
   });
 
-  it("le filet porte l'anneau sur fond clair, là où l'ambre s'efface", () => {
-    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_CLAIRE))).toBeLessThan(3);
+  it("le filet porte l'anneau sur fond sombre, là où la prune s'efface", () => {
+    expect(contrast(rgb(BRIDGE_RING), rgb(TUILE_SOMBRE))).toBeLessThan(3);
     expect(
-      contrast(over(EDGE, TUILE_CLAIRE), rgb(TUILE_CLAIRE)),
+      contrast(over(EDGE, TUILE_SOMBRE), rgb(TUILE_SOMBRE)),
     ).toBeGreaterThan(3);
   });
 
-  it("l'anneau se détache de la pastille la plus vive", () => {
-    expect(
-      contrast(rgb(BRIDGE_RING), rgb(FRESHNESS_STEPS[0].bg)),
-    ).toBeGreaterThan(2.5);
+  it("l'anneau se détache des paliers où un pont peut apparaître", () => {
+    // Vert et prune sont quasi complémentaires : c'est ce qui rend l'anneau
+    // lisible sur une pastille, là où l'ambre échouait.
+    // L'anneau ne peut PAS atteindre les paliers anciens : il dérive des
+    // observations, fenêtre de 7 jours, donc un node-pont a forcément été vu
+    // dans les 7 jours. Les paliers concernés sont les trois premiers.
+    for (const step of FRESHNESS_STEPS.slice(0, 3)) {
+      expect(contrast(rgb(BRIDGE_RING), rgb(step.bg))).toBeGreaterThan(3);
+    }
   });
 
-  it("est bien composé de l'ambre puis du filet", () => {
+  it("le badge passerelle se détache des paliers clairs", () => {
+    // Une passerelle peut vieillir jusqu'au dernier palier, sombre : là, c'est
+    // la bordure blanche du badge qui le délimite, pas son fond.
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(contrast(rgb(GATEWAY_COLOR), rgb(step.bg))).toBeGreaterThan(3);
+    }
+    expect(countBadge(5).style.border).toContain("rgb(255, 255, 255)");
+  });
+
+  it("est bien composé de la prune puis du filet", () => {
     expect(BRIDGE_SHADOW).toContain(BRIDGE_RING);
     expect(BRIDGE_SHADOW).toContain(BRIDGE_RING_EDGE);
   });
@@ -531,5 +548,75 @@ describe("mesure verticale des badges empilés", () => {
     expect(surplus(deux, 24)).toBe(
       Math.max(surplus(seul, 20), surplus(compteurSeul, 24)),
     );
+  });
+});
+
+describe("séparation perceptuelle de la rampe", () => {
+  // Deux paliers voisins doivent se distinguer À L'ŒIL, pas seulement être
+  // lisibles. ΔE CIE76 : ~2 = limite du perceptible, 10 = franc.
+  const rgb = (hex: string): [number, number, number] =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
+      number,
+      number,
+      number,
+    ];
+  const lab = (c: [number, number, number]): [number, number, number] => {
+    const f = (v: number): number => {
+      v /= 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const [r, g, b] = c.map(f);
+    const X = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.9505;
+    const Y = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    const Z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.089;
+    const k = (t: number): number =>
+      t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+    return [116 * k(Y) - 16, 500 * (k(X) - k(Y)), 200 * (k(Y) - k(Z))];
+  };
+  const deltaE = (a: string, b: string): number => {
+    const [l1, a1, b1] = lab(rgb(a));
+    const [l2, a2, b2] = lab(rgb(b));
+    return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+  };
+
+  it("sépare franchement chaque palier de son voisin", () => {
+    for (let i = 1; i < FRESHNESS_STEPS.length; i++) {
+      expect(
+        deltaE(FRESHNESS_STEPS[i].bg, FRESHNESS_STEPS[i - 1].bg),
+      ).toBeGreaterThan(15);
+    }
+  });
+
+  it("sépare le dernier palier de tous les autres", () => {
+    // Il porte l'information « ce node ne répond plus » : il doit être
+    // reconnaissable sans comparer à son voisin.
+    const dernier = FRESHNESS_STEPS[FRESHNESS_STEPS.length - 1].bg;
+    for (const step of FRESHNESS_STEPS.slice(0, -1)) {
+      expect(deltaE(dernier, step.bg)).toBeGreaterThan(30);
+    }
+  });
+});
+
+describe("réserve de l'anneau dans la boîte de collision", () => {
+  it("élargit la pastille quand l'anneau est posé", () => {
+    // L'anneau est un box-shadow : hors flux, donc invisible pour
+    // resolvePillSpread tant qu'on ne le réserve pas.
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    const sans = { w: Number(el.dataset.w), h: Number(el.dataset.h) };
+    paintBridge(el, true);
+    expect(Number(el.dataset.w)).toBeGreaterThan(sans.w);
+    expect(Number(el.dataset.h)).toBeGreaterThan(sans.h);
+    paintBridge(el, false);
+    expect(Number(el.dataset.w)).toBe(sans.w);
+    expect(Number(el.dataset.h)).toBe(sans.h);
+  });
+
+  it("pose et retire l'ombre correspondante", () => {
+    const el = pillElement({ label: "N1", lastSeen: now() });
+    expect(el.style.boxShadow).toBe(PILL_SHADOW);
+    paintBridge(el, true);
+    expect(el.style.boxShadow).toBe(BRIDGE_SHADOW);
+    paintBridge(el, false);
+    expect(el.style.boxShadow).toBe(PILL_SHADOW);
   });
 });

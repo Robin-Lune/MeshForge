@@ -4,15 +4,19 @@ import { roleBadge } from "@/lib/nodeRole";
 import { SNAP_CELL_M } from "@/lib/privacy";
 
 // Aucune couleur unique ne contraste à la fois sur tuile claire et sur tuile
-// sombre : l'ambre tient sur fond sombre, le filet ardoise lui donne son arête
-// sur fond clair. Contrastes vérifiés dans map-dom.test.ts.
-export const BRIDGE_RING = "#f59e0b";
-export const BRIDGE_RING_EDGE = "rgba(15,23,42,0.55)";
+// sombre : la prune tient sur fond clair et sur la rampe verte, le filet blanc
+// lui donne son arête sur fond sombre. Contrastes vérifiés dans map-dom.test.ts.
+export const BRIDGE_RING = "#6b21a8";
+export const BRIDGE_RING_EDGE = "rgba(255,255,255,0.92)";
 export const PILL_SHADOW = "0 1px 3px rgba(0,0,0,0.35)";
 export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 0 0 4.5px ${BRIDGE_RING_EDGE}, 0 1px 3px rgba(0,0,0,0.4)`;
 
 const BADGE_SIZE = 14;
 const COUNT_BADGE_HEIGHT = 15;
+// Épaisseur totale de l'anneau « pont » (3 px + filet 1,5 px). Posé en
+// box-shadow, il ne participe pas à la boîte de mise en page : sans réserve
+// explicite, deux pastilles empilées voient leurs anneaux se recouvrir.
+const BRIDGE_EXTENT = 4.5;
 
 // Part du badge posée HORS de la pastille, par axe. Les translations en sont
 // dérivées : les deux ne peuvent pas diverger. resolvePillSpread ne lit que
@@ -90,9 +94,10 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const hasRole = el.querySelector(".mf-badge-role") !== null;
   const countEl = el.querySelector<HTMLElement>(".mf-badge-count");
   const count = countEl ? Number(countEl.textContent) : 0;
+  const ring = el.dataset.bridge === "true" ? BRIDGE_EXTENT : 0;
 
-  const left = hasRole ? roleOverflow() : 0;
-  const right = countEl ? countOverflow(countWidth(count)) : 0;
+  const left = Math.max(hasRole ? roleOverflow() : 0, ring);
+  const right = Math.max(countEl ? countOverflow(countWidth(count)) : 0, ring);
   // Les deux badges occupent des coins HORIZONTALEMENT opposés (compteur en
   // haut à droite, rôle en bas à gauche) : à une abscisse donnée un seul
   // déborde. Sommer les deux écarterait les pastilles empilées du double du
@@ -100,6 +105,7 @@ function measurePill(el: HTMLElement, label: string, isGateway: boolean): void {
   const vertical = Math.max(
     hasRole ? BADGE_SIZE * ROLE_OUT_Y : 0,
     countEl ? COUNT_BADGE_HEIGHT * COUNT_OUT_Y : 0,
+    ring,
   );
 
   el.dataset.w = String(
@@ -184,6 +190,15 @@ export function paintRole(el: HTMLElement, role: unknown): void {
   measurePill(el, el.dataset.label ?? "", el.dataset.gateway === "true");
 }
 
+// L'anneau est un box-shadow : hors flux, donc invisible pour l'anti-collision
+// tant qu'on ne le réserve pas ici.
+export function paintBridge(el: HTMLElement, isBridge: boolean): void {
+  if (el.dataset.bridge === String(isBridge)) return;
+  el.dataset.bridge = String(isBridge);
+  el.style.boxShadow = isBridge ? BRIDGE_SHADOW : PILL_SHADOW;
+  measurePill(el, el.dataset.label ?? "", el.dataset.gateway === "true");
+}
+
 // Tout ce qu'une pastille montée doit refléter après sa création. Extrait du
 // contrôleur, qui exige une carte MapLibre : ici c'est testable seul.
 export function paintMarker(
@@ -206,7 +221,9 @@ export function clusterElement(p: Record<string, unknown>): HTMLElement {
   const el = document.createElement("div");
   el.textContent = String(p.point_count_abbreviated ?? count);
   el.style.background = hasGateway ? GATEWAY_COLOR : "#3b82f6";
-  el.style.color = hasGateway ? "#064e3b" : "#fff";
+  // Encre partagée avec le badge passerelle : une couleur de texte codée en dur
+  // ici deviendrait illisible au prochain changement de GATEWAY_COLOR.
+  el.style.color = hasGateway ? GATEWAY_INK : "#fff";
   el.style.font = "700 13px/1 ui-sans-serif, system-ui, sans-serif";
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;

@@ -4,10 +4,9 @@ import type { HopFilter } from "./MapFilters";
 import { bestTargets, type HoverEdge } from "./hover-edges";
 import { lerp, lineFeature, type LngLat } from "./map-data";
 import {
-  BRIDGE_SHADOW,
-  PILL_SHADOW,
   clusterElement,
   hoverCard,
+  paintBridge,
   paintMarker,
   pillElement,
 } from "./map-dom";
@@ -240,10 +239,7 @@ export function createNodeMarkerController({
     const bridges = getBridgeNodeIds();
     for (const id in onScreen) {
       if (!id.startsWith("n")) continue;
-      const element = onScreen[id].getElement();
-      element.style.boxShadow = bridges.has(id.slice(1))
-        ? BRIDGE_SHADOW
-        : PILL_SHADOW;
+      paintBridge(onScreen[id].getElement(), bridges.has(id.slice(1)));
     }
   };
 

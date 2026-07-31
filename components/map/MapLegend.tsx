@@ -69,8 +69,12 @@ export function MapLegend({
               Marques
             </div>
             <div className="flex min-w-0 items-center gap-2">
+              {/* Taille FIXE comme les badges de rôle : min-width + padding
+                  laissaient la boîte déborder du carré et rendaient le cercle
+                  ovale. Sur la carte le badge peut s'élargir (2-3 chiffres),
+                  pas ici où l'échantillon tient sur un caractère. */}
               <span
-                className="inline-flex h-4 min-w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white px-1 text-[9px] font-bold shadow"
+                className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white text-[9px] font-bold shadow"
                 style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
               >
                 5
