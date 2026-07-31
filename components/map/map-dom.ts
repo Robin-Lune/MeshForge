@@ -16,6 +16,10 @@ export const BRIDGE_SHADOW = `0 0 0 3px ${BRIDGE_RING}, 0 1px 3px rgba(0,0,0,0.4
 // rend l'approche viable : sans lui, aucune couleur de capsule ne contrasterait
 // à la fois avec le vert vif du premier palier et le gris sombre du dernier.
 const CAP_W = 16; // largeur utile d'une capsule, glyphe compris
+// Neutre choisi pour trancher sur TOUTE la rampe, et pas seulement sur ses
+// paliers clairs : une encre quasi noire se confondait avec le palier « ≥ 14 j ».
+export const ROLE_CAPSULE = "#54585e";
+export const ROLE_CAPSULE_INK = "#ffffff";
 const CAP_EDGE = "1.5px solid #fff";
 const PILL_INNER_RADIUS = "5.5px";
 // Épaisseur de l'anneau « pont ». Posé en box-shadow, il ne participe pas à la
@@ -71,8 +75,8 @@ export function roleBadgeElement(role: unknown): HTMLElement | null {
   el.style.width = `${CAP_W}px`;
   el.style.borderRight = CAP_EDGE;
   el.style.borderRadius = `${PILL_INNER_RADIUS} 0 0 ${PILL_INNER_RADIUS}`;
-  el.style.background = "#1f2937";
-  el.style.color = "#fff";
+  el.style.background = ROLE_CAPSULE;
+  el.style.color = ROLE_CAPSULE_INK;
   return el;
 }
 

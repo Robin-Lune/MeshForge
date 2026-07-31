@@ -4,7 +4,7 @@ import type { CoverageMetric, CoverageSelection } from "@/types";
 import { SNR_BAD, SNR_FAIR, SNR_GOOD, SNR_UNKNOWN_COLOR } from "./signal-color";
 import { FRESHNESS_STEPS, GATEWAY_COLOR, GATEWAY_INK } from "@/lib/nodeColor";
 import { ROLE_BADGES } from "@/lib/nodeRole";
-import { BRIDGE_RING } from "./map-dom";
+import { BRIDGE_RING, ROLE_CAPSULE, ROLE_CAPSULE_INK } from "./map-dom";
 
 type MapLegendProps = {
   open: boolean;
@@ -69,15 +69,19 @@ export function MapLegend({
               Marques
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              {/* Taille FIXE comme les badges de rôle : min-width + padding
-                  laissaient la boîte déborder du carré et rendaient le cercle
-                  ovale. Sur la carte le badge peut s'élargir (2-3 chiffres),
-                  pas ici où l'échantillon tient sur un caractère. */}
-              <span
-                className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white text-[9px] font-bold shadow"
-                style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
-              >
-                5
+              {/* Échantillon fidèle à la carte : un fragment de pastille, sa
+                  capsule et le liseré qui les sépare. */}
+              <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
+                <span
+                  className="w-3"
+                  style={{ background: FRESHNESS_STEPS[1].bg }}
+                />
+                <span
+                  className="inline-flex w-4 items-center justify-center border-l-[1.5px] border-white"
+                  style={{ background: GATEWAY_COLOR, color: GATEWAY_INK }}
+                >
+                  5
+                </span>
               </span>
               <span className="min-w-0 break-words">
                 Gateway MQTT — nodes entendus/1h
@@ -88,8 +92,20 @@ export function MapLegend({
                 sans infobulle, cette liste est leur seule explication. */}
             {ROLE_BADGES.map((badge) => (
               <div key={badge.letter} className="flex min-w-0 items-center gap-2">
-                <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border-[1.5px] border-white bg-[#1f2937] text-[9px] font-bold text-white shadow">
-                  {badge.letter}
+                <span className="inline-flex h-5 flex-none items-stretch overflow-hidden rounded-[6px] border border-white text-[9px] font-bold shadow">
+                  <span
+                    className="inline-flex w-4 items-center justify-center border-r-[1.5px] border-white"
+                    style={{
+                      background: ROLE_CAPSULE,
+                      color: ROLE_CAPSULE_INK,
+                    }}
+                  >
+                    {badge.letter}
+                  </span>
+                  <span
+                    className="w-3"
+                    style={{ background: FRESHNESS_STEPS[1].bg }}
+                  />
                 </span>
                 <span className="min-w-0 break-words">{badge.title}</span>
               </div>
