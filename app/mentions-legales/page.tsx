@@ -30,6 +30,7 @@ const A = ({ href, children }: { href: string; children: ReactNode }) => (
 export default async function MentionsLegalesPage() {
   const legal = await getSetting("legal_info");
   const retentionDays = await getSetting("retention_days");
+  const publicChannels = await getSetting("public_channels");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -103,9 +104,14 @@ export default async function MentionsLegalesPage() {
               position (à la précision diffusée par l’appareil ; les nodes
               mobiles sont floutés sur une cellule constante), télémétrie
               (batterie, SNR, etc.). Pour les contributeurs : identifiant,
-              e-mail (jamais affiché publiquement) et mot de passe haché. Les
-              canaux d’urgence (Fr_EMCOM) et privés/chiffrés ne sont{" "}
-              <strong>jamais</strong> exposés.
+              e-mail (jamais affiché publiquement) et mot de passe haché.
+            </p>
+            <p>
+              <strong>Canaux traités</strong> : seuls les canaux Meshtastic{" "}
+              <strong>{publicChannels.join(", ")}</strong> sont ingérés ; tout
+              autre canal est ignoré à la réception. Un canal chiffré dont la clé
+              est confiée à l’instance est traité comme un canal public : c’est
+              cette liste qui protège, pas le chiffrement.
             </p>
             <p>
               <strong>Conservation</strong> : paquets, positions, voisinages et

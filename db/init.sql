@@ -198,11 +198,12 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Seed des défauts (ne pas écraser une valeur déjà réglée par un admin).
--- public_channels : allowlist privacy (le worker n'ingère QUE ces canaux).
+-- public_channels : allowlist privacy (le worker n'ingère QUE ces canaux ; tout
+-- canal listé est ingéré et exposé, ne jamais y mettre un canal d'urgence/privé).
 -- map_bounds : bornes Réunion (null = carte ouverte). map_min_zoom : plage 0-22.
 INSERT INTO settings (key, value) VALUES
     ('misconfig_max_packets_24h', '1000'::jsonb),
-    ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
+    ('public_channels', '["Fr_Balise","Fr_BlaBla"]'::jsonb),
     ('map_bounds', '{"west":54.7,"south":-21.9,"east":56.3,"north":-20.4}'::jsonb),
     ('map_min_zoom', '8'::jsonb),
     ('retention_days', '60'::jsonb),

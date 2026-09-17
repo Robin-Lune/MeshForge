@@ -349,3 +349,4 @@ describe("retention_days — durée de conservation", () => {
     expect(DEFAULT_RETENTION_DAYS).toBeLessThanOrEqual(MAX_RETENTION_DAYS);
   });
 });
+

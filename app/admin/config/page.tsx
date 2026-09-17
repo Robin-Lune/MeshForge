@@ -15,6 +15,10 @@ import {
   MAX_RETENTION_DAYS,
 } from "@/lib/queries/settings";
 import { applyRetention } from "@/lib/queries/retention";
+import {
+  countPacketsOffAllowlist,
+  purgeChannelsOffAllowlist,
+} from "@/lib/queries/channel-purge";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +80,21 @@ async function saveChannels(formData: FormData) {
   let error: string | null = null;
   try {
     await setSetting("public_channels", list);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  done(error);
+}
+
+// Purge EXPLICITE des données déjà stockées sur des canaux qui ne sont plus
+// dans l'allowlist (jamais automatique : une faute de frappe dans la liste ne
+// doit pas effacer l'historique).
+async function purgeOffList() {
+  "use server";
+  await requireAdminMutation(done);
+  let error: string | null = null;
+  try {
+    await purgeChannelsOffAllowlist(await getAllSettings().then((s) => s.public_channels));
   } catch (e) {
     error = (e as Error).message;
   }
@@ -218,6 +237,7 @@ export default async function ConfigPage({
 }) {
   if (!(await isAdmin())) redirect("/admin/login");
   const s = await getAllSettings();
+  const offList = await countPacketsOffAllowlist(s.public_channels);
   const { ok, err, tab } = await searchParams;
   const activeTab = tab === "legal" || tab === "mqtt" ? tab : "network";
   const b = s.map_bounds;
@@ -279,7 +299,7 @@ export default async function ConfigPage({
         <div key="network" className="flex flex-col gap-4">
           <Section
             title="Canaux publics (whitelist)"
-            hint="Le worker n'ingère QUE ces canaux (default-deny). Séparés par des virgules. Fr_EMCOM reste exclu de l'affichage par la privacy."
+            hint="Le worker n'ingère QUE ces canaux (default-deny). Séparés par des virgules. Tout canal listé est ingéré, déchiffré si sa clé est connue, et exposé (carte, toile, fiches, stats) : ne jamais y mettre un canal d'urgence ou privé. La liste est affichée telle quelle sur /mentions-legales."
           >
             <form action={saveChannels} className="flex gap-2">
               <input
@@ -289,6 +309,18 @@ export default async function ConfigPage({
               />
               <button className={btnCls}>OK</button>
             </form>
+            <p className="mt-3 text-xs text-zinc-500">
+              {offList === 0
+                ? "Aucune donnée stockée hors de cette liste."
+                : `${offList} paquet(s) stockés sur des canaux hors liste (plus leurs voisinages et traceroutes). Purger supprime ces lignes et recalcule la position des nodes concernés depuis leur dernier paquet valide restant.`}
+            </p>
+            {offList > 0 && (
+              <form action={purgeOffList} className="mt-2">
+                <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-700 dark:text-red-400">
+                  Purger les données hors liste
+                </button>
+              </form>
+            )}
           </Section>
 
           <Section

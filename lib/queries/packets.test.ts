@@ -2,8 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 
 const { query } = vi.hoisted(() => ({ query: vi.fn() }));
 vi.mock("../db", () => ({ pool: { query } }));
-
-import { getGatewayOverview, toGatewayStat } from "./packets";
+import { getGatewayOverview, getRecentPackets, toGatewayStat } from "./packets";
 
 describe("toGatewayStat — normalisation d'un agrégat gateway", () => {
   const row = {
@@ -51,5 +50,21 @@ describe("getGatewayOverview — recherche admin", () => {
     await getGatewayOverview("   ");
 
     expect(query).toHaveBeenCalledWith(expect.any(String), [""]);
+  });
+});
+
+// Aucun nom de canal en dur dans le SQL : ce qui est en base vient de l'allowlist
+// (ingestion) ; un canal retiré se purge via /admin/config.
+describe("getRecentPackets — pas de canal codé en dur", () => {
+  beforeEach(() => query.mockReset());
+
+  it("interroge sans filtre de canal nominatif", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await getRecentPackets(50, null);
+
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toMatch(/Fr_/);
+    expect(params).toEqual([50, null]);
   });
 });

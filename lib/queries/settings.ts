@@ -54,7 +54,9 @@ interface SettingValues {
 }
 
 export const DEFAULT_MAX_PACKETS_24H = 1000;
-const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
+// Aucun canal sensible ici : tout canal listé est ingéré, déchiffré si sa clé
+// est connue, et exposé. Un canal d'urgence ou privé ne doit simplement pas y figurer.
+export const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_BlaBla"];
 const REUNION_BOUNDS: MapBounds = { west: 54.7, south: -21.9, east: 56.3, north: -20.4 };
 const DEFAULT_MIN_ZOOM = 8;
 
