@@ -313,12 +313,29 @@ export async function anonymizeNode(nodeId: string): Promise<void> {
   );
 }
 
-// Droit à l'effacement : supprime TOUTES les données du node (transaction).
+// Droit à l'effacement : supprime toutes les données présentes liées au node.
+// Aucun refus futur n'est conservé : un nouvel uplink pourra recréer le node.
 export async function deleteNode(nodeId: string): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("DELETE FROM packets WHERE node_id = $1", [nodeId]);
+    await client.query(
+      "DELETE FROM packets WHERE node_id = $1 OR gateway_id = $1",
+      [nodeId],
+    );
+    await client.query(
+      "DELETE FROM node_neighbors WHERE node_id = $1 OR neighbor_id = $1 OR gateway_id = $1",
+      [nodeId],
+    );
+    await client.query(
+      `DELETE FROM traceroute_segments
+       WHERE source_node = $1
+          OR target_node = $1
+          OR gateway_id = $1
+          OR from_node = $1
+          OR to_node = $1`,
+      [nodeId],
+    );
     await client.query("DELETE FROM nodes WHERE node_id = $1", [nodeId]);
     await client.query("COMMIT");
   } catch (e) {

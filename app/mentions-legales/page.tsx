@@ -135,7 +135,10 @@ export default async function MentionsLegalesPage() {
               </A>
               . Un node peut être <strong>exclu de la carte</strong> (opt-out),{" "}
               <strong>anonymisé</strong> (effacement des noms) ou{" "}
-              <strong>supprimé</strong> (effacement de toutes ses données). Vous
+              <strong>supprimé</strong> (effacement des données alors stockées).
+              Aucun blocage permanent du NodeID n’est posé : si le node publie
+              de nouveau via MQTT, il peut réapparaître. Son propriétaire doit
+              désactiver cet uplink pour empêcher une nouvelle collecte. Vous
               pouvez aussi saisir la <A href="https://www.cnil.fr">CNIL</A>.
             </p>
           </Section>

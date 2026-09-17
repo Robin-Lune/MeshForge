@@ -380,8 +380,10 @@ export default async function NodePage({
               )}
             </div>
             <p className="mt-2 text-xs text-zinc-500">
-              Anonymiser garde la télémétrie sans identité. Supprimer efface
-              définitivement le node et tous ses paquets.
+              Anonymiser garde la télémétrie sans identité. Supprimer efface les
+              données actuellement stockées liées au node : paquets émis ou
+              relayés, voisinages et traceroutes. Aucun blocage futur n’est posé
+              : s’il publie de nouveau via MQTT, il réapparaîtra.
             </p>
           </section>
         )}
