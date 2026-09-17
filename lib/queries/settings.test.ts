@@ -15,6 +15,7 @@ import {
   MAX_COVERAGE_TILE_ZOOM,
   parseLegalInfo,
   requireLegalInfo,
+  LegalInfoValidationError,
   parseMqttOnboarding,
   requireMqttOnboarding,
   parseRetentionDays,
@@ -142,8 +143,22 @@ const LEGAL_FALLBACK = {
   companyType: "À compléter",
   companySiret: "À compléter",
   companyAddress: "À compléter",
+  publisherEmail: "contact@la-forge-numerique.com",
+  publisherWebsite: "https://la-forge-numerique.com",
+  publicationDirector: "Robin LEBON",
   hostingProvider: "À compléter",
   hostingLocation: "À compléter",
+  dataControllerName: "La Forge Numérique",
+  privacyContactEmail: "contact@la-forge-numerique.com",
+  processingPurposes:
+    "Monitoring en temps réel et historique du réseau LoRa Meshtastic communautaire de La Réunion.",
+  additionalNoticeTitle: "",
+  additionalNoticeBody: "",
+  additionalNoticeLinkLabel: "",
+  additionalNoticeLinkUrl: "",
+  networkName: "Le réseau LoRa citoyen Mesh de La Réunion",
+  initiativeName: "Meteor-oi.re",
+  initiativeWebsite: "https://www.meteor-oi.re/reseau-mesh",
 };
 
 describe("parseLegalInfo / requireLegalInfo — mentions légales", () => {
@@ -155,8 +170,21 @@ describe("parseLegalInfo / requireLegalInfo — mentions légales", () => {
           companyType: "SASU",
           companySiret: "92753858700019",
           companyAddress: "Saint Joseph",
+          publisherEmail: " contact@example.com ",
+          publisherWebsite: " https://example.com ",
+          publicationDirector: " Jeanne Exemple ",
           hostingProvider: "OVH",
           hostingLocation: "Roubaix",
+          dataControllerName: " Association Exemple ",
+          privacyContactEmail: " rgpd@example.com ",
+          processingPurposes: " Suivi du réseau communautaire. ",
+          additionalNoticeTitle: " Sous-traitant ",
+          additionalNoticeBody: " Développement et hébergement. ",
+          additionalNoticeLinkLabel: " Site du prestataire ",
+          additionalNoticeLinkUrl: " https://prestataire.example.com ",
+          networkName: " Réseau Exemple ",
+          initiativeName: " Collectif Exemple ",
+          initiativeWebsite: " https://collectif.example.com ",
           extra: "ignoré",
         },
         LEGAL_FALLBACK,
@@ -166,9 +194,55 @@ describe("parseLegalInfo / requireLegalInfo — mentions légales", () => {
       companyType: "SASU",
       companySiret: "92753858700019",
       companyAddress: "Saint Joseph",
+      publisherEmail: "contact@example.com",
+      publisherWebsite: "https://example.com",
+      publicationDirector: "Jeanne Exemple",
+      hostingProvider: "OVH",
+      hostingLocation: "Roubaix",
+      dataControllerName: "Association Exemple",
+      privacyContactEmail: "rgpd@example.com",
+      processingPurposes: "Suivi du réseau communautaire.",
+      additionalNoticeTitle: "Sous-traitant",
+      additionalNoticeBody: "Développement et hébergement.",
+      additionalNoticeLinkLabel: "Site du prestataire",
+      additionalNoticeLinkUrl: "https://prestataire.example.com",
+      networkName: "Réseau Exemple",
+      initiativeName: "Collectif Exemple",
+      initiativeWebsite: "https://collectif.example.com",
+    });
+  });
+
+  it("lecture : complète une ancienne valeur à six champs sans la perdre", () => {
+    expect(
+      parseLegalInfo(
+        {
+          companyName: " Association historique ",
+          companyType: "Association",
+          companySiret: "123",
+          companyAddress: "Saint-Denis",
+          hostingProvider: "OVH",
+          hostingLocation: "Roubaix",
+        },
+        LEGAL_FALLBACK,
+      ),
+    ).toEqual({
+      ...LEGAL_FALLBACK,
+      companyName: "Association historique",
+      companyType: "Association",
+      companySiret: "123",
+      companyAddress: "Saint-Denis",
       hostingProvider: "OVH",
       hostingLocation: "Roubaix",
     });
+  });
+
+  it("lecture : remplace un lien dangereux par la valeur sûre de repli", () => {
+    expect(
+      parseLegalInfo(
+        { ...LEGAL_FALLBACK, publisherWebsite: "javascript:alert(1)" },
+        LEGAL_FALLBACK,
+      ).publisherWebsite,
+    ).toBe(LEGAL_FALLBACK.publisherWebsite);
   });
 
   it("lecture : retombe sur le fallback si l'objet est incomplet", () => {
@@ -178,10 +252,66 @@ describe("parseLegalInfo / requireLegalInfo — mentions légales", () => {
   });
 
   it("écriture : refuse les champs vides ou trop longs", () => {
-    expect(() => requireLegalInfo({ ...LEGAL_FALLBACK, companyName: "" })).toThrow();
-    expect(() =>
-      requireLegalInfo({ ...LEGAL_FALLBACK, companyAddress: "x".repeat(501) }),
-    ).toThrow();
+    for (const [value, field] of [
+      [{ ...LEGAL_FALLBACK, companyName: "" }, "companyName"],
+      [
+        { ...LEGAL_FALLBACK, companyAddress: "x".repeat(501) },
+        "companyAddress",
+      ],
+    ] as const) {
+      try {
+        requireLegalInfo(value);
+        expect.unreachable("La validation devait échouer");
+      } catch (error) {
+        expect(error).toBeInstanceOf(LegalInfoValidationError);
+        expect(error).toMatchObject({ field });
+      }
+    }
+  });
+
+  it("écriture : refuse les e-mails et URL invalides", () => {
+    for (const [value, field] of [
+      [
+        { ...LEGAL_FALLBACK, privacyContactEmail: "invalide" },
+        "privacyContactEmail",
+      ],
+      [
+        { ...LEGAL_FALLBACK, publisherWebsite: "javascript:alert(1)" },
+        "publisherWebsite",
+      ],
+      [
+        {
+          ...LEGAL_FALLBACK,
+          additionalNoticeTitle: "Sous-traitant",
+          additionalNoticeBody: "Prestataire technique.",
+          additionalNoticeLinkLabel: "Site",
+          additionalNoticeLinkUrl: "ftp://example.com",
+        },
+        "additionalNoticeLinkUrl",
+      ],
+    ] as const) {
+      try {
+        requireLegalInfo(value);
+        expect.unreachable("La validation devait échouer");
+      } catch (error) {
+        expect(error).toBeInstanceOf(LegalInfoValidationError);
+        expect(error).toMatchObject({ field });
+      }
+    }
+  });
+
+  it("écriture : accepte un bloc complémentaire vide et refuse un bloc incomplet", () => {
+    expect(requireLegalInfo(LEGAL_FALLBACK)).toEqual(LEGAL_FALLBACK);
+    try {
+      requireLegalInfo({
+        ...LEGAL_FALLBACK,
+        additionalNoticeTitle: "Sous-traitant",
+      });
+      expect.unreachable("La validation devait échouer");
+    } catch (error) {
+      expect(error).toBeInstanceOf(LegalInfoValidationError);
+      expect(error).toMatchObject({ field: "additionalNoticeBody" });
+    }
   });
 });
 
@@ -349,4 +479,3 @@ describe("retention_days — durée de conservation", () => {
     expect(DEFAULT_RETENTION_DAYS).toBeLessThanOrEqual(MAX_RETENTION_DAYS);
   });
 });
-

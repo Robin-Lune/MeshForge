@@ -285,8 +285,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 - Le broker prod utilise `mosquitto-go-auth`. Sa config est un template :
   `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` au démarrage.
 - Les relais créent leurs identifiants MQTT via `/register`.
-- Canaux publics, bornes carte, zoom, seuils, mentions légales et configuration
-  MQTT se règlent dans `/admin/config`.
+- Canaux publics, bornes carte, zoom, seuils, mentions légales (éditeur,
+  responsable de traitement, contacts, finalités, initiative et bloc libre
+  optionnel) et configuration MQTT se règlent dans `/admin/config`. Une nouvelle
+  instance utilise des valeurs légales génériques à remplacer avant sa mise en
+  ligne.
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
   réception, enveloppe, raison de drop et fixture base64 en cas d'échec. Les
   drops des messages texte MQTT utilisent aussi ce debug.

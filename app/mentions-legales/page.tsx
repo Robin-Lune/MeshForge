@@ -47,29 +47,26 @@ export default async function MentionsLegalesPage() {
           <Section title="Éditeur du site">
             <p>
               MeshForge est édité par{" "}
-              <strong>{legal.companyName}</strong>(
+              <strong>{legal.companyName}</strong> (
               <strong>{legal.companyType}</strong>),{" "}
               <strong>{legal.companyAddress}</strong>,{" "}
-              <strong>SIRET:{legal.companySiret}</strong>.
+              <strong>SIRET : {legal.companySiret}</strong>.
             </p>
             <p>
               Contact :{" "}
-              <A href="mailto:contact@la-forge-numerique.com">
-                contact@la-forge-numerique.com
+              <A href={`mailto:${legal.publisherEmail}`}>
+                {legal.publisherEmail}
               </A>{" "}
               —{" "}
-              <A href="https://la-forge-numerique.com">
-                la-forge-numerique.com
-              </A>
+              <A href={legal.publisherWebsite}>{legal.publisherWebsite}</A>
             </p>
             <p>
-              Directeur de la publication : <strong>Robin LEBON</strong>.
+              Direction de la publication :{" "}
+              <strong>{legal.publicationDirector}</strong>.
             </p>
             <p className="text-zinc-400">
-              Le réseau LoRa citoyen Mesh de La Réunion est une initiative de{" "}
-              <A href="https://www.meteor-oi.re/index.php/projets/reseau-lora-citoyen-mesh-la-reunion/foire-aux-questions/">
-                Meteor-oi.re
-              </A>{" "}
+              {legal.networkName} est une initiative de{" "}
+              <A href={legal.initiativeWebsite}>{legal.initiativeName}</A>{" "}
               ; MeshForge n’en est que l’outil de monitoring.
             </p>
           </Section>
@@ -84,13 +81,15 @@ export default async function MentionsLegalesPage() {
 
           <Section title="Données personnelles (RGPD)">
             <p>
-              <strong>Responsable de traitement</strong> : La Forge Numérique
-              (contact ci-dessus).
+              <strong>Responsable de traitement</strong> :{" "}
+              {legal.dataControllerName} (contact :{" "}
+              <A href={`mailto:${legal.privacyContactEmail}`}>
+                {legal.privacyContactEmail}
+              </A>
+              ).
             </p>
             <p>
-              <strong>Finalités</strong> : monitoring temps réel et historique
-              du réseau LoRa Meshtastic communautaire de La Réunion (couverture,
-              qualité des liaisons, santé des relais).
+              <strong>Finalités</strong> : {legal.processingPurposes}
             </p>
             <p>
               <strong>Base légale</strong> : intérêt légitime (art. 6.1.f) — un
@@ -130,8 +129,8 @@ export default async function MentionsLegalesPage() {
             <p>
               <strong>Vos droits</strong> (accès, rectification, effacement,
               opposition, limitation — art. 15 à 21) s’exercent par e-mail à{" "}
-              <A href="mailto:contact@la-forge-numerique.com">
-                contact@la-forge-numerique.com
+              <A href={`mailto:${legal.privacyContactEmail}`}>
+                {legal.privacyContactEmail}
               </A>
               . Un node peut être <strong>exclu des affichages publics</strong>{" "}
               (opt-out),{" "}
@@ -144,6 +143,20 @@ export default async function MentionsLegalesPage() {
               pouvez aussi saisir la <A href="https://www.cnil.fr">CNIL</A>.
             </p>
           </Section>
+
+          {legal.additionalNoticeTitle && legal.additionalNoticeBody && (
+            <Section title={legal.additionalNoticeTitle}>
+              <p>{legal.additionalNoticeBody}</p>
+              {legal.additionalNoticeLinkLabel &&
+                legal.additionalNoticeLinkUrl && (
+                  <p>
+                    <A href={legal.additionalNoticeLinkUrl}>
+                      {legal.additionalNoticeLinkLabel}
+                    </A>
+                  </p>
+                )}
+            </Section>
+          )}
 
           <Section title="Cookies">
             <p>

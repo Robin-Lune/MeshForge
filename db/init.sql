@@ -214,8 +214,21 @@ INSERT INTO settings (key, value) VALUES
         "companyType": "À compléter",
         "companySiret": "À compléter",
         "companyAddress": "À compléter",
+        "publisherEmail": "contact@example.invalid",
+        "publisherWebsite": "https://example.invalid",
+        "publicationDirector": "À compléter",
         "hostingProvider": "À compléter",
-        "hostingLocation": "À compléter"
+        "hostingLocation": "À compléter",
+        "dataControllerName": "À compléter",
+        "privacyContactEmail": "contact@example.invalid",
+        "processingPurposes": "Suivi en temps réel et historique d’un réseau Meshtastic communautaire.",
+        "additionalNoticeTitle": "",
+        "additionalNoticeBody": "",
+        "additionalNoticeLinkLabel": "",
+        "additionalNoticeLinkUrl": "",
+        "networkName": "Réseau Meshtastic communautaire",
+        "initiativeName": "À compléter",
+        "initiativeWebsite": "https://example.invalid"
     }'::jsonb),
     ('mqtt_onboarding', '{
         "mobileBroker": "mqtt.la-forge-numerique.com:1883",
