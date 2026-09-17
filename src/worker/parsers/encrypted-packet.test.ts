@@ -39,6 +39,7 @@ message Data {
   uint32 portnum = 1;
   bytes payload = 2;
   bool want_response = 3;
+  uint32 bitfield = 9;
 }
 
 message Position {
@@ -106,12 +107,17 @@ const RouteDiscovery = root.lookupType("meshtastic.RouteDiscovery");
 function envelope(
   portnum: number,
   payload: Uint8Array,
-  opts: { to?: number; wantResponse?: boolean } = {},
+  opts: { to?: number; wantResponse?: boolean; from?: number; bitfield?: number } = {},
 ): Uint8Array {
-  const from = 0xf669cf14;
+  const from = opts.from ?? 0xf669cf14;
   const id = 123456;
   const data = Data.encode(
-    Data.create({ portnum, payload, want_response: opts.wantResponse }),
+    Data.create({
+      portnum,
+      payload,
+      want_response: opts.wantResponse,
+      bitfield: opts.bitfield,
+    }),
   ).finish();
   const encrypted = encryptMeshtasticPayload(data, KEY, id, from);
 
@@ -134,6 +140,50 @@ function envelope(
     }),
   ).finish();
 }
+
+// Bit 0 de Data.bitfield = OK_TO_MQTT (réglage « OK to MQTT » du node émetteur,
+// firmware ≥ 2.5). STRICT : absent ou à 0 -> drop. Seule exception, les paquets
+// de la passerelle elle-même (son propriétaire a choisi d'uplinker), comme le
+// firmware Meshtastic.
+describe("parseEncryptedPacket — ok_to_mqtt", () => {
+  const OTHER = 0x11223344;
+  const payload = () =>
+    Position.encode(
+      Position.create({ latitude_i: -213588710, longitude_i: 556632009 }),
+    ).finish();
+  const parse = (raw: Uint8Array, logs: string[] = []) =>
+    single(
+      parseEncryptedPacket(TOPIC, raw, CHANNELS, parseChannelKeys("Fr_Balise:AQ=="), (m) =>
+        logs.push(m),
+      ),
+    );
+
+  it("drop un paquet d'un autre node sans bitfield (vieux firmware ou refus)", () => {
+    const logs: string[] = [];
+    expect(parse(envelope(3, payload(), { from: OTHER }), logs)).toBeNull();
+    expect(logs).toContainEqual(expect.stringContaining("ok_to_mqtt"));
+  });
+
+  it("drop si le bitfield est présent mais le bit OK_TO_MQTT à 0", () => {
+    expect(parse(envelope(3, payload(), { from: OTHER, bitfield: 0 }))).toBeNull();
+    expect(parse(envelope(3, payload(), { from: OTHER, bitfield: 2 }))).toBeNull();
+  });
+
+  it("ingère si le bit OK_TO_MQTT est posé (seul ou avec d'autres bits)", () => {
+    const a = parse(envelope(3, payload(), { from: OTHER, bitfield: 1 }));
+    const b = parse(envelope(3, payload(), { from: OTHER, bitfield: 3 }));
+    expect(a?.nodeId).toBe("!11223344");
+    expect(a?.lat).toBeCloseTo(-21.358871);
+    expect(b?.packetType).toBe("position");
+    expect(a?.raw.ok_to_mqtt).toBe(true);
+  });
+
+  it("accepte les paquets de la passerelle elle-même sans bit", () => {
+    const parsed = parse(envelope(3, payload()));
+    expect(parsed?.nodeId).toBe("!f669cf14");
+    expect(parsed?.gatewayId).toBe("!f669cf14");
+  });
+});
 
 describe("parseEncryptedPacket", () => {
   it("décode un /e/ POSITION_APP chiffré", () => {
@@ -331,8 +381,8 @@ describe("parseEncryptedPacket", () => {
     expect(parsed?.shortName).toBe("Rob1");
   });
 
-  it("décode un /e/ NEIGHBORINFO_APP : voisins attachés à la trame", () => {
-    const payload = NeighborInfo.encode(
+  function neighborInfoPayload(): Uint8Array {
+    return NeighborInfo.encode(
       NeighborInfo.create({
         node_id: 0xf669cf14,
         neighbors: [
@@ -341,9 +391,16 @@ describe("parseEncryptedPacket", () => {
         ],
       }),
     ).finish();
+  }
 
+  it("décode le NEIGHBORINFO_APP de la passerelle elle-même sans bit", () => {
     const parsed = single(
-      parseEncryptedPacket(TOPIC, envelope(71, payload), CHANNELS, parseChannelKeys("Fr_Balise:AQ==")),
+      parseEncryptedPacket(
+        TOPIC,
+        envelope(71, neighborInfoPayload()),
+        CHANNELS,
+        parseChannelKeys("Fr_Balise:AQ=="),
+      ),
     );
     expect(parsed?.packetType).toBe("neighborinfo");
     expect(parsed?.nodeId).toBe("!f669cf14");
@@ -351,6 +408,35 @@ describe("parseEncryptedPacket", () => {
       { neighborId: "!11111111", snr: 6.5 },
       { neighborId: "!22222222", snr: -2 },
     ]);
+  });
+
+  it("décode le NEIGHBORINFO_APP d'un autre node avec OK_TO_MQTT", () => {
+    const parsed = single(
+      parseEncryptedPacket(
+        TOPIC,
+        envelope(71, neighborInfoPayload(), { from: 0x33333333, bitfield: 1 }),
+        CHANNELS,
+        parseChannelKeys("Fr_Balise:AQ=="),
+      ),
+    );
+
+    expect(parsed?.packetType).toBe("neighborinfo");
+    expect(parsed?.nodeId).toBe("!33333333");
+    expect(parsed?.raw.ok_to_mqtt).toBe(true);
+    expect(parsed?.neighbors).toHaveLength(2);
+  });
+
+  it("drop le NEIGHBORINFO_APP d'un autre node sans OK_TO_MQTT", () => {
+    const parsed = single(
+      parseEncryptedPacket(
+        TOPIC,
+        envelope(71, neighborInfoPayload(), { from: 0x33333333 }),
+        CHANNELS,
+        parseChannelKeys("Fr_Balise:AQ=="),
+      ),
+    );
+
+    expect(parsed).toBeNull();
   });
 
   it("décode un /e/ TRACEROUTE_APP (réponse) : segments aller attachés + SNR ÷4", () => {

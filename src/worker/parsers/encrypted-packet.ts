@@ -2,7 +2,7 @@ import protobuf from "protobufjs";
 import type { ParsedPacket, RawMeshtasticPacket } from "../../../types";
 import { decryptMeshtasticPayload } from "../../../lib/meshtastic-crypto";
 import { deviceRoleName, hardwareModelName } from "../meshtastic/enums";
-import { decodePosition, decodeTraceSnr } from "./parser-utils";
+import { decodePosition, decodeTraceSnr, isOkToMqtt } from "./parser-utils";
 import { neighborReports } from "./neighbor-info";
 import { tracerouteInfo } from "./traceroute";
 
@@ -139,6 +139,7 @@ type DecodedData = {
   portnum?: number;
   payload?: Uint8Array;
   want_response?: boolean;
+  bitfield?: number;
 };
 
 type DecodedNeighborInfo = {
@@ -277,6 +278,18 @@ export function parseEncryptedPacket(
   }
   debug?.(`data portnum=${data.portnum ?? "(none)"} payload=${data.payload.length}`);
 
+  // Consentement à la source : bit OK_TO_MQTT du Data déchiffré (réglage « OK to
+  // MQTT » du node, firmware ≥ 2.5). STRICT : absent ou à 0 -> drop. Seule
+  // exception, les paquets de la passerelle elle-même — son propriétaire a
+  // choisi d'uplinker — comme le fait le firmware Meshtastic.
+  const okToMqtt = isOkToMqtt(data);
+  const fromGateway =
+    strOrNull(envelope.gateway_id)?.toLowerCase() === toNodeId(packet.from);
+  if (!fromGateway && !okToMqtt) {
+    debug?.(`drop: ok_to_mqtt absent ou refusé (${toNodeId(packet.from)})`);
+    return null;
+  }
+
   const baseRaw: RawMeshtasticPacket = {
     source: "protobuf",
     from: packet.from,
@@ -289,6 +302,7 @@ export function parseEncryptedPacket(
     hops_away: hopCount(packet) ?? undefined,
     id: packet.id,
     timestamp: packet.rx_time,
+    ok_to_mqtt: okToMqtt,
   };
 
   if (data.portnum === PORTNUM.POSITION_APP) {

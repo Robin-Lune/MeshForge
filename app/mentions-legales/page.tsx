@@ -95,9 +95,13 @@ export default async function MentionsLegalesPage() {
             <p>
               <strong>Base légale</strong> : intérêt légitime (art. 6.1.f) — un
               node Meshtastic qui « uplinke » est diffusé par le protocole
-              lui-même. Le consentement est respecté <em>à la source</em>{" "}
-              (précision de position réglée sur l’appareil, `ok_to_mqtt`), avec
-              un <strong>droit de retrait</strong>.
+              lui-même. Les réglages de l’appareil sont respectés{" "}
+              <em>à la source</em> : la position n’est jamais affichée plus
+              précisément que l’appareil ne la diffuse, et le réglage « OK to
+              MQTT » (firmware 2.5 et plus) est vérifié par MeshForge sur le
+              flux chiffré ; sur le flux JSON, il est appliqué par les
+              passerelles Meshtastic récentes, hors de notre contrôle. S’y
+              ajoute un <strong>droit de retrait</strong>.
             </p>
             <p>
               <strong>Données traitées</strong> : identifiant de node (NodeID),
