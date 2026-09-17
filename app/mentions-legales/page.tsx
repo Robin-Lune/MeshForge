@@ -133,7 +133,8 @@ export default async function MentionsLegalesPage() {
               <A href="mailto:contact@la-forge-numerique.com">
                 contact@la-forge-numerique.com
               </A>
-              . Un node peut être <strong>exclu de la carte</strong> (opt-out),{" "}
+              . Un node peut être <strong>exclu des affichages publics</strong>{" "}
+              (opt-out),{" "}
               <strong>anonymisé</strong> (effacement des noms) ou{" "}
               <strong>supprimé</strong> (effacement des données alors stockées).
               Aucun blocage permanent du NodeID n’est posé : si le node publie

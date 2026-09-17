@@ -1,12 +1,37 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { query, getSetting } = vi.hoisted(() => ({
+  query: vi.fn(),
+  getSetting: vi.fn(),
+}));
+
+vi.mock("../db", () => ({ pool: { query } }));
+vi.mock("./settings", () => ({ getSetting }));
+
 import {
   classifyMisconfig,
+  getNodesOverview,
   toNodeListItem,
   LOW_BATTERY_THRESHOLD,
 } from "./node-lists";
 
 // Seuil « bavard » injecté explicitement (en prod il vient de la config DB).
 const MAX = 1000;
+
+beforeEach(() => {
+  query.mockReset();
+  query.mockResolvedValue({ rows: [] });
+  getSetting.mockReset();
+  getSetting.mockResolvedValue(MAX);
+});
+
+describe("getNodesOverview — opt-out", () => {
+  it("écarte les nodes exclus de la liste publique", async () => {
+    await getNodesOverview();
+
+    expect(query.mock.calls[0][0]).toContain("WHERE n.excluded = FALSE");
+  });
+});
 
 // Un node sain : nodeinfo + position OK, batterie correcte, peu bavard.
 const healthy = {

@@ -342,15 +342,15 @@ export default async function NodePage({
             </h3>
             {wasExcluded && (
               <p className="mt-2 rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
-                Ce node est actuellement exclu de l’affichage public (opt-out).
+                Ce node est actuellement exclu des affichages publics (opt-out).
               </p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <form action={toggleExcluded}>
                 <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
                   {wasExcluded
-                    ? "Réintégrer sur la carte"
-                    : "Exclure de la carte (opt-out)"}
+                    ? "Réintégrer aux affichages publics"
+                    : "Exclure des affichages publics (opt-out)"}
                 </button>
               </form>
               <form action={anonymize}>

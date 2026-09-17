@@ -156,6 +156,7 @@ const SELECT_GATEWAYS = `
   WHERE p.node_id = $1
     AND p.gateway_id IS NOT NULL
     AND p.gateway_id <> p.node_id
+    AND COALESCE(gw.excluded, FALSE) = FALSE
     AND p.received_at > NOW() - INTERVAL '30 days'
   GROUP BY p.gateway_id, gw.long_name, gw.short_name, gw.last_lat, gw.last_lon
   ORDER BY snr DESC NULLS LAST
@@ -192,6 +193,7 @@ const SELECT_HEARD_NODES = `
   WHERE p.gateway_id = $1
     AND p.node_id IS NOT NULL
     AND p.node_id <> p.gateway_id
+    AND COALESCE(n.excluded, FALSE) = FALSE
     AND p.received_at > NOW() - INTERVAL '30 days'
   GROUP BY p.node_id, n.long_name, n.short_name, n.last_lat, n.last_lon
   ORDER BY "lastHeard" DESC
