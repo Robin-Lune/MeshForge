@@ -135,7 +135,8 @@ export default async function MentionsLegalesPage() {
               </A>
               . Un node peut être <strong>exclu des affichages publics</strong>{" "}
               (opt-out),{" "}
-              <strong>anonymisé</strong> (effacement des noms) ou{" "}
+              <strong>anonymisé</strong> (noms retirés des affichages ; ils
+              restent dans les paquets bruts jusqu’à leur purge automatique) ou{" "}
               <strong>supprimé</strong> (effacement des données alors stockées).
               Aucun blocage permanent du NodeID n’est posé : si le node publie
               de nouveau via MQTT, il peut réapparaître. Son propriétaire doit

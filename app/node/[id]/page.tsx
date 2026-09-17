@@ -355,7 +355,7 @@ export default async function NodePage({
               </form>
               <form action={anonymize}>
                 <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
-                  Anonymiser (effacer les noms)
+                  Anonymiser (retirer les noms affichés)
                 </button>
               </form>
               {confirm === "delete" ? (
@@ -380,10 +380,11 @@ export default async function NodePage({
               )}
             </div>
             <p className="mt-2 text-xs text-zinc-500">
-              Anonymiser garde la télémétrie sans identité. Supprimer efface les
-              données actuellement stockées liées au node : paquets émis ou
-              relayés, voisinages et traceroutes. Aucun blocage futur n’est posé
-              : s’il publie de nouveau via MQTT, il réapparaîtra.
+              Anonymiser retire durablement les noms des affichages. Ils restent
+              dans les paquets bruts jusqu’à leur purge automatique. Supprimer
+              efface les données actuellement stockées liées au node : paquets
+              émis ou relayés, voisinages et traceroutes. Aucun blocage futur
+              n’est posé : s’il publie de nouveau via MQTT, il réapparaîtra.
             </p>
           </section>
         )}
