@@ -11,7 +11,16 @@ import {
   setSetting,
   MIN_COVERAGE_TILE_ZOOM,
   MAX_COVERAGE_TILE_ZOOM,
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
+  LegalInfoValidationError,
+  type LegalInfo,
 } from "@/lib/queries/settings";
+import { applyRetention } from "@/lib/queries/retention";
+import {
+  countPacketsOffAllowlist,
+  purgeChannelsOffAllowlist,
+} from "@/lib/queries/channel-purge";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +41,14 @@ function done(error: string | null): never {
   );
 }
 
-function doneLegal(error: string | null): never {
-  redirect(
-    error
-      ? `/admin/config?tab=legal&err=${encodeURIComponent(error)}`
-      : "/admin/config?tab=legal&ok=1",
-  );
+function doneLegal(
+  error: string | null,
+  field?: keyof LegalInfo,
+): never {
+  if (!error) redirect("/admin/config?tab=legal&ok=1");
+  const params = new URLSearchParams({ tab: "legal", err: error });
+  if (field) params.set("field", field);
+  redirect(`/admin/config?${params.toString()}`);
 }
 
 function doneMqtt(error: string | null): never {
@@ -73,6 +84,39 @@ async function saveChannels(formData: FormData) {
   let error: string | null = null;
   try {
     await setSetting("public_channels", list);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  done(error);
+}
+
+// Purge EXPLICITE des données déjà stockées sur des canaux qui ne sont plus
+// dans l'allowlist (jamais automatique : une faute de frappe dans la liste ne
+// doit pas effacer l'historique).
+async function purgeOffList() {
+  "use server";
+  await requireAdminMutation(done);
+  let error: string | null = null;
+  try {
+    await purgeChannelsOffAllowlist(await getAllSettings().then((s) => s.public_channels));
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  done(error);
+}
+
+// Enregistre puis applique tout de suite : politique TimescaleDB réalignée et
+// purge immédiate, pour que la page légale et la base reflètent la valeur saisie.
+async function saveRetention(formData: FormData) {
+  "use server";
+  await requireAdminMutation(done);
+  let error: string | null = null;
+  try {
+    const days = await setSetting(
+      "retention_days",
+      String(formData.get("value") ?? ""),
+    );
+    await applyRetention(days);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -129,19 +173,42 @@ async function saveLegal(formData: FormData) {
   "use server";
   await requireAdminMutation(doneLegal);
   let error: string | null = null;
+  let errorField: keyof LegalInfo | undefined;
   try {
     await setSetting("legal_info", {
       companyName: String(formData.get("companyName") ?? ""),
       companyType: String(formData.get("companyType") ?? ""),
       companySiret: String(formData.get("companySiret") ?? ""),
       companyAddress: String(formData.get("companyAddress") ?? ""),
+      publisherEmail: String(formData.get("publisherEmail") ?? ""),
+      publisherWebsite: String(formData.get("publisherWebsite") ?? ""),
+      publicationDirector: String(formData.get("publicationDirector") ?? ""),
       hostingProvider: String(formData.get("hostingProvider") ?? ""),
       hostingLocation: String(formData.get("hostingLocation") ?? ""),
+      dataControllerName: String(formData.get("dataControllerName") ?? ""),
+      privacyContactEmail: String(formData.get("privacyContactEmail") ?? ""),
+      processingPurposes: String(formData.get("processingPurposes") ?? ""),
+      additionalNoticeTitle: String(
+        formData.get("additionalNoticeTitle") ?? "",
+      ),
+      additionalNoticeBody: String(
+        formData.get("additionalNoticeBody") ?? "",
+      ),
+      additionalNoticeLinkLabel: String(
+        formData.get("additionalNoticeLinkLabel") ?? "",
+      ),
+      additionalNoticeLinkUrl: String(
+        formData.get("additionalNoticeLinkUrl") ?? "",
+      ),
+      networkName: String(formData.get("networkName") ?? ""),
+      initiativeName: String(formData.get("initiativeName") ?? ""),
+      initiativeWebsite: String(formData.get("initiativeWebsite") ?? ""),
     });
   } catch (e) {
     error = (e as Error).message;
+    if (e instanceof LegalInfoValidationError) errorField = e.field;
   }
-  doneLegal(error);
+  doneLegal(error, errorField);
 }
 
 async function saveMqttOnboarding(formData: FormData) {
@@ -193,15 +260,50 @@ function Section({
 export default async function ConfigPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; err?: string; tab?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    err?: string;
+    tab?: string;
+    field?: string;
+  }>;
 }) {
   if (!(await isAdmin())) redirect("/admin/login");
   const s = await getAllSettings();
-  const { ok, err, tab } = await searchParams;
+  const offList = await countPacketsOffAllowlist(s.public_channels);
+  const { ok, err, tab, field } = await searchParams;
   const activeTab = tab === "legal" || tab === "mqtt" ? tab : "network";
   const b = s.map_bounds;
   const legal = s.legal_info;
   const mqtt = s.mqtt_onboarding;
+  const legalErrorField = field as keyof LegalInfo | undefined;
+  const legalFieldMessage = err?.replace(
+    /^mentions légales invalides\s*:\s*/i,
+    "",
+  );
+  const legalFieldProps = (
+    name: keyof LegalInfo,
+    required = true,
+  ) => {
+    const invalid = legalErrorField === name;
+    return {
+      className: `${numCls}${
+        invalid
+          ? " border-red-500 focus:border-red-500 dark:border-red-500"
+          : ""
+      }`,
+      maxLength: 500,
+      required: required || undefined,
+      autoFocus: invalid || undefined,
+      "aria-invalid": invalid || undefined,
+      "aria-describedby": invalid ? `${name}-error` : undefined,
+    };
+  };
+  const legalFieldError = (name: keyof LegalInfo) =>
+    legalErrorField === name && legalFieldMessage ? (
+      <span id={`${name}-error`} className="mt-1 block text-xs text-red-600 dark:text-red-400">
+        {legalFieldMessage}
+      </span>
+    ) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -258,7 +360,7 @@ export default async function ConfigPage({
         <div key="network" className="flex flex-col gap-4">
           <Section
             title="Canaux publics (whitelist)"
-            hint="Le worker n'ingère QUE ces canaux (default-deny). Séparés par des virgules. Fr_EMCOM reste exclu de l'affichage par la privacy."
+            hint="Le worker n'ingère QUE ces canaux (default-deny). Séparés par des virgules. Tout canal listé est ingéré, déchiffré si sa clé est connue, et exposé (carte, toile, fiches, stats) : ne jamais y mettre un canal d'urgence ou privé. La liste est affichée telle quelle sur /mentions-legales."
           >
             <form action={saveChannels} className="flex gap-2">
               <input
@@ -268,6 +370,18 @@ export default async function ConfigPage({
               />
               <button className={btnCls}>OK</button>
             </form>
+            <p className="mt-3 text-xs text-zinc-500">
+              {offList === 0
+                ? "Aucune donnée stockée hors de cette liste."
+                : `${offList} paquet(s) stockés sur des canaux hors liste (plus leurs voisinages et traceroutes). Purger supprime ces lignes et recalcule la position des nodes concernés depuis leur dernier paquet valide restant.`}
+            </p>
+            {offList > 0 && (
+              <form action={purgeOffList} className="mt-2">
+                <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-700 dark:text-red-400">
+                  Purger les données hors liste
+                </button>
+              </form>
+            )}
           </Section>
 
           <Section
@@ -280,6 +394,24 @@ export default async function ConfigPage({
                 type="number"
                 min={1}
                 defaultValue={s.misconfig_max_packets_24h}
+                className={numCls}
+              />
+              <button className={btnCls}>OK</button>
+            </form>
+          </Section>
+
+          <Section
+            title="Conservation des données"
+            hint={`Durée de rétention en jours, entre ${MIN_RETENTION_DAYS} et ${MAX_RETENTION_DAYS}. Purge automatique des paquets (politique TimescaleDB, par tranches de 7 jours), des voisinages, des traceroutes et des nodes muets ; un node exclu ou anonymisé garde sa marque mais perd position et batterie. Sous 30 jours, les vues « 30 j » sont tronquées. La valeur est affichée telle quelle sur /mentions-legales.`}
+          >
+            <form action={saveRetention} className="flex gap-2">
+              <input
+                name="value"
+                type="number"
+                min={MIN_RETENTION_DAYS}
+                max={MAX_RETENTION_DAYS}
+                step={1}
+                defaultValue={s.retention_days}
                 className={numCls}
               />
               <button className={btnCls}>OK</button>
@@ -387,16 +519,18 @@ export default async function ConfigPage({
           <div key="legal" className="flex flex-col gap-4">
             <Section
               title="Mentions légales"
-              hint="Informations affichées sur la page publique /mentions-legales."
+              hint="Informations affichées sur la page publique /mentions-legales. Remplacer toutes les valeurs « À compléter » et example.invalid avant la mise en ligne."
             >
               <form action={saveLegal} className="grid gap-3">
+                <p className="text-sm font-medium">Éditeur du site</p>
                 <label className="text-xs text-zinc-500">
-                  Nom de l’entreprise
+                  Nom de l’éditeur
                   <input
                     name="companyName"
                     defaultValue={legal.companyName}
-                    className={numCls}
+                    {...legalFieldProps("companyName")}
                   />
+                  {legalFieldError("companyName")}
                 </label>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-zinc-500">
@@ -404,16 +538,18 @@ export default async function ConfigPage({
                     <input
                       name="companyType"
                       defaultValue={legal.companyType}
-                      className={numCls}
+                      {...legalFieldProps("companyType")}
                     />
+                    {legalFieldError("companyType")}
                   </label>
                   <label className="text-xs text-zinc-500">
                     SIRET
                     <input
                       name="companySiret"
                       defaultValue={legal.companySiret}
-                      className={numCls}
+                      {...legalFieldProps("companySiret")}
                     />
+                    {legalFieldError("companySiret")}
                   </label>
                 </div>
                 <label className="text-xs text-zinc-500">
@@ -421,25 +557,175 @@ export default async function ConfigPage({
                   <input
                     name="companyAddress"
                     defaultValue={legal.companyAddress}
-                    className={numCls}
+                    {...legalFieldProps("companyAddress")}
                   />
+                  {legalFieldError("companyAddress")}
                 </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    E-mail de contact
+                    <input
+                      name="publisherEmail"
+                      type="email"
+                      defaultValue={legal.publisherEmail}
+                      {...legalFieldProps("publisherEmail")}
+                    />
+                    {legalFieldError("publisherEmail")}
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    Site web
+                    <input
+                      name="publisherWebsite"
+                      type="url"
+                      defaultValue={legal.publisherWebsite}
+                      {...legalFieldProps("publisherWebsite")}
+                    />
+                    {legalFieldError("publisherWebsite")}
+                  </label>
+                </div>
+                <label className="text-xs text-zinc-500">
+                  Directeur ou directrice de la publication
+                  <input
+                    name="publicationDirector"
+                    defaultValue={legal.publicationDirector}
+                    {...legalFieldProps("publicationDirector")}
+                  />
+                  {legalFieldError("publicationDirector")}
+                </label>
+
+                <p className="mt-2 text-sm font-medium">Données personnelles</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    Responsable de traitement
+                    <input
+                      name="dataControllerName"
+                      defaultValue={legal.dataControllerName}
+                      {...legalFieldProps("dataControllerName")}
+                    />
+                    {legalFieldError("dataControllerName")}
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    Contact RGPD
+                    <input
+                      name="privacyContactEmail"
+                      type="email"
+                      defaultValue={legal.privacyContactEmail}
+                      {...legalFieldProps("privacyContactEmail")}
+                    />
+                    {legalFieldError("privacyContactEmail")}
+                  </label>
+                </div>
+                <label className="text-xs text-zinc-500">
+                  Finalités du traitement
+                  <textarea
+                    name="processingPurposes"
+                    defaultValue={legal.processingPurposes}
+                    rows={3}
+                    {...legalFieldProps("processingPurposes")}
+                  />
+                  {legalFieldError("processingPurposes")}
+                </label>
+
+                <p className="mt-2 text-sm font-medium">
+                  Bloc complémentaire (optionnel)
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Ajoute une section libre aux mentions légales, par exemple un
+                  sous-traitant ou un partenaire. Laisser les quatre champs vides
+                  pour ne rien afficher.
+                </p>
+                <label className="text-xs text-zinc-500">
+                  Titre du bloc
+                  <input
+                    name="additionalNoticeTitle"
+                    defaultValue={legal.additionalNoticeTitle}
+                    {...legalFieldProps("additionalNoticeTitle", false)}
+                  />
+                  {legalFieldError("additionalNoticeTitle")}
+                </label>
+                <label className="text-xs text-zinc-500">
+                  Texte du bloc
+                  <textarea
+                    name="additionalNoticeBody"
+                    defaultValue={legal.additionalNoticeBody}
+                    rows={3}
+                    {...legalFieldProps("additionalNoticeBody", false)}
+                  />
+                  {legalFieldError("additionalNoticeBody")}
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    Libellé du lien (optionnel)
+                    <input
+                      name="additionalNoticeLinkLabel"
+                      defaultValue={legal.additionalNoticeLinkLabel}
+                      {...legalFieldProps("additionalNoticeLinkLabel", false)}
+                    />
+                    {legalFieldError("additionalNoticeLinkLabel")}
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    URL du lien (optionnelle)
+                    <input
+                      name="additionalNoticeLinkUrl"
+                      type="url"
+                      defaultValue={legal.additionalNoticeLinkUrl}
+                      {...legalFieldProps("additionalNoticeLinkUrl", false)}
+                    />
+                    {legalFieldError("additionalNoticeLinkUrl")}
+                  </label>
+                </div>
+
+                <p className="mt-2 text-sm font-medium">Réseau suivi</p>
+                <label className="text-xs text-zinc-500">
+                  Nom du réseau ou du projet
+                  <input
+                    name="networkName"
+                    defaultValue={legal.networkName}
+                    {...legalFieldProps("networkName")}
+                  />
+                  {legalFieldError("networkName")}
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-zinc-500">
+                    Porteur de l’initiative
+                    <input
+                      name="initiativeName"
+                      defaultValue={legal.initiativeName}
+                      {...legalFieldProps("initiativeName")}
+                    />
+                    {legalFieldError("initiativeName")}
+                  </label>
+                  <label className="text-xs text-zinc-500">
+                    Site de l’initiative
+                    <input
+                      name="initiativeWebsite"
+                      type="url"
+                      defaultValue={legal.initiativeWebsite}
+                      {...legalFieldProps("initiativeWebsite")}
+                    />
+                    {legalFieldError("initiativeWebsite")}
+                  </label>
+                </div>
+
+                <p className="mt-2 text-sm font-medium">Hébergement</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-zinc-500">
                     Hébergeur
                     <input
                       name="hostingProvider"
                       defaultValue={legal.hostingProvider}
-                      className={numCls}
+                      {...legalFieldProps("hostingProvider")}
                     />
+                    {legalFieldError("hostingProvider")}
                   </label>
                   <label className="text-xs text-zinc-500">
                     Localisation hébergement
                     <input
                       name="hostingLocation"
                       defaultValue={legal.hostingLocation}
-                      className={numCls}
+                      {...legalFieldProps("hostingLocation")}
                     />
+                    {legalFieldError("hostingLocation")}
                   </label>
                 </div>
                 <div className="flex justify-end">

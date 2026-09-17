@@ -111,7 +111,7 @@ export interface PublicNode {
   lastSeen: string | null; // ISO 8601
   isGateway: boolean; // relaie vers MQTT (apparaît comme gateway_id) → marker vert
   lastSnr: number | null; // dernier SNR reçu (signal), pour la fiche au survol
-  isMobile: boolean; // true → position approximative (snappée ~1,5 km)
+  isMobile: boolean; // true → position approximative (snappée ~500 m)
 }
 
 // Détail complet d'un node (page /node/[id], au clic sur un marker).
@@ -335,13 +335,13 @@ export interface MapBounds {
 export interface GatewayStat {
   gatewayId: string;
   name: string | null; // long_name du node gateway si connu
-  packets24h: number; // trames captées sur 24h (Fr_EMCOM exclu)
+  packets24h: number; // trames captées sur 24h
   nodes24h: number; // nodes distincts entendus sur 24h
   lastSeen: string | null; // ISO 8601, dernière trame captée
 }
 
 // Ligne du flux debug « Trames » (page /admin/trames, admin only). Paquet brut
-// capté ; Fr_EMCOM exclu en amont (privacy). `raw` = payload MQTT complet.
+// capté. `raw` = payload MQTT complet.
 export interface Trame {
   receivedAt: string; // ISO 8601
   gatewayId: string | null;
@@ -380,7 +380,7 @@ export interface Stats {
 // Statistiques réseau — page /stats. CONTRAIREMENT à Stats/PublicNode,
 // agrégats sur TOUT le réseau capté (aucun filtre privacy : un agrégat n'expose
 // aucun individu). La barrière privacy reste sur la carte + temps réel.
-// Cf. docs/analytics.md.
+// Cf. .claude/docs/analytics_2.md.
 // ---------------------------------------------------------------------------
 
 // Une barre d'une répartition.

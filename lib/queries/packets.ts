@@ -33,10 +33,10 @@ export async function insertPacket(p: ParsedPacket): Promise<void> {
   ]);
 }
 
-// Derniers paquets bruts pour la page debug « Trames » (admin only).
-// Privacy OBLIGATOIRE : Fr_EMCOM (urgence) JAMAIS exposé, même en debug — on
-// exclut le canal (IS DISTINCT FROM garde les channels NULL). `raw` complet pour
-// le diagnostic. Lecture réservée à la page /admin/trames (derrière l'auth).
+// Derniers paquets bruts pour la page debug « Trames » (admin only). Aucun
+// filtre de canal nominatif : ce qui est en base vient de l'allowlist d'ingestion,
+// et un canal retiré se purge depuis /admin/config. `raw` complet pour le
+// diagnostic. Lecture réservée à la page /admin/trames (derrière l'auth).
 // gatewayId optionnel : null = tous les gateways. Filtre paramétré ($2) ->
 // pas de SQLi même si l'id vient de la query string.
 const SELECT_RECENT_PACKETS = `
@@ -51,8 +51,7 @@ const SELECT_RECENT_PACKETS = `
     hop_count   AS "hopCount",
     raw
   FROM packets
-  WHERE channel IS DISTINCT FROM 'Fr_EMCOM'
-    AND ($2::text IS NULL OR gateway_id = $2)
+  WHERE ($2::text IS NULL OR gateway_id = $2)
   ORDER BY received_at DESC
   LIMIT $1
 `;
@@ -71,7 +70,7 @@ export async function getRecentPackets(
 }
 
 // Aperçu par gateway (vue par défaut des Trames) : charge & portée de chaque
-// relais. Fr_EMCOM exclu (cohérent avec le flux brut).
+// relais.
 interface GatewayStatRow {
   gatewayId: string;
   name: string | null;
@@ -101,7 +100,6 @@ const SELECT_GATEWAY_OVERVIEW = `
   FROM packets p
   LEFT JOIN nodes n ON n.node_id = p.gateway_id
   WHERE p.gateway_id IS NOT NULL
-    AND p.channel IS DISTINCT FROM 'Fr_EMCOM'
     AND (
       $1::text = ''
       OR p.gateway_id ILIKE $1

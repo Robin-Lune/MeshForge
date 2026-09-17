@@ -108,6 +108,7 @@ const NODES_OVERVIEW_SELECT = `
     WHERE received_at > NOW() - INTERVAL '24 hours'
     GROUP BY node_id
   ) tx ON tx.node_id = n.node_id
+  WHERE n.excluded = FALSE
 `;
 
 export async function getNodesOverview(): Promise<NodeListItem[]> {

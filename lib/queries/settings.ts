@@ -18,15 +18,39 @@ export type SettingKey =
   | "map_min_zoom"
   | "coverage_tile_zoom"
   | "legal_info"
-  | "mqtt_onboarding";
+  | "mqtt_onboarding"
+  | "retention_days";
 
 export interface LegalInfo {
   companyName: string;
   companyType: string;
   companySiret: string;
   companyAddress: string;
+  publisherEmail: string;
+  publisherWebsite: string;
+  publicationDirector: string;
   hostingProvider: string;
   hostingLocation: string;
+  dataControllerName: string;
+  privacyContactEmail: string;
+  processingPurposes: string;
+  additionalNoticeTitle: string;
+  additionalNoticeBody: string;
+  additionalNoticeLinkLabel: string;
+  additionalNoticeLinkUrl: string;
+  networkName: string;
+  initiativeName: string;
+  initiativeWebsite: string;
+}
+
+export class LegalInfoValidationError extends Error {
+  constructor(
+    public readonly field: keyof LegalInfo,
+    message: string,
+  ) {
+    super(`mentions légales invalides : ${message}`);
+    this.name = "LegalInfoValidationError";
+  }
 }
 
 export interface MqttOnboarding {
@@ -49,10 +73,13 @@ interface SettingValues {
   coverage_tile_zoom: number;
   legal_info: LegalInfo;
   mqtt_onboarding: MqttOnboarding;
+  retention_days: number;
 }
 
 export const DEFAULT_MAX_PACKETS_24H = 1000;
-const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_EMCOM", "Fr_BlaBla"];
+// Aucun canal sensible ici : tout canal listé est ingéré, déchiffré si sa clé
+// est connue, et exposé. Un canal d'urgence ou privé ne doit simplement pas y figurer.
+export const DEFAULT_PUBLIC_CHANNELS = ["Fr_Balise", "Fr_BlaBla"];
 const REUNION_BOUNDS: MapBounds = { west: 54.7, south: -21.9, east: 56.3, north: -20.4 };
 const DEFAULT_MIN_ZOOM = 8;
 
@@ -69,13 +96,51 @@ const DEFAULT_MIN_ZOOM = 8;
 export const DEFAULT_COVERAGE_TILE_ZOOM = 15;
 export const MIN_COVERAGE_TILE_ZOOM = 12;
 export const MAX_COVERAGE_TILE_ZOOM = 16;
+// Durée de conservation (jours) : politique TimescaleDB de `packets` + purge des
+// tables simples et des nodes muets (lib/queries/retention.ts). Plancher = fenêtre
+// de la toile (7 j) ; plafond 2 ans. Affichée telle quelle sur /mentions-legales.
+export const DEFAULT_RETENTION_DAYS = 60;
+export const MIN_RETENTION_DAYS = 7;
+export const MAX_RETENTION_DAYS = 730;
 const DEFAULT_LEGAL_INFO: LegalInfo = {
   companyName: "À compléter",
   companyType: "À compléter",
   companySiret: "À compléter",
   companyAddress: "À compléter",
+  publisherEmail: "contact@example.invalid",
+  publisherWebsite: "https://example.invalid",
+  publicationDirector: "À compléter",
   hostingProvider: "À compléter",
   hostingLocation: "À compléter",
+  dataControllerName: "À compléter",
+  privacyContactEmail: "contact@example.invalid",
+  processingPurposes:
+    "Suivi en temps réel et historique d’un réseau Meshtastic communautaire.",
+  additionalNoticeTitle: "",
+  additionalNoticeBody: "",
+  additionalNoticeLinkLabel: "",
+  additionalNoticeLinkUrl: "",
+  networkName: "Réseau Meshtastic communautaire",
+  initiativeName: "À compléter",
+  initiativeWebsite: "https://example.invalid",
+};
+
+// Préserve l'affichage historique lors de la première lecture d'une ancienne
+// valeur `legal_info` limitée aux six champs initiaux. Une installation neuve
+// reçoit les valeurs génériques ci-dessus.
+const LEGACY_LEGAL_INFO_FALLBACK: LegalInfo = {
+  ...DEFAULT_LEGAL_INFO,
+  publisherEmail: "contact@la-forge-numerique.com",
+  publisherWebsite: "https://la-forge-numerique.com",
+  publicationDirector: "Robin LEBON",
+  dataControllerName: "La Forge Numérique",
+  privacyContactEmail: "contact@la-forge-numerique.com",
+  processingPurposes:
+    "Monitoring en temps réel et historique du réseau LoRa Meshtastic communautaire de La Réunion (couverture, qualité des liaisons, santé des relais).",
+  networkName: "Le réseau LoRa citoyen Mesh de La Réunion",
+  initiativeName: "Meteor-oi.re",
+  initiativeWebsite:
+    "https://www.meteor-oi.re/index.php/projets/reseau-lora-citoyen-mesh-la-reunion/foire-aux-questions/",
 };
 const DEFAULT_MQTT_ONBOARDING: MqttOnboarding = {
   mobileBroker: "mqtt.la-forge-numerique.com:1883",
@@ -219,7 +284,26 @@ export function requireCoverageTileZoom(raw: unknown): number {
   return n;
 }
 
-const LEGAL_FIELDS: (keyof LegalInfo)[] = [
+// --- Durée de conservation : ENTIER dans [MIN_RETENTION_DAYS, MAX_RETENTION_DAYS] ---
+const isRetentionDays = (n: number): boolean =>
+  Number.isInteger(n) && n >= MIN_RETENTION_DAYS && n <= MAX_RETENTION_DAYS;
+
+export function parseRetentionDays(raw: unknown, fallback: number): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return isRetentionDays(n) ? n : fallback;
+}
+
+export function requireRetentionDays(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!isRetentionDays(n)) {
+    throw new Error(
+      `durée invalide : entier dans [${MIN_RETENTION_DAYS},${MAX_RETENTION_DAYS}] jours attendu`,
+    );
+  }
+  return n;
+}
+
+const LEGACY_LEGAL_FIELDS: (keyof LegalInfo)[] = [
   "companyName",
   "companyType",
   "companySiret",
@@ -228,36 +312,183 @@ const LEGAL_FIELDS: (keyof LegalInfo)[] = [
   "hostingLocation",
 ];
 
-function isLegalInfo(raw: unknown): raw is Record<keyof LegalInfo, string> {
+const EXTENDED_LEGAL_FIELDS: (keyof LegalInfo)[] = [
+  "publisherEmail",
+  "publisherWebsite",
+  "publicationDirector",
+  "dataControllerName",
+  "privacyContactEmail",
+  "processingPurposes",
+  "additionalNoticeTitle",
+  "additionalNoticeBody",
+  "additionalNoticeLinkLabel",
+  "additionalNoticeLinkUrl",
+  "networkName",
+  "initiativeName",
+  "initiativeWebsite",
+];
+
+const LEGAL_FIELDS: (keyof LegalInfo)[] = [
+  ...LEGACY_LEGAL_FIELDS,
+  ...EXTENDED_LEGAL_FIELDS,
+];
+
+function hasLegacyLegalInfo(raw: unknown): raw is Record<string, unknown> {
   if (!raw || typeof raw !== "object") return false;
   const o = raw as Record<string, unknown>;
-  return LEGAL_FIELDS.every((field) => typeof o[field] === "string");
+  return LEGACY_LEGAL_FIELDS.every((field) => typeof o[field] === "string");
 }
 
-function pickLegalInfo(raw: Record<keyof LegalInfo, string>): LegalInfo {
+function hasOnlyLegacyLegalInfo(raw: unknown): boolean {
+  if (!hasLegacyLegalInfo(raw)) return false;
+  return EXTENDED_LEGAL_FIELDS.every(
+    (field) => typeof raw[field] !== "string",
+  );
+}
+
+function pickLegalInfo(
+  raw: Record<string, unknown>,
+  fallback: LegalInfo,
+): LegalInfo {
+  const text = (field: keyof LegalInfo): string =>
+    typeof raw[field] === "string" ? raw[field].trim() : fallback[field];
   return {
-    companyName: raw.companyName.trim(),
-    companyType: raw.companyType.trim(),
-    companySiret: raw.companySiret.trim(),
-    companyAddress: raw.companyAddress.trim(),
-    hostingProvider: raw.hostingProvider.trim(),
-    hostingLocation: raw.hostingLocation.trim(),
+    companyName: text("companyName"),
+    companyType: text("companyType"),
+    companySiret: text("companySiret"),
+    companyAddress: text("companyAddress"),
+    publisherEmail: text("publisherEmail"),
+    publisherWebsite: text("publisherWebsite"),
+    publicationDirector: text("publicationDirector"),
+    hostingProvider: text("hostingProvider"),
+    hostingLocation: text("hostingLocation"),
+    dataControllerName: text("dataControllerName"),
+    privacyContactEmail: text("privacyContactEmail"),
+    processingPurposes: text("processingPurposes"),
+    additionalNoticeTitle: text("additionalNoticeTitle"),
+    additionalNoticeBody: text("additionalNoticeBody"),
+    additionalNoticeLinkLabel: text("additionalNoticeLinkLabel"),
+    additionalNoticeLinkUrl: text("additionalNoticeLinkUrl"),
+    networkName: text("networkName"),
+    initiativeName: text("initiativeName"),
+    initiativeWebsite: text("initiativeWebsite"),
   };
 }
 
+const LEGAL_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 export function parseLegalInfo(raw: unknown, fallback: LegalInfo): LegalInfo {
-  return isLegalInfo(raw) ? pickLegalInfo(raw) : fallback;
+  if (!hasLegacyLegalInfo(raw)) return fallback;
+  const info = pickLegalInfo(raw, fallback);
+  for (const field of LEGAL_FIELDS) {
+    if (!info[field] || info[field].length > 500) info[field] = fallback[field];
+  }
+  if (!LEGAL_EMAIL_RE.test(info.publisherEmail)) {
+    info.publisherEmail = fallback.publisherEmail;
+  }
+  if (!LEGAL_EMAIL_RE.test(info.privacyContactEmail)) {
+    info.privacyContactEmail = fallback.privacyContactEmail;
+  }
+  if (!isHttpUrl(info.publisherWebsite)) {
+    info.publisherWebsite = fallback.publisherWebsite;
+  }
+  if (!isHttpUrl(info.initiativeWebsite)) {
+    info.initiativeWebsite = fallback.initiativeWebsite;
+  }
+  if (
+    info.additionalNoticeLinkUrl &&
+    !isHttpUrl(info.additionalNoticeLinkUrl)
+  ) {
+    info.additionalNoticeLinkUrl = fallback.additionalNoticeLinkUrl;
+    info.additionalNoticeLinkLabel = fallback.additionalNoticeLinkLabel;
+  }
+  return info;
 }
 
 export function requireLegalInfo(raw: unknown): LegalInfo {
-  if (!isLegalInfo(raw)) {
-    throw new Error("mentions légales invalides : objet incomplet");
-  }
-  const info = pickLegalInfo(raw);
+  const submitted =
+    raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
   for (const field of LEGAL_FIELDS) {
-    if (!info[field] || info[field].length > 500) {
-      throw new Error("mentions légales invalides : champ vide ou trop long");
+    if (typeof submitted[field] !== "string") {
+      throw new LegalInfoValidationError(field, "champ non transmis");
     }
+  }
+  const info = pickLegalInfo(submitted, DEFAULT_LEGAL_INFO);
+  const optionalFields = new Set<keyof LegalInfo>([
+    "additionalNoticeTitle",
+    "additionalNoticeBody",
+    "additionalNoticeLinkLabel",
+    "additionalNoticeLinkUrl",
+  ]);
+  for (const field of LEGAL_FIELDS) {
+    if (!optionalFields.has(field) && !info[field]) {
+      throw new LegalInfoValidationError(field, "champ obligatoire");
+    }
+    if (info[field].length > 500) {
+      throw new LegalInfoValidationError(field, "500 caractères maximum");
+    }
+  }
+  for (const field of ["publisherEmail", "privacyContactEmail"] as const) {
+    if (!LEGAL_EMAIL_RE.test(info[field])) {
+      throw new LegalInfoValidationError(field, "adresse e-mail invalide");
+    }
+  }
+  for (const field of [
+    "publisherWebsite",
+    "initiativeWebsite",
+  ] as const) {
+    if (!isHttpUrl(info[field])) {
+      throw new LegalInfoValidationError(field, "URL HTTP(S) invalide");
+    }
+  }
+  const hasNoticeTitle = Boolean(info.additionalNoticeTitle);
+  const hasNoticeBody = Boolean(info.additionalNoticeBody);
+  if (hasNoticeTitle !== hasNoticeBody) {
+    const field = hasNoticeTitle
+      ? "additionalNoticeBody"
+      : "additionalNoticeTitle";
+    throw new LegalInfoValidationError(
+      field,
+      hasNoticeTitle
+        ? "renseignez aussi le texte du bloc"
+        : "renseignez aussi le titre du bloc",
+    );
+  }
+  const hasNoticeLinkLabel = Boolean(info.additionalNoticeLinkLabel);
+  const hasNoticeLinkUrl = Boolean(info.additionalNoticeLinkUrl);
+  if (hasNoticeLinkLabel !== hasNoticeLinkUrl) {
+    const field = hasNoticeLinkLabel
+      ? "additionalNoticeLinkUrl"
+      : "additionalNoticeLinkLabel";
+    throw new LegalInfoValidationError(
+      field,
+      hasNoticeLinkLabel
+        ? "renseignez aussi l’URL du lien"
+        : "renseignez aussi le libellé du lien",
+    );
+  }
+  if (hasNoticeLinkUrl && !hasNoticeTitle) {
+    throw new LegalInfoValidationError(
+      "additionalNoticeTitle",
+      "ajoutez un titre et un texte avant le lien",
+    );
+  }
+  if (hasNoticeLinkUrl && !isHttpUrl(info.additionalNoticeLinkUrl)) {
+    throw new LegalInfoValidationError(
+      "additionalNoticeLinkUrl",
+      "URL HTTP(S) invalide",
+    );
   }
   return info;
 }
@@ -361,13 +592,24 @@ const SPECS: { [K in SettingKey]: Spec<K> } = {
   },
   legal_info: {
     default: DEFAULT_LEGAL_INFO,
-    parseStored: (raw) => parseLegalInfo(raw, DEFAULT_LEGAL_INFO),
+    parseStored: (raw) =>
+      parseLegalInfo(
+        raw,
+        hasOnlyLegacyLegalInfo(raw)
+          ? LEGACY_LEGAL_INFO_FALLBACK
+          : DEFAULT_LEGAL_INFO,
+      ),
     validateInput: (raw) => requireLegalInfo(raw),
   },
   mqtt_onboarding: {
     default: DEFAULT_MQTT_ONBOARDING,
     parseStored: (raw) => parseMqttOnboarding(raw, DEFAULT_MQTT_ONBOARDING),
     validateInput: (raw) => requireMqttOnboarding(raw),
+  },
+  retention_days: {
+    default: DEFAULT_RETENTION_DAYS,
+    parseStored: (raw) => parseRetentionDays(raw, DEFAULT_RETENTION_DAYS),
+    validateInput: (raw) => requireRetentionDays(raw),
   },
 };
 

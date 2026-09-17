@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   decodePosition,
   decodeTraceSnr,
+  isOkToMqtt,
   isRealNode,
   toNodeId,
 } from "./parser-utils";
@@ -52,5 +53,22 @@ describe("toNodeId / isRealNode", () => {
     expect(isRealNode(0)).toBe(false);
     expect(isRealNode(0xffffffff)).toBe(false);
     expect(isRealNode(NaN)).toBe(false);
+  });
+});
+
+// Data.bitfield, bit 0 = OK_TO_MQTT (consentement du node à l'uplink MQTT).
+// STRICT : absent = pas de consentement. Les autres bits (ex. WANT_RESPONSE = 2)
+// ne valent pas consentement.
+describe("isOkToMqtt", () => {
+  it("vrai seulement si le bit 0 est posé", () => {
+    expect(isOkToMqtt({ bitfield: 1 })).toBe(true);
+    expect(isOkToMqtt({ bitfield: 3 })).toBe(true);
+  });
+
+  it("faux si absent, à 0, ou si seuls d'autres bits sont posés", () => {
+    expect(isOkToMqtt({})).toBe(false);
+    expect(isOkToMqtt({ bitfield: undefined })).toBe(false);
+    expect(isOkToMqtt({ bitfield: 0 })).toBe(false);
+    expect(isOkToMqtt({ bitfield: 2 })).toBe(false);
   });
 });

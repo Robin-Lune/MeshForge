@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { isPubliclyVisible, snapToGrid } from "./privacy";
+import {
+  isPubliclyVisible,
+  shouldSnapPosition,
+  snapToGrid,
+} from "./privacy";
 
 // Public par défaut : un node localisé est visible (fixe OU mobile — le mobile
 // est flouté par snapToGrid au moment de l'exposition). Caché seulement sans position.
@@ -23,6 +27,15 @@ describe("isPubliclyVisible", () => {
 
   it("affiche un node non exclu (excluded false/absent)", () => {
     expect(isPubliclyVisible({ lat: -21.1, lon: 55.5, excluded: false })).toBe(true);
+  });
+});
+
+describe("shouldSnapPosition", () => {
+  it("n'autorise la position exacte que pour un relais fixe explicite", () => {
+    expect(shouldSnapPosition(false)).toBe(false);
+    expect(shouldSnapPosition(true)).toBe(true);
+    expect(shouldSnapPosition(null)).toBe(true);
+    expect(shouldSnapPosition(undefined)).toBe(true);
   });
 });
 

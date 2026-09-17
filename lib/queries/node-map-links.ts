@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import { snapToGrid } from "../privacy";
+import { shouldSnapPosition, snapToGrid } from "../privacy";
 import type { NodeMapLink } from "../../types";
 
 interface MapLinkRow {
@@ -20,7 +20,9 @@ export function toNodeMapLinks(rows: MapLinkRow[]): NodeMapLink[] {
   return rows.map((r) => {
     const located = r.lat != null && r.lon != null;
     const pos =
-      located && r.isMobile !== false ? snapToGrid(r.lat!, r.lon!) : { lat: r.lat, lon: r.lon };
+      located && shouldSnapPosition(r.isMobile)
+        ? snapToGrid(r.lat!, r.lon!)
+        : { lat: r.lat, lon: r.lon };
     const sources: Record<string, number> = {};
     for (const [k, v] of Object.entries(r.sources ?? {})) sources[k] = Number(v);
     return {

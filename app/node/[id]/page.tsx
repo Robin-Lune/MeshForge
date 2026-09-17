@@ -7,7 +7,7 @@ import NodeNeighborhood from "@/components/node-neighborhood/NodeNeighborhood";
 import NodeLinksTables from "@/components/NodeLinksTables";
 import { isAdmin } from "@/lib/admin";
 import { isSameOrigin } from "@/lib/security";
-import { snapToGrid } from "@/lib/privacy";
+import { shouldSnapPosition, snapToGrid } from "@/lib/privacy";
 import {
   getNodeById,
   setNodeExcluded,
@@ -161,10 +161,9 @@ export default async function NodePage({
   const title = node.longName ?? node.shortName ?? node.nodeId;
   const isBridge = gateways.length >= 2;
   // PRIVACY : position du sujet snappée sauf relais fixe explicite (is_mobile
-  // FALSE). Défaut prudent TRUE/NULL -> floutée, cohérent avec neighbors.ts /
-  // node-map-links.ts (r.isMobile !== false) et la carte publique.
+  // FALSE). Défaut prudent TRUE/NULL -> floutée, comme les autres sorties publiques.
   const subjectPos =
-    node.lat != null && node.lon != null && node.isMobile !== false
+    node.lat != null && node.lon != null && shouldSnapPosition(node.isMobile)
       ? snapToGrid(node.lat, node.lon)
       : { lat: node.lat, lon: node.lon };
 
@@ -343,20 +342,20 @@ export default async function NodePage({
             </h3>
             {wasExcluded && (
               <p className="mt-2 rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
-                Ce node est actuellement exclu de l’affichage public (opt-out).
+                Ce node est actuellement exclu des affichages publics (opt-out).
               </p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <form action={toggleExcluded}>
                 <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
                   {wasExcluded
-                    ? "Réintégrer sur la carte"
-                    : "Exclure de la carte (opt-out)"}
+                    ? "Réintégrer aux affichages publics"
+                    : "Exclure des affichages publics (opt-out)"}
                 </button>
               </form>
               <form action={anonymize}>
                 <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
-                  Anonymiser (effacer les noms)
+                  Anonymiser (retirer les noms affichés)
                 </button>
               </form>
               {confirm === "delete" ? (
@@ -381,8 +380,11 @@ export default async function NodePage({
               )}
             </div>
             <p className="mt-2 text-xs text-zinc-500">
-              Anonymiser garde la télémétrie sans identité. Supprimer efface
-              définitivement le node et tous ses paquets.
+              Anonymiser retire durablement les noms des affichages. Ils restent
+              dans les paquets bruts jusqu’à leur purge automatique. Supprimer
+              efface les données actuellement stockées liées au node : paquets
+              émis ou relayés, voisinages et traceroutes. Aucun blocage futur
+              n’est posé : s’il publie de nouveau via MQTT, il réapparaîtra.
             </p>
           </section>
         )}

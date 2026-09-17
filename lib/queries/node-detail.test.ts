@@ -1,10 +1,39 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { query } = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("../db", () => ({ pool: { query } }));
+
 import {
+  getNodeGateways,
+  getNodeHeardNodes,
   toHistoryPoints,
   toGatewayLinks,
   toHeardNodes,
   toDeviceMetrics,
 } from "./node-detail";
+
+beforeEach(() => {
+  query.mockReset();
+  query.mockResolvedValue({ rows: [] });
+});
+
+describe("liens radio — opt-out", () => {
+  it("écarte une passerelle exclue de la fiche d'un autre node", async () => {
+    await getNodeGateways("!subject");
+
+    expect(query.mock.calls[0][0]).toContain(
+      "COALESCE(gw.excluded, FALSE) = FALSE",
+    );
+  });
+
+  it("écarte un node entendu exclu de la fiche de sa passerelle", async () => {
+    await getNodeHeardNodes("!subject");
+
+    expect(query.mock.calls[0][0]).toContain(
+      "COALESCE(n.excluded, FALSE) = FALSE",
+    );
+  });
+});
 
 // Série journalière (courbes 30j). pg : date_trunc → Date ; AVG/COUNT → string|number.
 describe("toHistoryPoints", () => {

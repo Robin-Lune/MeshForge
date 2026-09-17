@@ -26,7 +26,6 @@ const RADIO_PREDICATE = `
     AND p.hop_count = 0
     AND p.snr BETWEEN -30 AND 30
     AND p.channel = ANY($3::text[])
-    AND p.channel <> 'Fr_EMCOM'
     AND p.lat IS NOT NULL AND p.lon IS NOT NULL
     AND NOT (p.lat = 0 AND p.lon = 0)
     AND p.lat BETWEEN -85 AND 85

@@ -36,7 +36,7 @@ async function GatewayOverview({ query }: { query: string }) {
         </Link>
       </div>
       <p className="mb-4 text-sm text-zinc-500">
-        Choisis un gateway pour étudier ses 200 dernières trames. Fr_EMCOM exclu.
+        Choisis un gateway pour étudier ses 200 dernières trames.
       </p>
 
       <form
@@ -186,7 +186,7 @@ async function FramesView({
         </Link>
         <h2 className="font-mono text-lg font-semibold">{title}</h2>
         <span className="text-sm text-zinc-500">
-          {trames.length} dernières trames — Fr_EMCOM exclu
+          {trames.length} dernières trames
         </span>
       </div>
 

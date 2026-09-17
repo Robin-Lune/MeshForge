@@ -40,7 +40,7 @@ export async function getStats(): Promise<Stats> {
 // ---------------------------------------------------------------------------
 // Statistiques réseau (page /stats). Agrégats sur TOUT le réseau capté : aucun
 // filtre privacy ici (un agrégat n'expose aucun individu). La barrière privacy
-// reste sur la carte + temps réel. Cf. docs/analytics.md — ne pas réuniformiser.
+// reste sur la carte + temps réel. Cf. .claude/docs/analytics_2.md — ne pas réuniformiser.
 // ---------------------------------------------------------------------------
 
 // Ligne brute d'une répartition (GROUP BY). pg sérialise COUNT(*) en string.

@@ -86,7 +86,8 @@ CREATE INDEX IF NOT EXISTS idx_packets_gateway ON packets (gateway_id,  received
 CREATE INDEX IF NOT EXISTS idx_packets_geo     ON packets (lat, lon) WHERE lat IS NOT NULL;
 
 -- Cycle de vie borné : les requêtes restent transparentes sur les chunks
--- compressés. La rétention de 60 jours conserve les vues 24h / 7j / 30j.
+-- compressés. Rétention par défaut 60 jours ; le worker réaligne cette politique
+-- sur settings.retention_days (éditable sur /admin/config) et purge les autres tables.
 ALTER TABLE packets SET (
     timescaledb.compress,
     timescaledb.compress_orderby = 'received_at DESC',
@@ -119,7 +120,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     hw_model      TEXT,                       -- ex: HELTEC_V4
     firmware      TEXT,
     role          TEXT,                       -- CLIENT / ROUTER / ROUTER_CLIENT / etc.
-    is_mobile     BOOLEAN DEFAULT TRUE,       -- défaut prudent : position floutée ~0.5 km
+    is_mobile     BOOLEAN NOT NULL DEFAULT TRUE, -- défaut prudent : position floutée ~0.5 km
     last_lat      DOUBLE PRECISION,
     last_lon      DOUBLE PRECISION,
     last_battery  SMALLINT,
@@ -137,8 +138,10 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gateway_override BOOLEAN;
 -- Colonne morte retirée : la visibilité ne dépend QUE de excluded + règles privacy.
 ALTER TABLE nodes DROP COLUMN IF EXISTS share_on_map;
 -- is_mobile par défaut prudent (privacy) : flou ~0.5 km sauf relais fixe confirmé.
--- N'affecte QUE les futurs INSERT ; les nodes existants gardent leur valeur.
+-- Répare les anciennes lignes NULL avant de verrouiller la contrainte.
+UPDATE nodes SET is_mobile = TRUE WHERE is_mobile IS NULL;
 ALTER TABLE nodes ALTER COLUMN is_mobile SET DEFAULT TRUE;
+ALTER TABLE nodes ALTER COLUMN is_mobile SET NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- contributors — comptes. Auth MQTT (mosquitto-go-auth) ET auth web.
@@ -197,20 +200,35 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Seed des défauts (ne pas écraser une valeur déjà réglée par un admin).
--- public_channels : allowlist privacy (le worker n'ingère QUE ces canaux).
+-- public_channels : allowlist privacy (le worker n'ingère QUE ces canaux ; tout
+-- canal listé est ingéré et exposé, ne jamais y mettre un canal d'urgence/privé).
 -- map_bounds : bornes Réunion (null = carte ouverte). map_min_zoom : plage 0-22.
 INSERT INTO settings (key, value) VALUES
     ('misconfig_max_packets_24h', '1000'::jsonb),
-    ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
+    ('public_channels', '["Fr_Balise","Fr_BlaBla"]'::jsonb),
     ('map_bounds', '{"west":54.7,"south":-21.9,"east":56.3,"north":-20.4}'::jsonb),
     ('map_min_zoom', '8'::jsonb),
+    ('retention_days', '60'::jsonb),
     ('legal_info', '{
         "companyName": "À compléter",
         "companyType": "À compléter",
         "companySiret": "À compléter",
         "companyAddress": "À compléter",
+        "publisherEmail": "contact@example.invalid",
+        "publisherWebsite": "https://example.invalid",
+        "publicationDirector": "À compléter",
         "hostingProvider": "À compléter",
-        "hostingLocation": "À compléter"
+        "hostingLocation": "À compléter",
+        "dataControllerName": "À compléter",
+        "privacyContactEmail": "contact@example.invalid",
+        "processingPurposes": "Suivi en temps réel et historique d’un réseau Meshtastic communautaire.",
+        "additionalNoticeTitle": "",
+        "additionalNoticeBody": "",
+        "additionalNoticeLinkLabel": "",
+        "additionalNoticeLinkUrl": "",
+        "networkName": "Réseau Meshtastic communautaire",
+        "initiativeName": "À compléter",
+        "initiativeWebsite": "https://example.invalid"
     }'::jsonb),
     ('mqtt_onboarding', '{
         "mobileBroker": "mqtt.la-forge-numerique.com:1883",

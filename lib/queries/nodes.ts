@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import { isPubliclyVisible, snapToGrid } from "../privacy";
+import {
+  isPubliclyVisible,
+  shouldSnapPosition,
+  snapToGrid,
+} from "../privacy";
 import type {
   ParsedPacket,
   PublicNode,
@@ -70,7 +74,7 @@ interface UpsertedNodeRow {
   lon: number | null;
   batteryPct: number | null;
   lastSeen: Date | null;
-  isMobile: boolean;
+  isMobile: boolean | null;
   excluded: boolean;
   isGateway: boolean;
 }
@@ -144,8 +148,8 @@ async function notifyNodeUpdate(row: UpsertedNodeRow | undefined): Promise<void>
   // nodes publics (opt-in, fixes, localisés). Même règle que l'API REST.
   if (!row || !isPubliclyVisible(row)) return;
 
-  // Mobile : position floutée (cellule ~1,5 km constante) avant exposition.
-  const pos = row.isMobile
+  // Mobile/NULL : position floutée (cellule ~500 m constante) avant exposition.
+  const pos = shouldSnapPosition(row.isMobile)
     ? snapToGrid(row.lat as number, row.lon as number)
     : { lat: row.lat as number, lon: row.lon as number };
   const update: NodeUpdate = {
@@ -163,7 +167,7 @@ async function notifyNodeUpdate(row: UpsertedNodeRow | undefined): Promise<void>
 }
 
 // Nodes affichés sur la carte publique (PUBLIC PAR DÉFAUT : tous les localisés).
-// Les mobiles sont INCLUS mais leur position est snappée ~1,5 km dans le mapping.
+// Les mobiles sont INCLUS mais leur position est snappée ~500 m dans le mapping.
 // isGateway : relaie vers MQTT. lastSnr : dernier SNR reçu (fiche survol).
 const SELECT_PUBLIC_NODES = `
   SELECT
@@ -191,19 +195,24 @@ const SELECT_PUBLIC_NODES = `
   ORDER BY n.last_seen DESC NULLS LAST
 `;
 
-type PublicNodeRow = Omit<PublicNode, "lastSeen"> & { lastSeen: Date | null };
+type PublicNodeRow = Omit<PublicNode, "lastSeen" | "isMobile"> & {
+  lastSeen: Date | null;
+  isMobile: boolean | null;
+};
 
 export async function getPublicNodes(): Promise<PublicNode[]> {
   const { rows } = await pool.query<PublicNodeRow>(SELECT_PUBLIC_NODES);
   return rows.map((r) => {
-    // Mobile → position snappée (cellule ~1,5 km constante) ; fixe → exacte.
-    const pos = r.isMobile
+    // Mobile/NULL → position snappée (cellule ~500 m constante) ; fixe → exacte.
+    const isMobile = shouldSnapPosition(r.isMobile);
+    const pos = isMobile
       ? snapToGrid(r.lat, r.lon)
       : { lat: r.lat, lon: r.lon };
     return {
       ...r,
       lat: pos.lat,
       lon: pos.lon,
+      isMobile,
       lastSeen: r.lastSeen ? r.lastSeen.toISOString() : null,
     };
   });
@@ -236,9 +245,13 @@ const SELECT_NODE_BY_ID = `
   FROM nodes WHERE node_id = $1
 `;
 
-type NodeDetailRow = Omit<NodeDetail, "lastSeen" | "firstSeen"> & {
+type NodeDetailRow = Omit<
+  NodeDetail,
+  "lastSeen" | "firstSeen" | "isMobile"
+> & {
   lastSeen: Date | null;
   firstSeen: Date | null;
+  isMobile: boolean | null;
 };
 
 export async function getNodeById(nodeId: string): Promise<NodeDetail | null> {
@@ -247,6 +260,7 @@ export async function getNodeById(nodeId: string): Promise<NodeDetail | null> {
   if (!r) return null;
   return {
     ...r,
+    isMobile: shouldSnapPosition(r.isMobile),
     lastSeen: r.lastSeen ? r.lastSeen.toISOString() : null,
     firstSeen: r.firstSeen ? r.firstSeen.toISOString() : null,
   };
@@ -299,12 +313,29 @@ export async function anonymizeNode(nodeId: string): Promise<void> {
   );
 }
 
-// Droit à l'effacement : supprime TOUTES les données du node (transaction).
+// Droit à l'effacement : supprime toutes les données présentes liées au node.
+// Aucun refus futur n'est conservé : un nouvel uplink pourra recréer le node.
 export async function deleteNode(nodeId: string): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("DELETE FROM packets WHERE node_id = $1", [nodeId]);
+    await client.query(
+      "DELETE FROM packets WHERE node_id = $1 OR gateway_id = $1",
+      [nodeId],
+    );
+    await client.query(
+      "DELETE FROM node_neighbors WHERE node_id = $1 OR neighbor_id = $1 OR gateway_id = $1",
+      [nodeId],
+    );
+    await client.query(
+      `DELETE FROM traceroute_segments
+       WHERE source_node = $1
+          OR target_node = $1
+          OR gateway_id = $1
+          OR from_node = $1
+          OR to_node = $1`,
+      [nodeId],
+    );
     await client.query("DELETE FROM nodes WHERE node_id = $1", [nodeId]);
     await client.query("COMMIT");
   } catch (e) {

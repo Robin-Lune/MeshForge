@@ -285,8 +285,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 - Le broker prod utilise `mosquitto-go-auth`. Sa config est un template :
   `mosquitto/entrypoint.sh` remplace `__DB_PASSWORD__` au démarrage.
 - Les relais créent leurs identifiants MQTT via `/register`.
-- Canaux publics, bornes carte, zoom, seuils, mentions légales et configuration
-  MQTT se règlent dans `/admin/config`.
+- Canaux publics, bornes carte, zoom, seuils, mentions légales (éditeur,
+  responsable de traitement, contacts, finalités, initiative et bloc libre
+  optionnel) et configuration MQTT se règlent dans `/admin/config`. Une nouvelle
+  instance utilise des valeurs légales génériques à remplacer avant sa mise en
+  ligne.
 - `MQTT_PROTO_DEBUG=1` active les logs dev des paquets protobuf `/e/` :
   réception, enveloppe, raison de drop et fixture base64 en cas d'échec. Les
   drops des messages texte MQTT utilisent aussi ce debug.
@@ -346,13 +349,14 @@ seuil sur les *statements*, qui est celui qui mord.
 
 Politique : **public par défaut** (norme Meshtastic — un node qui uplinke est diffusé largement), **mais** consentement respecté à la source et droit de retrait.
 
-- **Nodes mobiles** → position snappée sur une cellule **~500 m constante** (jamais re-randomisée : un flou aléatoire se moyennerait et révélerait le vrai point). `is_mobile = TRUE` est le **défaut prudent** : un node est flouté tant qu'un admin ne l'a pas déclaré relais fixe.
+- **Nodes mobiles** → position snappée à l'affichage sur une cellule **~500 m constante** (jamais re-randomisée : un flou aléatoire se moyennerait et révélerait le vrai point). Les coordonnées reçues restent en base jusqu'à leur purge. `is_mobile = TRUE` est le **défaut prudent** et la colonne est `NOT NULL` : un node est flouté tant qu'un admin ne l'a pas déclaré relais fixe.
 - **Consentement MapReport** : la position d'un paquet `MAP_REPORT` n'est retenue que si le node a activé `has_opted_report_location` ; sinon elle est écartée, y compris du payload brut conservé. ⚠️ Ce garde-fou ne vaut **que pour les MapReport** — un `POSITION_APP` diffusé en clair sur un canal public est ingéré tel quel, conformément au protocole.
-- **Canaux** : le worker n'ingère **que** les canaux de l'allowlist `public_channels` (default-deny). C'est elle qui protège, *pas* le chiffrement : un canal `/e/` dont la PSK est fournie via `MESHTASTIC_CHANNEL_KEYS` est bel et bien déchiffré.
-- **`Fr_EMCOM`** (urgence) : les **trames** sont exclues de toute vue (flux brut, vue passerelle, couche de couverture). ⚠️ En revanche, `upsertNode` s'exécute pour tout paquet ingéré, sans distinction de canal : un node entendu **uniquement** sur `Fr_EMCOM` alimente quand même `nodes.last_lat/last_lon` et **apparaît donc sur la carte publique**. La table `nodes` ne conserve aucune provenance de canal, donc l'affichage ne peut pas l'en distinguer. Retirer un tel node demande un opt-out explicite (`excluded`).
-- **Opt-out, anonymisation et suppression** depuis `/node/[id]` (admin). L'anonymisation est **permanente** : les noms ne reviennent pas au prochain `nodeinfo` (colonne `anonymized`).
+- **`ok_to_mqtt`** (réglage « OK to MQTT » du node, firmware ≥ 2.5) : sur le flux chiffré `/e/`, le parseur lit le bit 0 de `Data.bitfield` et **droppe** tout paquet d'un autre node sans ce bit — strict, absent = refus ; les paquets de la passerelle elle-même passent, comme dans le firmware. Le flux `/json/` ne transporte pas le bit : là, seule la passerelle peut l'appliquer.
+- **Canaux** : le worker n'ingère **que** les canaux de l'allowlist `public_channels` (default-deny, éditable sur `/admin/config`, affichée sur `/mentions-legales`). C'est elle qui protège, *pas* le chiffrement : un canal `/e/` dont la PSK est fournie via `MESHTASTIC_CHANNEL_KEYS` est bel et bien déchiffré. **Tout canal listé est ingéré et exposé** (carte, toile, fiches, stats) : un canal d'urgence ou privé ne doit simplement pas y figurer. Aucun nom de canal n'est codé en dur.
+- **Canal retiré de la liste** : ses données déjà stockées restent jusqu'à la purge de rétention. `/admin/config` propose un bouton explicite « Purger les données hors liste » : paquets, voisinages et traceroutes de ces canaux sont supprimés et la position des nodes concernés est recalculée depuis leur dernier paquet valide restant (ou effacée). Jamais automatique : une faute de frappe dans la liste ne doit pas effacer l'historique.
+- **Opt-out, anonymisation et suppression** depuis `/node/[id]` (admin). L'opt-out retire le node de tous les affichages publics individuels, dont `/nodes` et les tableaux « Liens radio » des autres fiches. L'anonymisation retire **durablement les noms des affichages** : ils ne reviennent pas au prochain `nodeinfo` grâce à la colonne `anonymized`, mais restent dans les paquets bruts jusqu'à leur purge automatique selon la durée de conservation. La suppression efface, dans une transaction, les données alors stockées dans `nodes`, `packets`, `node_neighbors` et `traceroute_segments`, quel que soit le rôle du NodeID. Elle ne bloque pas le NodeID : un nouvel uplink MQTT le recrée normalement.
 - **`precision_bits`** (précision de position réglée sur l'appareil) : décodé par les parsers et conservé dans `packets.raw`, mais **honoré uniquement par la couche de couverture**. Celle-ci reconstitue la zone d'incertitude du masque Meshtastic et ne retient la mesure que si toute la zone tient dans une seule tuile ; une valeur absente ou invalide est refusée. L'affichage des marqueurs ne le lit pas : le floutage y repose sur `is_mobile`/`snapToGrid`. À ne pas présenter comme une garantie générale.
-- **Couche de couverture** (tuiles) : agrégat non attribué (ni `node_id`, ni horodatage précis), utilisable avec une seule sonde, limité aux canaux publics, opt-out RGPD appliqué, et maille bornée à `[12,16]`. Voir **[`docs/analytics.md`](docs/analytics.md)** pour la frontière agrégat/individu.
+- **Couche de couverture** (tuiles) : agrégat non attribué (ni `node_id`, ni horodatage précis), utilisable avec une seule sonde, limité aux canaux publics, opt-out RGPD appliqué, et maille bornée à `[12,16]`. La frontière agrégat/individu est documentée dans la doc interne du projet (`.claude/docs/analytics_2.md`).
 
 ---
 
@@ -366,13 +370,16 @@ La logique métier suit le cycle **TDD red-green-refactor** (Vitest). Les compos
 
 ## 📄 Licence
 
-MeshForge est distribué sous licence **AGPL-3.0**.
+Copyright (C) 2026 Robin Lebon — La Forge Numérique.
 
-Vous pouvez l'héberger, le modifier et le partager librement, à condition
-de publier vos modifications sous la même licence.
+MeshForge est distribué sous licence **AGPL-3.0-or-later** (GNU Affero General
+Public License, version 3 ou toute version ultérieure) — voir [LICENSE](LICENSE).
+Identifiant SPDX : `AGPL-3.0-or-later` (déclaré dans `package.json`).
 
-Pour un usage commercial en code fermé, une licence commerciale séparée
-est disponible — contact : contact@la-forge-numerique.com
+Vous pouvez l'héberger, le modifier et le partager librement, à condition de
+publier vos modifications sous la même licence, y compris lorsque vous
+l'exploitez uniquement comme service en ligne (article 13 de l'AGPL). Le lien
+vers le code source doit rester accessible depuis l'interface.
 
 <div align="center">
 <sub>Fait avec 💜 pour le mesh réunionnais 🇷🇪</sub>

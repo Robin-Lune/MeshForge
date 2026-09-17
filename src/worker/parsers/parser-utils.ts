@@ -37,6 +37,15 @@ export function decodePosition(
   return { lat, lon };
 }
 
+// Data.bitfield (Meshtastic ≥ 2.5) : bit 0 = OK_TO_MQTT, consentement du node
+// émetteur à l'uplink MQTT (réglage « OK to MQTT » de l'appareil). STRICT :
+// absent = pas de consentement ; les autres bits (WANT_RESPONSE = 2) ne valent rien.
+export const OK_TO_MQTT_MASK = 0x01;
+
+export function isOkToMqtt(data: { bitfield?: number }): boolean {
+  return ((data.bitfield ?? 0) & OK_TO_MQTT_MASK) !== 0;
+}
+
 export function isRealNode(num: number): boolean {
   return Number.isFinite(num) && num !== 0 && (num >>> 0) !== BROADCAST_NUM;
 }
