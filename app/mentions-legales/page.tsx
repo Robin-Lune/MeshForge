@@ -148,6 +148,16 @@ export default async function MentionsLegalesPage() {
               </A>
               , tuiles OpenFreeMap.
             </p>
+            <p>
+              Meshtastic® et le logo Meshtastic sont des marques de{" "}
+              <A href="https://meshtastic.org/docs/legal/licensing-and-trademark/">
+                Meshtastic LLC
+              </A>{" "}
+              (« The Meshtastic logo trademark is the trademark of Meshtastic
+              LLC »). MeshForge est un projet communautaire indépendant : le logo
+              M-PWRD signale la compatibilité et n’implique ni approbation ni
+              parrainage par le projet Meshtastic.
+            </p>
           </Section>
         </div>
       </main>
