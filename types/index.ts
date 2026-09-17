@@ -380,7 +380,7 @@ export interface Stats {
 // Statistiques réseau — page /stats. CONTRAIREMENT à Stats/PublicNode,
 // agrégats sur TOUT le réseau capté (aucun filtre privacy : un agrégat n'expose
 // aucun individu). La barrière privacy reste sur la carte + temps réel.
-// Cf. docs/analytics.md.
+// Cf. .claude/docs/analytics_2.md.
 // ---------------------------------------------------------------------------
 
 // Une barre d'une répartition.
