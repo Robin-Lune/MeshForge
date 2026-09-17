@@ -66,7 +66,7 @@ export default function Footer() {
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         aria-label="Code source sur GitHub"
-        title="Code source (AGPL-3.0)"
+        title="Code source (AGPL-3.0-or-later)"
         className="inline-flex items-center transition-colors hover:text-foreground"
       >
         <svg

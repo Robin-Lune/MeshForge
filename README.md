@@ -366,13 +366,16 @@ La logique métier suit le cycle **TDD red-green-refactor** (Vitest). Les compos
 
 ## 📄 Licence
 
-MeshForge est distribué sous licence **AGPL-3.0**.
+Copyright (C) 2026 Robin Lebon — La Forge Numérique.
 
-Vous pouvez l'héberger, le modifier et le partager librement, à condition
-de publier vos modifications sous la même licence.
+MeshForge est distribué sous licence **AGPL-3.0-or-later** (GNU Affero General
+Public License, version 3 ou toute version ultérieure) — voir [LICENSE](LICENSE).
+Identifiant SPDX : `AGPL-3.0-or-later` (déclaré dans `package.json`).
 
-Pour un usage commercial en code fermé, une licence commerciale séparée
-est disponible — contact : contact@la-forge-numerique.com
+Vous pouvez l'héberger, le modifier et le partager librement, à condition de
+publier vos modifications sous la même licence, y compris lorsque vous
+l'exploitez uniquement comme service en ligne (article 13 de l'AGPL). Le lien
+vers le code source doit rester accessible depuis l'interface.
 
 <div align="center">
 <sub>Fait avec 💜 pour le mesh réunionnais 🇷🇪</sub>
