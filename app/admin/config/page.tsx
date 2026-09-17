@@ -11,7 +11,10 @@ import {
   setSetting,
   MIN_COVERAGE_TILE_ZOOM,
   MAX_COVERAGE_TILE_ZOOM,
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
 } from "@/lib/queries/settings";
+import { applyRetention } from "@/lib/queries/retention";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +76,24 @@ async function saveChannels(formData: FormData) {
   let error: string | null = null;
   try {
     await setSetting("public_channels", list);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  done(error);
+}
+
+// Enregistre puis applique tout de suite : politique TimescaleDB réalignée et
+// purge immédiate, pour que la page légale et la base reflètent la valeur saisie.
+async function saveRetention(formData: FormData) {
+  "use server";
+  await requireAdminMutation(done);
+  let error: string | null = null;
+  try {
+    const days = await setSetting(
+      "retention_days",
+      String(formData.get("value") ?? ""),
+    );
+    await applyRetention(days);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -280,6 +301,24 @@ export default async function ConfigPage({
                 type="number"
                 min={1}
                 defaultValue={s.misconfig_max_packets_24h}
+                className={numCls}
+              />
+              <button className={btnCls}>OK</button>
+            </form>
+          </Section>
+
+          <Section
+            title="Conservation des données"
+            hint={`Durée de rétention en jours, entre ${MIN_RETENTION_DAYS} et ${MAX_RETENTION_DAYS}. Purge automatique des paquets (politique TimescaleDB, par tranches de 7 jours), des voisinages, des traceroutes et des nodes muets ; un node exclu ou anonymisé garde sa marque mais perd position et batterie. Sous 30 jours, les vues « 30 j » sont tronquées. La valeur est affichée telle quelle sur /mentions-legales.`}
+          >
+            <form action={saveRetention} className="flex gap-2">
+              <input
+                name="value"
+                type="number"
+                min={MIN_RETENTION_DAYS}
+                max={MAX_RETENTION_DAYS}
+                step={1}
+                defaultValue={s.retention_days}
                 className={numCls}
               />
               <button className={btnCls}>OK</button>

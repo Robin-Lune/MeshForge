@@ -8,6 +8,7 @@ import { insertNodeNeighbors } from "../../lib/queries/neighbors";
 import { insertTracerouteSegments } from "../../lib/queries/traceroutes";
 import { upsertGatewayNode, upsertNode } from "../../lib/queries/nodes";
 import { getSetting } from "../../lib/queries/settings";
+import { applyRetention } from "../../lib/queries/retention";
 import { parseMqttPacket } from "./parsers";
 
 const MQTT_URL = process.env.MQTT_URL ?? "mqtt://localhost:1883";
@@ -15,6 +16,8 @@ const MQTT_URL = process.env.MQTT_URL ?? "mqtt://localhost:1883";
 // déchiffrable quand la clé du canal est connue.
 const TOPICS = ["msh/+/+/json/#", "msh/+/+/map/#", "msh/+/+/e/#"];
 const PROTO_DEBUG = process.env.MQTT_PROTO_DEBUG === "1";
+// Rétention : purge + réalignement de la politique TimescaleDB, toutes les heures.
+const RETENTION_TICK_MS = 60 * 60 * 1000;
 
 function log(...args: unknown[]): void {
   console.log(new Date().toISOString(), ...args);
@@ -78,9 +81,27 @@ client.on("message", async (topic, message) => {
 client.on("reconnect", () => log("[mqtt] reconnexion..."));
 client.on("error", (err) => log("[mqtt] erreur:", err.message));
 
+// Rétention pilotée par settings.retention_days (relu à chaque tick, cache 30s).
+// Indépendante de la connexion MQTT : démarrée une fois, jamais réarmée à la
+// reconnexion. Une erreur (DB indispo, TimescaleDB absent) est loguée, jamais fatale.
+async function runRetention(): Promise<void> {
+  try {
+    const days = await getSetting("retention_days");
+    const r = await applyRetention(days);
+    log(
+      `[retention] ${days} j : voisins -${r.neighbors}, segments -${r.traceroutes}, nodes -${r.nodesDeleted} (scrub ${r.nodesScrubbed})${r.policyUpdated ? ", politique packets réalignée" : ""}`,
+    );
+  } catch (err) {
+    log("[retention] échec :", (err as Error).message);
+  }
+}
+void runRetention();
+const retentionTimer = setInterval(runRetention, RETENTION_TICK_MS);
+
 // Arrêt propre : ferme le client MQTT puis la Pool DB.
 async function shutdown(): Promise<void> {
   log("[worker] arrêt...");
+  clearInterval(retentionTimer);
   client.end();
   await pool.end();
   process.exit(0);

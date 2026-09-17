@@ -86,7 +86,8 @@ CREATE INDEX IF NOT EXISTS idx_packets_gateway ON packets (gateway_id,  received
 CREATE INDEX IF NOT EXISTS idx_packets_geo     ON packets (lat, lon) WHERE lat IS NOT NULL;
 
 -- Cycle de vie borné : les requêtes restent transparentes sur les chunks
--- compressés. La rétention de 60 jours conserve les vues 24h / 7j / 30j.
+-- compressés. Rétention par défaut 60 jours ; le worker réaligne cette politique
+-- sur settings.retention_days (éditable sur /admin/config) et purge les autres tables.
 ALTER TABLE packets SET (
     timescaledb.compress,
     timescaledb.compress_orderby = 'received_at DESC',
@@ -204,6 +205,7 @@ INSERT INTO settings (key, value) VALUES
     ('public_channels', '["Fr_Balise","Fr_EMCOM","Fr_BlaBla"]'::jsonb),
     ('map_bounds', '{"west":54.7,"south":-21.9,"east":56.3,"north":-20.4}'::jsonb),
     ('map_min_zoom', '8'::jsonb),
+    ('retention_days', '60'::jsonb),
     ('legal_info', '{
         "companyName": "À compléter",
         "companyType": "À compléter",

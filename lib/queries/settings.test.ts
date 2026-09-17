@@ -17,6 +17,11 @@ import {
   requireLegalInfo,
   parseMqttOnboarding,
   requireMqttOnboarding,
+  parseRetentionDays,
+  requireRetentionDays,
+  DEFAULT_RETENTION_DAYS,
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
 } from "./settings";
 
 // Lecture tolérante d'une valeur stockée (JSONB) : invalide -> fallback.
@@ -307,5 +312,40 @@ describe("coverage_tile_zoom — maille des tuiles de couverture", () => {
     expect(requireCoverageTileZoom(DEFAULT_COVERAGE_TILE_ZOOM)).toBe(
       DEFAULT_COVERAGE_TILE_ZOOM,
     );
+  });
+});
+
+// Durée de conservation (jours). Bornée : en dessous du plancher les vues 7 j
+// n'ont plus de données ; au-delà du plafond on stocke sans fin utile.
+describe("retention_days — durée de conservation", () => {
+  it("lecture : accepte un entier dans la plage (number ou string JSONB)", () => {
+    expect(parseRetentionDays(90, DEFAULT_RETENTION_DAYS)).toBe(90);
+    expect(parseRetentionDays("30", DEFAULT_RETENTION_DAYS)).toBe(30);
+  });
+
+  it("lecture : retombe sur le fallback hors plage, non entier ou absent", () => {
+    expect(parseRetentionDays(MIN_RETENTION_DAYS - 1, 60)).toBe(60);
+    expect(parseRetentionDays(MAX_RETENTION_DAYS + 1, 60)).toBe(60);
+    expect(parseRetentionDays(30.5, 60)).toBe(60);
+    expect(parseRetentionDays(undefined, 60)).toBe(60);
+    expect(parseRetentionDays("abc", 60)).toBe(60);
+  });
+
+  it("écriture : accepte les bornes incluses", () => {
+    expect(requireRetentionDays(MIN_RETENTION_DAYS)).toBe(MIN_RETENTION_DAYS);
+    expect(requireRetentionDays(String(MAX_RETENTION_DAYS))).toBe(MAX_RETENTION_DAYS);
+  });
+
+  it("écriture : refuse hors plage, non entier et non numérique", () => {
+    expect(() => requireRetentionDays(MIN_RETENTION_DAYS - 1)).toThrow();
+    expect(() => requireRetentionDays(MAX_RETENTION_DAYS + 1)).toThrow();
+    expect(() => requireRetentionDays(30.5)).toThrow();
+    expect(() => requireRetentionDays("")).toThrow();
+    expect(() => requireRetentionDays(null)).toThrow();
+  });
+
+  it("le défaut est dans la plage autorisée", () => {
+    expect(DEFAULT_RETENTION_DAYS).toBeGreaterThanOrEqual(MIN_RETENTION_DAYS);
+    expect(DEFAULT_RETENTION_DAYS).toBeLessThanOrEqual(MAX_RETENTION_DAYS);
   });
 });

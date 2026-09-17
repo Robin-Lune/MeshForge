@@ -29,6 +29,7 @@ const A = ({ href, children }: { href: string; children: ReactNode }) => (
 
 export default async function MentionsLegalesPage() {
   const legal = await getSetting("legal_info");
+  const retentionDays = await getSetting("retention_days");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -107,8 +108,12 @@ export default async function MentionsLegalesPage() {
               <strong>jamais</strong> exposés.
             </p>
             <p>
-              <strong>Conservation</strong> : télémétrie ~30 jours (historique)
-              ; comptes contributeurs jusqu’à demande de suppression.
+              <strong>Conservation</strong> : paquets, positions, voisinages et
+              traceroutes sont purgés automatiquement au bout de{" "}
+              <strong>{retentionDays} jours</strong> (les paquets par tranches de
+              7 jours, soit au plus {retentionDays + 7} jours) ; un node sans
+              activité depuis {retentionDays} jours est effacé. Comptes
+              contributeurs : jusqu’à demande de suppression.
             </p>
             <p>
               <strong>Vos droits</strong> (accès, rectification, effacement,

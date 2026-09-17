@@ -18,7 +18,8 @@ export type SettingKey =
   | "map_min_zoom"
   | "coverage_tile_zoom"
   | "legal_info"
-  | "mqtt_onboarding";
+  | "mqtt_onboarding"
+  | "retention_days";
 
 export interface LegalInfo {
   companyName: string;
@@ -49,6 +50,7 @@ interface SettingValues {
   coverage_tile_zoom: number;
   legal_info: LegalInfo;
   mqtt_onboarding: MqttOnboarding;
+  retention_days: number;
 }
 
 export const DEFAULT_MAX_PACKETS_24H = 1000;
@@ -69,6 +71,12 @@ const DEFAULT_MIN_ZOOM = 8;
 export const DEFAULT_COVERAGE_TILE_ZOOM = 15;
 export const MIN_COVERAGE_TILE_ZOOM = 12;
 export const MAX_COVERAGE_TILE_ZOOM = 16;
+// Durée de conservation (jours) : politique TimescaleDB de `packets` + purge des
+// tables simples et des nodes muets (lib/queries/retention.ts). Plancher = fenêtre
+// de la toile (7 j) ; plafond 2 ans. Affichée telle quelle sur /mentions-legales.
+export const DEFAULT_RETENTION_DAYS = 60;
+export const MIN_RETENTION_DAYS = 7;
+export const MAX_RETENTION_DAYS = 730;
 const DEFAULT_LEGAL_INFO: LegalInfo = {
   companyName: "À compléter",
   companyType: "À compléter",
@@ -214,6 +222,25 @@ export function requireCoverageTileZoom(raw: unknown): number {
   if (!isTileZoom(n)) {
     throw new Error(
       `maille invalide : entier dans [${MIN_COVERAGE_TILE_ZOOM},${MAX_COVERAGE_TILE_ZOOM}] attendu`,
+    );
+  }
+  return n;
+}
+
+// --- Durée de conservation : ENTIER dans [MIN_RETENTION_DAYS, MAX_RETENTION_DAYS] ---
+const isRetentionDays = (n: number): boolean =>
+  Number.isInteger(n) && n >= MIN_RETENTION_DAYS && n <= MAX_RETENTION_DAYS;
+
+export function parseRetentionDays(raw: unknown, fallback: number): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return isRetentionDays(n) ? n : fallback;
+}
+
+export function requireRetentionDays(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!isRetentionDays(n)) {
+    throw new Error(
+      `durée invalide : entier dans [${MIN_RETENTION_DAYS},${MAX_RETENTION_DAYS}] jours attendu`,
     );
   }
   return n;
@@ -368,6 +395,11 @@ const SPECS: { [K in SettingKey]: Spec<K> } = {
     default: DEFAULT_MQTT_ONBOARDING,
     parseStored: (raw) => parseMqttOnboarding(raw, DEFAULT_MQTT_ONBOARDING),
     validateInput: (raw) => requireMqttOnboarding(raw),
+  },
+  retention_days: {
+    default: DEFAULT_RETENTION_DAYS,
+    parseStored: (raw) => parseRetentionDays(raw, DEFAULT_RETENTION_DAYS),
+    validateInput: (raw) => requireRetentionDays(raw),
   },
 };
 
