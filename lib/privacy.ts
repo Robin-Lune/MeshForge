@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 // Règle privacy de la carte publique, centralisée.
 // Politique : PUBLIC PAR DÉFAUT. Un node localisé est visible. Les mobiles le sont
-// aussi, mais leur position est FLOUTÉE par snapToGrid (cellule ~1,5 km constante).
+// aussi, mais leur position est FLOUTÉE par snapToGrid (cellule ~500 m constante).
 // Appliquée à deux endroits qui DOIVENT rester cohérents :
 //   - getPublicNodes (filtre SQL de l'API REST)
 //   - upsertNode (décide si un pg_notify temps réel part)
@@ -15,6 +15,15 @@ export interface VisibilityInput {
 // Caché si : pas de position OU retrait RGPD demandé (excluded). Sinon visible.
 export function isPubliclyVisible(node: VisibilityInput): boolean {
   return !node.excluded && node.lat !== null && node.lon !== null;
+}
+
+// Défaut prudent : seule une valeur FALSE explicite, posée par un admin pour un
+// relais fixe, autorise l'affichage exact. Une ancienne ligne NULL reste floutée
+// même avant l'application de la migration NOT NULL.
+export function shouldSnapPosition(
+  isMobile: boolean | null | undefined,
+): boolean {
+  return isMobile !== false;
 }
 
 // Flou CONSTANT pour les mobiles : snap sur le centre d'une cellule ~500 m.

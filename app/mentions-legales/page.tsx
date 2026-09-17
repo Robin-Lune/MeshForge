@@ -105,10 +105,12 @@ export default async function MentionsLegalesPage() {
             </p>
             <p>
               <strong>Données traitées</strong> : identifiant de node (NodeID),
-              position (à la précision diffusée par l’appareil ; les nodes
-              mobiles sont floutés sur une cellule constante), télémétrie
-              (batterie, SNR, etc.). Pour les contributeurs : identifiant,
-              e-mail (jamais affiché publiquement) et mot de passe haché.
+              position à la précision diffusée par l’appareil, télémétrie
+              (batterie, SNR, etc.). Les coordonnées reçues sont conservées en
+              base pendant la durée indiquée ci-dessous ; dans les affichages
+              publics, les nodes mobiles sont floutés sur une cellule constante
+              d’environ 500 m. Pour les contributeurs : identifiant, e-mail
+              (jamais affiché publiquement) et mot de passe haché.
             </p>
             <p>
               <strong>Canaux traités</strong> : seuls les canaux Meshtastic{" "}

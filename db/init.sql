@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     hw_model      TEXT,                       -- ex: HELTEC_V4
     firmware      TEXT,
     role          TEXT,                       -- CLIENT / ROUTER / ROUTER_CLIENT / etc.
-    is_mobile     BOOLEAN DEFAULT TRUE,       -- défaut prudent : position floutée ~0.5 km
+    is_mobile     BOOLEAN NOT NULL DEFAULT TRUE, -- défaut prudent : position floutée ~0.5 km
     last_lat      DOUBLE PRECISION,
     last_lon      DOUBLE PRECISION,
     last_battery  SMALLINT,
@@ -138,8 +138,10 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gateway_override BOOLEAN;
 -- Colonne morte retirée : la visibilité ne dépend QUE de excluded + règles privacy.
 ALTER TABLE nodes DROP COLUMN IF EXISTS share_on_map;
 -- is_mobile par défaut prudent (privacy) : flou ~0.5 km sauf relais fixe confirmé.
--- N'affecte QUE les futurs INSERT ; les nodes existants gardent leur valeur.
+-- Répare les anciennes lignes NULL avant de verrouiller la contrainte.
+UPDATE nodes SET is_mobile = TRUE WHERE is_mobile IS NULL;
 ALTER TABLE nodes ALTER COLUMN is_mobile SET DEFAULT TRUE;
+ALTER TABLE nodes ALTER COLUMN is_mobile SET NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- contributors — comptes. Auth MQTT (mosquitto-go-auth) ET auth web.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import { snapToGrid } from "../privacy";
+import { shouldSnapPosition, snapToGrid } from "../privacy";
 import type {
   NodeTraceroute,
   RawMeshtasticPacket,
@@ -97,11 +97,15 @@ export function toNodeTraceroutes(
       byKey.set(key, t);
     }
     const fromPos =
-      r.fromLat != null && r.fromLon != null && r.fromIsMobile !== false
+      r.fromLat != null &&
+      r.fromLon != null &&
+      shouldSnapPosition(r.fromIsMobile)
         ? snapToGrid(r.fromLat, r.fromLon)
         : { lat: r.fromLat, lon: r.fromLon };
     const toPos =
-      r.toLat != null && r.toLon != null && r.toIsMobile !== false
+      r.toLat != null &&
+      r.toLon != null &&
+      shouldSnapPosition(r.toIsMobile)
         ? snapToGrid(r.toLat, r.toLon)
         : { lat: r.toLat, lon: r.toLon };
     t.hops.push({

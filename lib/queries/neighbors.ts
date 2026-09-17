@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Robin Lebon — La Forge Numérique
 import { pool } from "../db";
-import { snapToGrid } from "../privacy";
+import { shouldSnapPosition, snapToGrid } from "../privacy";
 import type { NeighborReport, NodeNeighbor } from "../../types";
 
 const INSERT_NEIGHBOR = `
@@ -45,12 +45,14 @@ interface NeighborRow {
 }
 
 // PRIVACY : un voisin mobile (is_mobile != FALSE) voit sa position snappée
-// (~1,5 km), comme sur la carte publique ; seul un relais fixe assumé est exact.
+// (~500 m), comme sur la carte publique ; seul un relais fixe assumé est exact.
 export function toNodeNeighbors(rows: NeighborRow[]): NodeNeighbor[] {
   return rows.map((r) => {
     const located = r.lat != null && r.lon != null;
     const pos =
-      located && r.isMobile !== false ? snapToGrid(r.lat!, r.lon!) : { lat: r.lat, lon: r.lon };
+      located && shouldSnapPosition(r.isMobile)
+        ? snapToGrid(r.lat!, r.lon!)
+        : { lat: r.lat, lon: r.lon };
     return {
       nodeId: r.nodeId,
       name: r.name,

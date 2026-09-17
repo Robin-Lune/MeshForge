@@ -7,7 +7,7 @@ import NodeNeighborhood from "@/components/node-neighborhood/NodeNeighborhood";
 import NodeLinksTables from "@/components/NodeLinksTables";
 import { isAdmin } from "@/lib/admin";
 import { isSameOrigin } from "@/lib/security";
-import { snapToGrid } from "@/lib/privacy";
+import { shouldSnapPosition, snapToGrid } from "@/lib/privacy";
 import {
   getNodeById,
   setNodeExcluded,
@@ -161,10 +161,9 @@ export default async function NodePage({
   const title = node.longName ?? node.shortName ?? node.nodeId;
   const isBridge = gateways.length >= 2;
   // PRIVACY : position du sujet snappée sauf relais fixe explicite (is_mobile
-  // FALSE). Défaut prudent TRUE/NULL -> floutée, cohérent avec neighbors.ts /
-  // node-map-links.ts (r.isMobile !== false) et la carte publique.
+  // FALSE). Défaut prudent TRUE/NULL -> floutée, comme les autres sorties publiques.
   const subjectPos =
-    node.lat != null && node.lon != null && node.isMobile !== false
+    node.lat != null && node.lon != null && shouldSnapPosition(node.isMobile)
       ? snapToGrid(node.lat, node.lon)
       : { lat: node.lat, lon: node.lon };
 

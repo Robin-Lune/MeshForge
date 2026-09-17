@@ -111,7 +111,7 @@ export interface PublicNode {
   lastSeen: string | null; // ISO 8601
   isGateway: boolean; // relaie vers MQTT (apparaît comme gateway_id) → marker vert
   lastSnr: number | null; // dernier SNR reçu (signal), pour la fiche au survol
-  isMobile: boolean; // true → position approximative (snappée ~1,5 km)
+  isMobile: boolean; // true → position approximative (snappée ~500 m)
 }
 
 // Détail complet d'un node (page /node/[id], au clic sur un marker).
